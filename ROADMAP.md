@@ -1,132 +1,100 @@
-# Text-Based RPG Adventure Game Design - Comprehensive Development Roadmap
+# Philippine Mythology RPG — Comprehensive Development Roadmap
 
-Welcome to the development roadmap for **Aetheria: The Shattered Bastion**, built strictly and thoroughly according to the complete 5-page Game Design Document (GDD).
+Welcome to the comprehensive development roadmap for **Maharlika: Legends of the Archipelago**, built strictly according to the Philippine Mythology & Folklore design specifications.
 
 ---
 
 ## 📋 Overall Development Status & Checklist
 
-Following our **QA Protocol**, items in a Phase are implemented and verified internally first, entering **QA Mode**. The checkboxes are **ONLY** crossed off (`[x]`) after receiving explicit user approval in chat.
+Following our **QA & Approval Protocol**:
+1. Features for each phase are built and verified internally.
+2. Upon completing a phase, we enter **Active QA Mode** with a structured verification breakdown and interactive test steps.
+3. The checklist item is **AUTOMATICALLY crossed off (`[x]`) ONLY upon receiving explicit user approval in chat**.
+4. We **ONLY proceed to the next phase when the previous phase has been approved**.
+5. If anything is unclear, we **always ask the user rather than make assumptions**.
 
 ---
 
-### Phase 1: Core Systems, Character Stats & Tiered Economy Engine
-- [x] **Milestone 1.1: Primary Attributes & Attribute Point Allocation**
-  - Technical Implementation: Initialize base stats at 10 points each: Strength (`STR`), Agility (`AGI`), Intelligence (`INT`), and Vitality (`VIT`).
-  - Technical Implementation: Award +3 Attribute Points (AP) per character level-up for player allocation.
-  - Technical Implementation: `STR` effects: +2.5 Flat Physical Damage (Melee), +1 Inventory Capacity per 2 points.
-  - Technical Implementation: `AGI` effects: +2.5 Flat Physical Damage (Bows/Daggers), +0.3% Dodge Rate, +0.5% Critical Hit Chance.
-  - Technical Implementation: `INT` effects: +3.0 Magic Damage (Staves), +10 Max Mana, +0.5 Magic Defense.
-  - Technical Implementation: `VIT` effects: +25 Max Health, +0.8 Physical Armor, +1 HP regen/tick outside combat.
-- [x] **Milestone 1.2: Derived Stats & Mathematical Formulas Engine**
-  - Technical Implementation: `Max HP` = `100 + (VIT * 25) + (Level * 15)`
-  - Technical Implementation: `Max MP` = `50 + (INT * 10) + (Level * 8)`
-  - Technical Implementation: `Damage Reduction (%)` = `[Armor / (Armor + 150)] * 100`
-  - Technical Implementation: `Level Progression`: EXP needed for level N: `EXP_Req = 100 * (N ^ 1.6)`
-- [x] **Milestone 1.3: Tiered Metal Currency & Prismatic Economy**
-  - Technical Implementation: 100:1 metal currency ratio system:
-    - Copper Coins (CC): Base currency for street snacks, arrows, low-tier potions.
-    - Silver Shillings (SS): 1 SS = 100 CC. Used for mid-tier gear, inn stays, standard weapon upgrades.
-    - Gold Sovereigns (GS): 1 GS = 100 SS (10,000 CC). Used for high-tier artifacts, property, exotic spell tomes.
-    - Prismatic Shards (PS): Rare dungeon-only salvage used to reroll randomized affixes at the Enchanter.
-  - Technical Implementation: Utility functions for parsing currency display (e.g. `1 SS 20 CC`), automated upgrading/downgrading across metal tiers, and spending checks.
+### Phase 1: Core Types, Economy & Equipment Catalog (Mounts & 10 Tiers)
+- [ ] **Milestone 1.1: Pre-Colonial Economy & Type Architecture**
+  - Technical Implementation: Update `Wallet` in `src/types/game.ts` to use `cowrieShells`, `silverPieces`, `goldIngots`, and `mutyaShards` with 100:1 conversion.
+  - Technical Implementation: Replace legacy `bike` slot in `EquipmentSlots` with dedicated `mount: EquipmentItem | null` slot.
+  - Technical Implementation: Add Act progression tracking types (`act6Completed`, `mountUnlocked`, `forfeitedQuestIds`, `unlockedActId`).
+- [ ] **Milestone 1.2: Mathematical Engine & Mount Stat Scaling**
+  - Technical Implementation: Update `src/utils/gameFormulas.ts` with Cowrie Shell formatters (`formatCostInCowries`, `totalCowriesFromWallet`).
+  - Technical Implementation: Update `calcDerivedStats` to calculate mount bonuses (Speed, HP, Armor, Elemental resistances).
+- [ ] **Milestone 1.3: 10-Tier English Bladed Weapons, Armors & Post-Act 6 Mounts**
+  - Technical Implementation: 10 tiers of Daggers & Shortblades (*Rusted Sickle*, *Batangas Balisong*, *Moro Kalis*, *Venomous Dahong Palay*, *Silvered Kris*).
+  - Technical Implementation: 10 tiers of Swords (*Itak*, *Jungle Bolo*, *Barong*, *Panabas Cleaver*, *Lapu-Lapu's Great Kampilan*, *Apolaki's Sun Greatsword*).
+  - Technical Implementation: 10 tiers of Ranged Weapons (*Bamboo Bow*, *Rattan Shortbow*, *Hunter's Sumpit Poison Blowgun*, *Ironwood Warbow*).
+  - Technical Implementation: 10 tiers of Staves (*Bamboo Cane*, *Shaman's Yantok*, *Carabao Horn Staff*, *Mayari Living-Wood Wand*).
+  - Technical Implementation: 10 tiers of Upper Armor (*Woven Cotton*, *Abaca Jerkin*, *Carabao Leather Tunic*, *Sacred Pintados Tattoos*, *Rajah's Chainmail*).
+  - Technical Implementation: 10 tiers of Lower Armor (*Woven Breeches*, *Rawhide Chaps*, *Studded Abaca Trousers*, *Warrior's Salawal*).
+  - Technical Implementation: 5 Post-Act 6 Mythical Mounts (*Armored Tamaraw War Buffalo*, *Sacred Mountain Carabao*, *Gilded Sarimanok Drake*, *Shadow Sigbin Hound*, *Bakunawa Hatchling*).
 
 ---
 
-### Phase 2: Consumables, Status Effects & Full Equipment Database
-- [x] **Milestone 2.1: Status Effects Engine (Buffs & Debuffs)**
-  - Technical Implementation: Buffs:
-    - *Fortified*: Increases total Armor by 20%.
-    - *Haste*: Action speed +25% (extra turn every 4 rounds).
-    - *Regeneration*: Restores 4% Max HP per combat turn.
-    - *Empowered*: Next skill/spell deals 50% more base damage.
-  - Technical Implementation: Debuffs:
-    - *Bleed*: Deals 5% Max HP as physical damage per turn (ignores armor); lasts 3 turns.
-    - *Burn*: Deals flat fire damage per turn & halves healing received; lasts 4 turns.
-    - *Poison*: Escalating nature damage (Turn 1: X, Turn 2: 2X, Turn 3: 3X); lasts 3 turns.
-    - *Exhaustion*: Reduces max stamina/mana regeneration by 50% and decreases dodge by 15%.
-- [x] **Milestone 2.2: Consumable Items Engine**
-  - Technical Implementation: Implement all 5 GDD consumables with cost, duration, and effects:
-    - *Minor Healing Draught* (25 CC, Instantly recovers 50 HP, Instant)
-    - *Elixir of Clarity* (45 CC, Recovers 40 MP and removes Exhaustion, Instant)
-    - *Berserker's Brew* (1 SS 20 CC, +25% Physical DMG, -15% Armor, 4 Turns)
-    - *Stoneskin Tincture* (1 SS 50 CC, Grants Fortified and immunity to Bleed, 5 Turns)
-    - *Panacea Vial* (3 SS, Cleanses all active debuffs, Instant)
-- [x] **Milestone 2.3: Procedural Equipment Catalog (Armor & Weapons)**
-  - Technical Implementation: Upper Armor (10 Tiers): Threadbare Tunic (L1, 4 Arm, Cloth/All), Boiled Leather Jerkin (L4, 9 Arm, +2 Dodge, Light/Rogue), Riveted Chainmail Shirt (L8, 16 Arm, Medium/Warrior), Scholar's Silk Robe (L12, 8 Arm, +12 MP, Cloth/Mage), Reinforced Brigandine (L16, 26 Arm, +5 HP, Medium/Balanced), Steel Cuirass (L20, 38 Arm, -2 Dodge, Heavy/Knight), Runed Spellthread Gown (L25, 18 Arm, +8% M.DMG, Cloth/Arcane), Shadow-Stalker Gambeson (L30, 32 Arm, +8% Crit, Light/Scout), Dragonhide Hauberk (L36, 48 Arm, +20 Fire RES, Medium/Elite), Abyssal Dreadplate (L42, 68 Arm, -5 Dodge, Heavy/Juggernaut).
-  - Technical Implementation: Lower Armor (10 Tiers): Worn Canvas Trousers (L1, 2 Arm, Cloth/All), Rawhide Chaps (L4, 6 Arm, +1 Dodge, Light/Scout), Studded Leather Breeches (L8, 11 Arm, Medium/Rogue), Padded Mage Leggings (L12, 6 Arm, +8 MP, Cloth/Mage), Ringmail Chausses (L16, 18 Arm, Medium/Warrior), Tempered Steel Greaves (L20, 26 Arm, -1 Dodge, Heavy/Knight), Astral Weaver Trousers (L25, 12 Arm, +5% M.DMG, Cloth/Arcane), Night-Prowler Slacks (L30, 22 Arm, +5% Dodge, Light/Assassin), Wyrmscale Legplates (L36, 34 Arm, +15 Fire RES, Medium/Elite), Colossus Bulwark Greaves (L42, 48 Arm, -3 Dodge, Heavy/Juggernaut).
-  - Technical Implementation: Daggers (5 Types): Rusted Shiv (L1, 4–7 Phys, +5% Crit Multiplier), Bone-Handled Stiletto (L8, 12–16 Phys, +15% Armor Penetration), Serrated Dirk (L16, 22–29 Phys, 20% Chance to Bleed), Assassin's Misericorde (L26, 38–48 Phys, +10% Crit Chance), Void-Glass Fang (L38, 58–70 Phys, 15% True Damage conversion).
-  - Technical Implementation: Swords (10 Types): Dull Training Blade (L1), Iron Shortsword (L5, +2% Parrying), Steel Arming Sword (L10, +1 AGI/+1 STR), Guard's Broadsword (L15, +5% Stun), Tempered Falchion (L20, +8% Cleave), Silvered Claymore (L25, 2H, +25% vs Undead), Flame-Forged Longsword (L30, 20% Burn), Runed Bastard Sword (L35, Scales STR or INT), Mithril Greatsword (L40, Ignores 20% Armor), Sun-Shatter Blade (L45, Heals 5% DMG dealt).
-  - Technical Implementation: Bows (10 Types): Birch Shortbow (L1, 1.1x speed), Ash Hunting Bow (L5, +3% Crit), Recurve Yew Bow (L10, +10m Range), Composite Horn Bow (L15, +10% Armor Pen), Heavy Ironwood Longbow (L20, 15% Knockback), Bladethorn Reflex Bow (L25, Bleed on Crit), Whisperwind Flatbow (L30, -50% Aggro), Dragon-Sinew Warbow (L35, +20% STR to arrow DMG), Star-Glass Composite (L40, Ignores weather), Void-String Phoenix Bow (L45, 3m AoE explosion).
-  - Technical Implementation: Magic Staves (10 Types): Gnarled Oak Branch (L1, +5 MP), Apprentice Focus Staff (L5, -1 MP spell cost), Chipped Crystal Rod (L10, +5% Arcane Crit), Pyromancer's Brand (L15, +15% Burn duration), Glacial Spire Staff (L20, 20% Chill slow), Thunderhead Rod (L25, Spells chain to +1 target), Sylvan Living-Wood Cane (L30, Restores 2% MP/round), Necrotic Bone-Staff (L35, Shielding on kill), Archmage Spire (L40), Eclipse Void-Staff (L45).
+### Phase 2: The 8-Act World, 39 Monsters & 8 Bosses Engine
+- [ ] **Milestone 2.1: 8 Act Zones & Exploration Data**
+  - Technical Implementation: Define 8 Act Locations in `equipmentData.ts` with English titles, level brackets, and lore:
+    - Act I: *The Whispering Balete Forest* (Lv 1–6)
+    - Act II: *Lagoon of the Sunken Sirens* (Lv 7–12)
+    - Act III: *Caves of the Ancestral Dead* (Lv 13–18)
+    - Act IV: *The Ash-Wreathed Caldera* (Lv 19–25)
+    - Act V: *The Cursed Blood Coast* (Lv 26–32)
+    - Act VI: *Trench of the Abyssal Tide* (Lv 33–39)
+    - Act VII: *Spires of the Sky-Citadel* (Lv 40–46)
+    - Act VIII: *Maw of the Great Eclipse* (Lv 47–55+)
+- [ ] **Milestone 2.2: 39 Regular Monsters (Exact Formula)**
+  - Technical Implementation: 3 enemies each for Acts 1 to 3 ($3 + 3 + 3 = 9$).
+  - Technical Implementation: $[N]$ enemies for Acts 4 to 8 ($4 + 5 + 6 + 7 + 8 = 30$).
+  - Technical Implementation: Full stat blocks, damage types, drop rates, and abilities in `monstersData.ts`.
+- [ ] **Milestone 2.3: 8 Mandatory Act Guardian Bosses**
+  - Technical Implementation: Build all 8 Act Bosses with unique combat abilities and climax mechanics:
+    - Act I: *The Ancient Kapre*
+    - Act II: *Magindara, The Siren Matriarch*
+    - Act III: *Avatar of the Sun God (Shadow Apolaki)*
+    - Act IV: *Heart of Mount Kanlaon*
+    - Act V: *The Primordial Aswang Warlord*
+    - Act VI: *Tambanokano, The Moon-Crusher*
+    - Act VII: *Celestial Arbiter of Mount Arayat*
+    - Act VIII: *Bakunawa, The Moon-Devouring Serpent*
 
 ---
 
-### Phase 3: Central Hub (Haven's Rest) & Exploration Loop
-- [x] **Milestone 3.1: Haven's Rest Central Hub**
-  - Technical Implementation: *The Iron Anvil*: Blacksmith upgrades base gear tiers; Enchanter rerolls randomized affixes (prefixes/suffixes) using Prismatic Shards (PS).
-  - Technical Implementation: *The Rusty Goblet*: Inn to clear Exhaustion debuffs, buy food buffs, and accept Colossus Bounties.
-  - Technical Implementation: *The Alchemist's Mortar*: Brew recovery vials, draughts, and refine herbs.
-  - Technical Implementation: *The Anchor Gate*: Waypoint portal to unlocked Act expedition zones.
-- [x] **Milestone 3.2: Sector Exploration Loop**
-  - Technical Implementation: `[Scout / Step Forward]`: Standard step; rolls random encounter, event, or resource node.
-  - Technical Implementation: `[Search Surroundings]`: High-risk scan; boosts chest rates and triggers elite ambushes.
-  - Technical Implementation: `[Camp / Rest]`: Consume food to recover HP/MP with night ambush risk.
-  - Technical Implementation: `[Challenge Sector Boss]`: Unlocks after discovering 3 regional clues or defeating sector lieutenants.
+### Phase 3: 80 Bounties System & 24 Mandatory Side Quests
+- [ ] **Milestone 3.1: 80 Bounties Database (10 Per Act)**
+  - Technical Implementation: Build all 80 bounties in `src/data/bountiesData.ts` with English titles, targets, minimum level locks, and rewards.
+  - Technical Implementation: Level 3+ unlock validation.
+  - Technical Implementation: Strict maximum 3 active bounties constraint.
+- [ ] **Milestone 3.2: 24 Mandatory Side Quests (3 Per Act)**
+  - Technical Implementation: Build 3 mandatory side quests per Act with English lore objectives.
+  - Technical Implementation: Journal tracking in `src/components/JournalView.tsx` with Active, Completed, and Forfeited state badges.
 
 ---
 
-### Phase 4: Main Campaign (Acts I to V) & World Boss Raids
-- [x] **Milestone 4.1: Act I - The Awakening Fog (Levels 1–10)**
-  - Technical Implementation: Zone: *The Ashen Glade* (Mist-choked forest, timber wolves, scavengers). Gear Bracket: Tier 1–2.
-  - Technical Implementation: Objective: Cleanse corrupted spring poisoning Haven's water source.
-  - Technical Implementation: Climax: Defeat Anchor Boss **Root-Hulk Malphas** (hollow ironwood ancient animated by leaking shard). Slaying Malphas stabilizes 1st Anchor and reveals sabotage.
-- [x] **Milestone 4.2: Act II - The Weeping Tombs (Levels 10–20)**
-  - Technical Implementation: Zone: *The Sunken Catacombs* (Flooded crypts, skeleton sentries, marsh leeches). Gear Bracket: Tier 3–4.
-  - Technical Implementation: Objective: Track rogue Ash-Sworn cult into royal necropolis beneath Haven.
-  - Technical Implementation: Climax: Confront Anchor Boss **High Priestess Valthea** on Sunken Dais. Slashes 2nd Anchor before your eyes.
-- [x] **Milestone 4.3: Act III - The Cinder Wastes (Levels 20–30)**
-  - Technical Implementation: Zone: *Scorch-Rock Crags* (Sulfuric vents, volcanic drakes, dwarven reavers). Gear Bracket: Tier 5–6.
-  - Technical Implementation: Objective: Secure high passes to reach Ancient Forge.
-  - Technical Implementation: Climax: Slay Anchor Boss **Ignis the Pyre Wyrm** nesting over geothermal Great Anvil.
-- [x] **Milestone 4.4: Act IV - The Abyss Unveiled (Levels 30–40)**
-  - Technical Implementation: Zone: *The Sunless Depths* (Subterranean bioluminescent chasms, aberrant horrors, void heralds). Gear Bracket: Tier 7–8.
-  - Technical Implementation: Objective: Descend into planetary mantle to reactivate Master Seal.
-  - Technical Implementation: Climax: Defeat Anchor Boss **Void-Gazer Xar'koth** (astral aberration feeding on sanity).
-- [x] **Milestone 4.5: Act V - The Shattered Ascent (Levels 40–50)**
-  - Technical Implementation: Zone: *The Broken Crown* (Floating obsidian spires suspended by raw aether). Gear Bracket: Tier 9–10.
-  - Technical Implementation: Climax / World Titan Raid: **Gorgoroth, the Earth-Breaker**. Multi-phase raid requiring targeting structural limbs, sundering heavy plates with elemental weaknesses, and bracing against arena tremors.
+### Phase 4: Act Progression Gates, Forfeit Mechanics & Mount Unlock
+- [ ] **Milestone 4.1: Act Gate & Forfeit Protocol**
+  - Technical Implementation: In `WorldHuntView.tsx`, prevent advancing to Act $N+1$ until Act $N$ Boss is defeated AND all 3 side quests in Act $N$ are completed.
+  - Technical Implementation: Warning modal alerting player if any side quests will be forfeited.
+- [ ] **Milestone 4.2: Post-Act 6 Mount Unlock & Stable Integration**
+  - Technical Implementation: Lock Mount slot in `InventoryView.tsx` during Acts 1 to 6.
+  - Technical Implementation: Slaying Act 6 Boss unlocks the Stables, awards the first mount, and permits equipping mounts.
 
 ---
 
-### Phase 5: Side Quests, World Encounters & Colossus Bounties
-- [x] **Milestone 5.1: Side Quest 1 - The Blind Cartographer**
-  - Technical Implementation: Unlock via Cracked Compass in Act I glade. Task: Kindle beacon fires at high outlooks across all 5 zones. Reward: Permanent map vision (-15% ambush chance, +10% chest spawn).
-- [x] **Milestone 5.2: Side Quest 2 - Blood of the Forge**
-  - Technical Implementation: Unlock via Torvald the Smith at Tier 3 gear. Task: Harvest 3 elite beasts: Brine-Tusk Boar, Obsidian Crab, Chitin Stalker. Reward: Masterwork Sockets (locks 1 chosen affix during rerolls).
-- [x] **Milestone 5.3: Side Quest 3 - The Deserting Herald**
-  - Technical Implementation: Event with wounded cult defector carrying relics. Decisions: Execute for bounty (+5 SS, rep), Heal him (unlocks black market vendor), or Rob him (curse: +10% Crit, -50 Max HP).
-- [x] **Milestone 5.4: Colossus Bounties Notice Board**
-  - Technical Implementation: Unlock at Rusty Goblet (Lv 15+). Hunt daily elite monsters with rolled combat affixes for Prismatic Shards, Gold Sovereigns, and chest keys.
+### Phase 5: Town Hub (Poblacion Sanctuary), Combat Arena & Raid Polish
+- [ ] **Milestone 5.1: Poblacion Sanctuary Overhaul**
+  - Technical Implementation: Reskin `TownHub.tsx` into *Poblacion Sanctuary* (*Panday Pira's Forge*, *Sanctuary Inn*, *Shaman's Apothecary*, *Beastmaster Stables*, *Bounty Notice Board*).
+- [ ] **Milestone 5.2: Martial Combat Arena & Bakunawa Moon-Serpent Raid**
+  - Technical Implementation: Update `CombatArena.tsx` with English martial moves (*Kampilan Strike*, *Balisong Flurry*, *Shaman Orations*, *Sumpit Darts*).
+  - Technical Implementation: Overhaul `TitanRaidView.tsx` into **Bakunawa: The Great Moon Serpent Raid**.
+- [ ] **Milestone 5.3: End-to-End System QA & Production Build**
+  - Technical Implementation: Type check validation (`tsc --noEmit`), Vite production build verification, and clean Level 1 starter state initialization.
 
 ---
 
-### Phase 6: Sample Text RPG Interface & Dual-Viewport Polish
-- [x] **Milestone 6.1: Authentic Text RPG Encounter Interface**
-  - Technical Implementation: Render header with Location, Danger Level, HP, MP, Status, Equipped Gear, and Metal / Prismatic Shard counters.
-  - Technical Implementation: Event card displaying beast descriptions, debuff risks, and command dock: `[1] Attack`, `[2] Cast Spell`, `[3] Parry & Counter`, `[4] Use Item`, `[5] Attempt Retreat (AGI check)`.
-- [x] **Milestone 6.2: Dual Viewport Responsiveness (Mobile & Desktop)**
-  - Technical Implementation: Mobile (< 768px): Thumb-zone bottom navbar (`Hero`, `Inventory`, `Battle`, `Haven Hub`, `Sectors`, `Roadmap & QA`), bottom sheet modals, sticky action dock.
-  - Technical Implementation: Desktop (≥ 768px): Multi-column layout with Paper-Doll Inspector, Stage/Terminal, and Inventory/Log sidebar. Keyboard shortcuts (`1-5`, `C`, `I`, `B`, `T`, `R`).
-- [x] **Milestone 6.3: Web Audio API & State Persistence**
-  - Technical Implementation: Synthesize combat hits, spell casts, item gulping, coins clinking, and level-up fanfares via Web Audio API.
-  - Technical Implementation: Full local storage persistence with JSON import/export save states.
-
----
-
-## 🛡️ QA Protocol & Approval Gate
-
-1. **Phase Execution**: Features for each phase are built and verified internally.
-2. **Mandatory QA Mode**: Upon finishing code implementation for any phase, the developer MUST enter **QA Mode** in the chat summary.
-3. **Approval Gate**: **CRITICAL: The developer MUST NOT mark any checklist item `[x]` in `ROADMAP.md` until the user explicitly responds in chat approving the QA phase!**
-4. **Transition**: Once user approval is received in chat, the checklist items for that phase are marked as completed (`[x]`), and implementation proceeds to the next phase.
+## 🛡️ Operating Rules Reminder
+- **Never proceed to the next phase without explicit User Approval in chat.**
+- **Auto-mark `[x]` upon approval; remain in active QA mode until approved.**
+- **Always ask the user when anything is unclear rather than assume.**
