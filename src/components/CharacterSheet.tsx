@@ -6,7 +6,7 @@ import { soundFX } from '../utils/audio';
 interface CharacterSheetProps {
   player: PlayerCharacter;
   setPlayer: React.Dispatch<React.SetStateAction<PlayerCharacter>>;
-  onUnequipItem: (slot: 'upperArmor' | 'lowerArmor' | 'primaryWeapon' | 'specialWeapon' | 'heavyWeapon' | 'bike') => void;
+  onUnequipItem: (slot: 'upperArmor' | 'lowerArmor' | 'primaryWeapon' | 'specialWeapon' | 'heavyWeapon' | 'mount' | 'bike') => void;
 }
 
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
@@ -145,7 +145,11 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             <EquippedSlotCard slotTitle="Heavy Titan Weapon" item={player.equipment.heavyWeapon} onUnequip={() => onUnequipItem('heavyWeapon')} />
             <EquippedSlotCard slotTitle="Upper Armor" item={player.equipment.upperArmor} onUnequip={() => onUnequipItem('upperArmor')} />
             <EquippedSlotCard slotTitle="Lower Armor" item={player.equipment.lowerArmor} onUnequip={() => onUnequipItem('lowerArmor')} />
-            <EquippedSlotCard slotTitle="Vehicle / Bike" item={player.equipment.bike} onUnequip={() => onUnequipItem('bike')} />
+            <EquippedSlotCard 
+              slotTitle={player.act6Completed || player.mountUnlocked ? "Mythical Mount" : "Mount (Locked: Post-Act 6)"} 
+              item={player.equipment.mount || player.equipment.bike || null} 
+              onUnequip={() => onUnequipItem('mount')} 
+            />
           </div>
         </div>
 

@@ -22,12 +22,17 @@ export interface DerivedStats {
   powerLevel: number; // Overall gear & stat score (Titan Conquest style)
 }
 
-// Currency System
+// Currency System (Pre-Colonial Philippine 100:1 Ratio)
 export interface Wallet {
-  copperCoins: number; // CC
-  silverShillings: number; // SS (1 SS = 100 CC)
-  goldSovereigns: number; // GS (1 GS = 100 SS = 10,000 CC)
-  prismaticShards: number; // PS (Dungeon/Memory salvage for affix rerolling)
+  cowrieShells: number; // Base everyday trade currency (replaces CC)
+  silverPieces: number; // 1 Silver Piece = 100 Cowrie Shells (replaces SS)
+  goldIngots: number; // 1 Gold Ingot = 100 Silver Pieces = 10,000 Cowrie Shells (replaces GS)
+  mutyaShards: number; // Sacred dungeon pearls & anting-anting fragments for affix rerolling (replaces PS)
+  // Mirror fields for seamless type compatibility across all components
+  copperCoins: number;
+  silverShillings: number;
+  goldSovereigns: number;
+  prismaticShards: number;
 }
 
 // Memory & Decryption (Titan Conquest Codebreaker System)
@@ -45,6 +50,7 @@ export interface EncryptedMemory {
 export type WeaponSlotType = 'PRIMARY' | 'SPECIAL' | 'HEAVY';
 export type WeaponCategory = 'DAGGER' | 'SWORD' | 'BOW' | 'STAFF';
 export type ArmorCategory = 'UPPER' | 'LOWER';
+export type MountCategory = 'MOUNT';
 export type VehicleCategory = 'BIKE' | 'MOUNT';
 export type ItemRarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'TRIUMPHANT';
 
@@ -115,14 +121,15 @@ export interface ActiveStatusEffect {
   stackCount: number;
 }
 
-// Character Equipment Slots (Titan Conquest Inspired)
+// Character Equipment Slots (Philippine Folklore Paper Doll)
 export interface EquipmentSlots {
   upperArmor: EquipmentItem | null;
   lowerArmor: EquipmentItem | null;
   primaryWeapon: EquipmentItem | null;
   specialWeapon: EquipmentItem | null;
   heavyWeapon: EquipmentItem | null;
-  bike: EquipmentItem | null;
+  mount: EquipmentItem | null; // Unlocked post-Act 6
+  bike?: EquipmentItem | null; // Backward-compatible alias
 }
 
 // World Locations & Exploration (Titan Conquest Location Points System)
@@ -135,6 +142,7 @@ export interface GameLocation {
   description: string;
   bgGradient: string;
   monsters: string[]; // monster IDs
+  bossId?: string; // Mandatory Act Boss ID
   memoryDropRates: { rarity: MemoryRarity; chance: number }[];
 }
 
@@ -142,14 +150,15 @@ export interface Bounty {
   id: string;
   bountyNumber?: number;
   title: string;
-  minLevel?: number;
-  actId?: string;
+  minLevel?: number; // Minimum character level required
+  actId?: string; // Act bracket (e.g. 'loc_act_1')
   targetMonsterName: string;
   targetMonsterId: string;
   targetCount: number;
   currentCount: number;
   rewardExp: number;
   rewardCC: number;
+  rewardCowries?: number;
   rewardMemoryRarity: MemoryRarity;
   isAccepted?: boolean;
   isCompleted: boolean;
@@ -158,6 +167,7 @@ export interface Bounty {
 
 export interface SideQuest {
   id: string;
+  actId?: string; // Belongs to specific Act
   title: string;
   giver: string;
   description: string;
@@ -167,6 +177,7 @@ export interface SideQuest {
   rewardText: string;
   isCompleted: boolean;
   isClaimed: boolean;
+  isForfeited?: boolean; // True if player advanced to next Act without finishing
 }
 
 // Player Character State
@@ -184,7 +195,7 @@ export interface PlayerCharacter {
   wallet: Wallet;
   equipment: EquipmentSlots;
   inventory: Array<EquipmentItem | ConsumableItem>;
-  stash: Array<EquipmentItem | ConsumableItem>; // Account Vault / Stash at Haven's Rest
+  stash: Array<EquipmentItem | ConsumableItem>; // Account Vault / Stash at Sanctuary
   encryptedMemories: EncryptedMemory[]; // Codebreaker decrypt queue
   activeEffects: ActiveStatusEffect[];
   locationPoints: number; // LP earned through battles
@@ -192,6 +203,10 @@ export interface PlayerCharacter {
   unlockedLocationIds: string[];
   bounties: Bounty[];
   sideQuests?: SideQuest[];
+  forfeitedQuestIds?: string[];
+  completedBossIds?: string[];
+  act6Completed?: boolean;
+  mountUnlocked?: boolean;
   isEmpoweredNextTurn?: boolean;
   isCoveredNextTurn?: boolean;
 }

@@ -98,3 +98,4 @@ Following our **QA & Approval Protocol**:
 - **Never proceed to the next phase without explicit User Approval in chat.**
 - **Auto-mark `[x]` upon approval; remain in active QA mode until approved.**
 - **Always ask the user when anything is unclear rather than assume.**
+

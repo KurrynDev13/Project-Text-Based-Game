@@ -71,15 +71,15 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }
 
         {/* Wallet & Stamina Summary */}
         <div className="flex items-center space-x-3 text-[11px] bg-zinc-900 px-3 py-1 rounded border border-zinc-800 w-full md:w-auto justify-between md:justify-end">
-          {/* Metal Currency Tiers */}
+          {/* Pre-Colonial Currency Tiers */}
           <div className="flex items-center space-x-2 font-bold">
-            <span className="text-yellow-400">{player.wallet.goldSovereigns} GS</span>
-            <span className="text-slate-300">{player.wallet.silverShillings} SS</span>
-            <span className="text-amber-600">{player.wallet.copperCoins} CC</span>
+            <span className="text-yellow-400">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0} Gold</span>
+            <span className="text-slate-300">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0} Silver</span>
+            <span className="text-amber-500">{player.wallet.cowrieShells ?? player.wallet.copperCoins ?? 0} Shells</span>
           </div>
 
           <div className="text-purple-300 font-bold border-l border-zinc-700 pl-2">
-            💎 {player.wallet.prismaticShards} PS
+            🔮 {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0} Mutya
           </div>
 
           <div className="hidden md:flex items-center space-x-1 text-emerald-400 font-bold border-l border-zinc-700 pl-2">

@@ -94,3 +94,4 @@ You operate as a **Senior Android & Responsive Game Developer** building a high-
   - Keyboard shortcuts (`1-5` for combat, `C` for character, `I` for inventory, `T` for town, `B` for battle, `R` for roadmap).
 - **Aesthetic**:
   - Dark tropical fantasy parchment / obsidian slate theme, warm amber and ember accents, readable serif headers, clean monospace stat readouts.
+

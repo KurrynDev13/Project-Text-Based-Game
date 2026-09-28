@@ -53,7 +53,7 @@ export function calcDerivedStats(
     equipment.primaryWeapon,
     equipment.specialWeapon,
     equipment.heavyWeapon,
-    equipment.bike,
+    equipment.mount || equipment.bike,
   ].filter(Boolean);
 
   equippedItems.forEach((item) => {
@@ -108,7 +108,7 @@ export function calcDerivedStats(
 
   const expRequiredNextLevel = calcExpRequired(level);
 
-  // Power Level Score (Titan Conquest Style Gear Rating)
+  // Power Level Score (Gear & Stat Rating)
   let gearPower = 0;
   equippedItems.forEach((item) => {
     if (item) {
@@ -140,39 +140,53 @@ export function calcDerivedStats(
   };
 }
 
-// Currency Helper Functions (1 GS = 100 SS = 10,000 CC)
-export function totalCopperFromWallet(wallet: Wallet): number {
-  return (
-    wallet.goldSovereigns * 10000 +
-    wallet.silverShillings * 100 +
-    wallet.copperCoins
-  );
+// Pre-Colonial Currency Helper Functions (1 Gold = 100 Silver = 10,000 Cowrie Shells)
+export function totalCowriesFromWallet(wallet: Wallet): number {
+  const gold = wallet.goldIngots ?? wallet.goldSovereigns ?? 0;
+  const silver = wallet.silverPieces ?? wallet.silverShillings ?? 0;
+  const cowries = wallet.cowrieShells ?? wallet.copperCoins ?? 0;
+  return gold * 10000 + silver * 100 + cowries;
 }
 
-export function copperToWallet(totalCopper: number, shards: number = 0): Wallet {
-  const safeCopper = Math.max(0, totalCopper);
-  const goldSovereigns = Math.floor(safeCopper / 10000);
-  const remainderAfterGold = safeCopper % 10000;
-  const silverShillings = Math.floor(remainderAfterGold / 100);
-  const copperCoins = remainderAfterGold % 100;
+export function cowriesToWallet(totalCowries: number, mutya: number = 0): Wallet {
+  const safeCowries = Math.max(0, totalCowries);
+  const goldIngots = Math.floor(safeCowries / 10000);
+  const remainderAfterGold = safeCowries % 10000;
+  const silverPieces = Math.floor(remainderAfterGold / 100);
+  const cowrieShells = remainderAfterGold % 100;
 
   return {
-    goldSovereigns,
-    silverShillings,
-    copperCoins,
-    prismaticShards: shards,
+    goldIngots,
+    silverPieces,
+    cowrieShells,
+    mutyaShards: mutya,
+    // Backward-compatible mirror fields
+    goldSovereigns: goldIngots,
+    silverShillings: silverPieces,
+    copperCoins: cowrieShells,
+    prismaticShards: mutya,
   };
 }
 
-export function formatCurrencyShort(wallet: Wallet): string {
+export function formatCowriesShort(wallet: Wallet): string {
+  const gold = wallet.goldIngots ?? wallet.goldSovereigns ?? 0;
+  const silver = wallet.silverPieces ?? wallet.silverShillings ?? 0;
+  const cowries = wallet.cowrieShells ?? wallet.copperCoins ?? 0;
+
   const parts: string[] = [];
-  if (wallet.goldSovereigns > 0) parts.push(`${wallet.goldSovereigns} GS`);
-  if (wallet.silverShillings > 0 || wallet.goldSovereigns > 0) parts.push(`${wallet.silverShillings} SS`);
-  parts.push(`${wallet.copperCoins} CC`);
+  if (gold > 0) parts.push(`${gold} Gold`);
+  if (silver > 0 || gold > 0) parts.push(`${silver} Silver`);
+  parts.push(`${cowries} Shells`);
   return parts.join(' ');
 }
 
-export function formatCostInCC(costInCC: number): string {
-  const tempWallet = copperToWallet(costInCC);
-  return formatCurrencyShort(tempWallet);
+export function formatCostInCowries(costInCowries: number): string {
+  const tempWallet = cowriesToWallet(costInCowries);
+  return formatCowriesShort(tempWallet);
 }
+
+// Backward-compatible aliases
+export const totalCopperFromWallet = totalCowriesFromWallet;
+export const copperToWallet = cowriesToWallet;
+export const formatCurrencyShort = formatCowriesShort;
+export const formatCostInCC = formatCostInCowries;

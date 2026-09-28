@@ -31,8 +31,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     } else if (item.category === 'LOWER') {
       unequippedItem = newEquipment.lowerArmor;
       newEquipment.lowerArmor = item;
-    } else if (item.category === 'BIKE') {
-      unequippedItem = newEquipment.bike;
+    } else if (item.category === 'MOUNT' || item.category === 'BIKE') {
+      if (!player.act6Completed && !player.mountUnlocked) {
+        alert('🔒 Mount Slot Locked! Defeat the Act VI Boss (Tambanokano, The Moon-Crusher) to unlock the Beastmaster Stables.');
+        return;
+      }
+      unequippedItem = newEquipment.mount || newEquipment.bike || null;
+      newEquipment.mount = item;
       newEquipment.bike = item;
     } else {
       const targetSlot = item.weaponSlot || (item.category === 'DAGGER' ? 'PRIMARY' : item.category === 'BOW' ? 'SPECIAL' : 'HEAVY');
@@ -129,7 +134,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     onUpdatePlayer({ ...player, inventory: sorted });
   };
 
-  const gearItems = player.inventory.filter((i): i is EquipmentItem => 'category' in i && ['UPPER', 'LOWER', 'DAGGER', 'SWORD', 'BOW', 'STAFF', 'BIKE'].includes(i.category));
+  const gearItems = player.inventory.filter((i): i is EquipmentItem => 'category' in i && ['UPPER', 'LOWER', 'DAGGER', 'SWORD', 'BOW', 'STAFF', 'MOUNT', 'BIKE'].includes(i.category));
   const consumableItems = player.inventory.filter((i): i is ConsumableItem => 'category' in i && ['POTION', 'FOOD', 'ELIXIR', 'VIAL'].includes(i.category));
 
   return (
@@ -178,22 +183,33 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           {/* Main Hand Slot */}
           <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-center space-y-1">
             <div className="text-[10px] uppercase text-zinc-500">Main Hand (Primary)</div>
-            <div className="font-bold text-amber-200 truncate">{player.equipment.primaryWeapon?.name || 'Rusted Shiv'}</div>
+            <div className="font-bold text-amber-200 truncate">{player.equipment.primaryWeapon?.name || 'Rusted Sickle'}</div>
             <div className="text-[10px] text-sky-400">{player.equipment.primaryWeapon?.baseDamageMin || 4}-{player.equipment.primaryWeapon?.baseDamageMax || 7} DMG</div>
           </div>
 
           {/* Special Weapon Slot */}
           <div className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-center space-y-1">
             <div className="text-[10px] uppercase text-zinc-500">Off-Hand / Special</div>
-            <div className="font-bold text-amber-200 truncate">{player.equipment.specialWeapon?.name || 'Birch Bow'}</div>
+            <div className="font-bold text-amber-200 truncate">{player.equipment.specialWeapon?.name || 'Bamboo Bow'}</div>
             <div className="text-[10px] text-purple-400">{player.equipment.specialWeapon?.baseDamageMin || 5}-{player.equipment.specialWeapon?.baseDamageMax || 9} DMG</div>
           </div>
 
-          {/* Accessory / Mount Slot */}
+          {/* Mythical Mount Slot (Post-Act 6) */}
           <div className="col-span-2 md:col-span-1 bg-zinc-950 border border-zinc-800 p-2.5 rounded-lg text-center space-y-1">
-            <div className="text-[10px] uppercase text-zinc-500">Vehicle / Mount</div>
-            <div className="font-bold text-amber-200 truncate">{player.equipment.bike?.name || 'Sparrow Bike'}</div>
-            <div className="text-[10px] text-emerald-400">Tier {player.equipment.bike?.tier || 1} Speed</div>
+            <div className="text-[10px] uppercase text-zinc-500">Mythical Mount</div>
+            {player.equipment.mount || player.equipment.bike ? (
+              <>
+                <div className="font-bold text-amber-200 truncate">{(player.equipment.mount || player.equipment.bike)?.name}</div>
+                <div className="text-[10px] text-emerald-400">Tier {(player.equipment.mount || player.equipment.bike)?.tier} Mount</div>
+              </>
+            ) : (
+              <>
+                <div className="font-bold text-zinc-500 text-xs truncate">
+                  {player.act6Completed || player.mountUnlocked ? 'No Mount Equipped' : '🔒 Locked (Post-Act 6)'}
+                </div>
+                <div className="text-[9px] text-zinc-600">Beastmaster Stables</div>
+              </>
+            )}
           </div>
         </div>
       </div>

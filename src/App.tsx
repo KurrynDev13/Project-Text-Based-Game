@@ -26,15 +26,14 @@ import { CharacterSheet } from './components/CharacterSheet';
 import { GameLogView } from './components/GameLogView';
 import { TitanRaidView } from './components/TitanRaidView';
 
-const LOCAL_STORAGE_KEY = 'aetheria_player_save_v3';
+const LOCAL_STORAGE_KEY = 'maharlika_player_save_v1';
 
 const createInitialPlayer = (): PlayerCharacter => {
-  const starterPrimary = DAGGERS[0]; // Rusted Shiv
-  const starterSpecial = BOWS[0]; // Birch Shortbow
-  const starterHeavy = STAVES[0]; // Gnarled Oak Branch
-  const starterUpper = UPPER_ARMORS[0]; // Threadbare Tunic
-  const starterLower = LOWER_ARMORS[0]; // Worn Canvas Trousers
-  const starterBike = BIKES[0]; // Sparrow Hoverbike
+  const starterPrimary = DAGGERS[0]; // Rusted Farm Sickle
+  const starterSpecial = BOWS[0]; // Bamboo Hunting Bow
+  const starterHeavy = STAVES[0]; // Hardened Bamboo Cane
+  const starterUpper = UPPER_ARMORS[0]; // Woven Cotton Shirt
+  const starterLower = LOWER_ARMORS[0]; // Simple Woven Breeches
 
   const startingAttributes = { str: 10, agi: 10, int: 10, vit: 10 };
   const initialEquipment = {
@@ -43,14 +42,15 @@ const createInitialPlayer = (): PlayerCharacter => {
     heavyWeapon: starterHeavy,
     upperArmor: starterUpper,
     lowerArmor: starterLower,
-    bike: starterBike,
+    mount: null, // Mounts unlock strictly post-Act 6!
+    bike: null,
   };
 
   const derived = calcDerivedStats(startingAttributes, 1, initialEquipment);
 
   return {
-    name: 'Titan Slayer',
-    heroClass: 'Wayfarer',
+    name: 'Maharlika Blade',
+    heroClass: 'Mandirigma',
     level: 1,
     exp: 0,
     availableAP: 0,
@@ -60,6 +60,10 @@ const createInitialPlayer = (): PlayerCharacter => {
     stamina: 18,
     maxStamina: 20,
     wallet: {
+      cowrieShells: 80,
+      silverPieces: 45,
+      goldIngots: 12,
+      mutyaShards: 4,
       copperCoins: 80,
       silverShillings: 45,
       goldSovereigns: 12,
@@ -78,6 +82,10 @@ const createInitialPlayer = (): PlayerCharacter => {
     unlockedLocationIds: ['loc_act_1'],
     bounties: INITIAL_BOUNTIES,
     sideQuests: INITIAL_SIDE_QUESTS,
+    act6Completed: false,
+    mountUnlocked: false,
+    forfeitedQuestIds: [],
+    completedBossIds: [],
   };
 };
 
@@ -178,7 +186,7 @@ export function App() {
   };
 
   const handleUnequipItem = (
-    slot: 'upperArmor' | 'lowerArmor' | 'primaryWeapon' | 'specialWeapon' | 'heavyWeapon' | 'bike'
+    slot: 'upperArmor' | 'lowerArmor' | 'primaryWeapon' | 'specialWeapon' | 'heavyWeapon' | 'mount' | 'bike'
   ) => {
     const item = player.equipment[slot];
     if (!item) return;
