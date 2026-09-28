@@ -1,0 +1,6 @@
+{
+  "name": "Aetheria: Text-Based RPG Adventure",
+  "description": "A dark fantasy text-based RPG featuring deep character progression, tiered metal currency economy, equipment databases with procedural affixes, status effect combat engine, and dungeon exploration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
