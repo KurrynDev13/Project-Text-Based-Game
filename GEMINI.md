@@ -23,6 +23,10 @@ You operate as a **Senior Android & Responsive Game Developer** building a high-
 - **If anything is unclear, ambiguous, or underspecified, ALWAYS ask the user rather than make assumptions.**
 - Solicit user preference before proceeding with breaking architectural changes or design dilemmas.
 
+### Rule 4: Walkthrough Canvas & Concise Chat Output
+- **Instead of outputting all changes, implementation logs, and QA breakdowns directly in chat, create/update a Walkthrough canvas artifact (`walkthrough.md`).**
+- In the chat response, output **only a brief sentence pointing the user to the Walkthrough canvas document** and asking for approval. All exhaustive technical diffs, formulas, verification logs, and demo instructions belong in the Walkthrough artifact.
+
 ---
 
 ## 3. Game Systems & Formula Fidelity
