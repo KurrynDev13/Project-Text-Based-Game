@@ -5,11 +5,12 @@ export function calcExpRequired(level: number): number {
   return Math.floor(120 * Math.pow(1.28, level - 1) + 80 * level);
 }
 
-// Process EXP Gain: After leveling up, EXP resets to zero
+// Process EXP Gain: After leveling up, EXP resets to zero. Optionally enforces maxLevelCap prior to boss defeat.
 export function processExpGain(
   currentLevel: number,
   currentExp: number,
-  expGained: number
+  expGained: number,
+  maxLevelCap?: number
 ): { newLevel: number; newExp: number; levelsGained: number; apGained: number } {
   let level = currentLevel;
   let exp = currentExp + expGained;
@@ -17,8 +18,18 @@ export function processExpGain(
   let apGained = 0;
 
   while (true) {
+    if (maxLevelCap && level >= maxLevelCap) {
+      const required = calcExpRequired(maxLevelCap);
+      exp = Math.min(exp, required - 1);
+      break;
+    }
     const required = calcExpRequired(level);
     if (exp >= required) {
+      if (maxLevelCap && level + 1 > maxLevelCap) {
+        level = maxLevelCap;
+        exp = required - 1;
+        break;
+      }
       level += 1;
       levelsGained += 1;
       apGained += 3;
@@ -61,13 +72,38 @@ export function calcDerivedStats(
       if (item.baseDefense) bonusArmor += item.baseDefense;
       if (item.affixes) {
         item.affixes.forEach((affix) => {
-          if (affix.statBonus.flatArmor) bonusArmor += affix.statBonus.flatArmor;
-          if (affix.statBonus.flatHp) bonusHp += affix.statBonus.flatHp;
-          if (affix.statBonus.flatMp) bonusMp += affix.statBonus.flatMp;
-          if (affix.statBonus.dodgePercent) bonusDodge += affix.statBonus.dodgePercent;
-          if (affix.statBonus.critPercent) bonusCrit += affix.statBonus.critPercent;
-          if (affix.statBonus.str) bonusHp += affix.statBonus.str * 10;
+          if (affix.statBonus) {
+            if (affix.statBonus.flatArmor) bonusArmor += affix.statBonus.flatArmor;
+            if (affix.statBonus.flatHp) bonusHp += affix.statBonus.flatHp;
+            if (affix.statBonus.flatMp) bonusMp += affix.statBonus.flatMp;
+            if (affix.statBonus.dodgePercent) bonusDodge += affix.statBonus.dodgePercent;
+            if (affix.statBonus.critPercent) bonusCrit += affix.statBonus.critPercent;
+            if (affix.statBonus.str) bonusHp += affix.statBonus.str * 10;
+          }
         });
+      }
+
+      // Mythical Mount Stat Perk Integration
+      if (item.category === 'MOUNT' || item.category === 'BIKE') {
+        if (item.id === 'mount_1') {
+          // Armored Tamaraw: +250 Max HP
+          bonusHp += 250;
+        } else if (item.id === 'mount_2') {
+          // Sacred Mountain Carabao: +100 Max MP
+          bonusMp += 100;
+        } else if (item.id === 'mount_3') {
+          // Gilded Sarimanok Drake: +20% Dodge
+          bonusDodge += 20;
+        } else if (item.id === 'mount_4') {
+          // Tamed Shadow Sigbin: +15% Crit
+          bonusCrit += 15;
+        } else if (item.id === 'mount_5') {
+          // Moon Dragon Wyrmling: +500 Max HP, +200 Max MP, +10% Crit, +10% Dodge
+          bonusHp += 500;
+          bonusMp += 200;
+          bonusCrit += 10;
+          bonusDodge += 10;
+        }
       }
     }
   });
@@ -76,8 +112,8 @@ export function calcDerivedStats(
   // Max HP: 100 + (VIT * 25) + (Level * 15)
   const maxHp = Math.floor(100 + vit * 25 + level * 15 + bonusHp);
 
-  // Max MP: 50 + (INT * 10) + (Level * 8)
-  const maxMp = Math.floor(50 + int * 10 + level * 8 + bonusMp);
+  // Max MP: 30 + (INT * 5) + (Level * 4) (balanced to prevent skill spamming)
+  const maxMp = Math.floor(30 + int * 5 + level * 4 + bonusMp);
 
   // Physical Armor: VIT * 0.8 + Equipment
   const totalArmor = Math.floor(vit * 0.8 + bonusArmor);
@@ -190,3 +226,34 @@ export const totalCopperFromWallet = totalCowriesFromWallet;
 export const copperToWallet = cowriesToWallet;
 export const formatCurrencyShort = formatCowriesShort;
 export const formatCostInCC = formatCostInCowries;
+
+// Max Stamina formula based on player level / unlocked Act tier
+export function calcMaxStamina(playerLevel: number): number {
+  if (playerLevel >= 47) return 55; // Act VIII (Bakunawa Eclipse)
+  if (playerLevel >= 40) return 50; // Act VII (Sky Citadel)
+  if (playerLevel >= 33) return 45; // Act VI (Abyssal Tide)
+  if (playerLevel >= 26) return 40; // Act V (Blood Coast)
+  if (playerLevel >= 19) return 35; // Act IV (Caldera)
+  if (playerLevel >= 13) return 30; // Act III (Ancestral Dead)
+  if (playerLevel >= 7)  return 25; // Act II (Sirens Lagoon)
+  return 20;                        // Act I (Balete Forest)
+}
+
+// Smart Stamina action costs per Act
+export function getActStaminaCosts(locationId: string): { ventureCost: number; searchCost: number; bossCost: number } {
+  switch (locationId) {
+    case 'loc_act_1':
+    case 'loc_act_2':
+      return { ventureCost: 1, searchCost: 2, bossCost: 2 };
+    case 'loc_act_3':
+    case 'loc_act_4':
+      return { ventureCost: 2, searchCost: 4, bossCost: 4 };
+    case 'loc_act_5':
+    case 'loc_act_6':
+      return { ventureCost: 3, searchCost: 6, bossCost: 6 };
+    case 'loc_act_7':
+    case 'loc_act_8':
+    default:
+      return { ventureCost: 4, searchCost: 8, bossCost: 8 };
+  }
+}

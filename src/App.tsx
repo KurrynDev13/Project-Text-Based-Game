@@ -1,21 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  PlayerCharacter,
-  BattleState,
-  EnemyMonster,
-} from './types/game';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PlayerCharacter, BattleState, EnemyMonster, HeroClass, Skill } from './types/game';
 import {
   UPPER_ARMORS,
   LOWER_ARMORS,
   DAGGERS,
+  SWORDS,
   BOWS,
   STAVES,
-  BIKES,
   CONSUMABLES,
   INITIAL_BOUNTIES,
   INITIAL_SIDE_QUESTS,
 } from './data/equipmentData';
-import { calcDerivedStats } from './utils/gameFormulas';
+import { calcDerivedStats, cowriesToWallet } from './utils/gameFormulas';
+import { getDefaultSkillIds, getBasicAttackId, getSkillsByClass } from './data/skillsData';
 
 import { Navbar, NavTab } from './components/Navbar';
 import { PersistentHUD } from './components/PersistentHUD';
@@ -25,21 +22,25 @@ import { InventoryView } from './components/InventoryView';
 import { CharacterSheet } from './components/CharacterSheet';
 import { GameLogView } from './components/GameLogView';
 import { TitanRaidView } from './components/TitanRaidView';
+import CharacterCreationModal from './components/CharacterCreationModal';
+import OpeningStoryModal from './components/OpeningStoryModal';
+import InteractiveOnboardingTutorial from './components/InteractiveOnboardingTutorial';
+import { ToastBanner, ToastMessage } from './components/ToastBanner';
+// SkillTreeView is used inside CharacterSheet now
 
 const LOCAL_STORAGE_KEY = 'maharlika_player_save_v1';
 
+/**
+ * Creates a blank player template — no class, no weapon assigned yet.
+ * The real player is fully built in handleCharacterCreate after class selection.
+ */
 const createInitialPlayer = (): PlayerCharacter => {
-  const starterPrimary = DAGGERS[0]; // Rusted Farm Sickle
-  const starterSpecial = BOWS[0]; // Bamboo Hunting Bow
-  const starterHeavy = STAVES[0]; // Hardened Bamboo Cane
   const starterUpper = UPPER_ARMORS[0]; // Woven Cotton Shirt
   const starterLower = LOWER_ARMORS[0]; // Simple Woven Breeches
 
   const startingAttributes = { str: 10, agi: 10, int: 10, vit: 10 };
   const initialEquipment = {
-    primaryWeapon: starterPrimary,
-    specialWeapon: starterSpecial,
-    heavyWeapon: starterHeavy,
+    weapon: null,
     upperArmor: starterUpper,
     lowerArmor: starterLower,
     mount: null, // Mounts unlock strictly post-Act 6!
@@ -49,7 +50,7 @@ const createInitialPlayer = (): PlayerCharacter => {
   const derived = calcDerivedStats(startingAttributes, 1, initialEquipment);
 
   return {
-    name: 'Maharlika Blade',
+    name: 'Maharlika',
     heroClass: 'Mandirigma',
     level: 1,
     exp: 0,
@@ -61,13 +62,13 @@ const createInitialPlayer = (): PlayerCharacter => {
     maxStamina: 20,
     wallet: {
       cowrieShells: 80,
-      silverPieces: 45,
-      goldIngots: 12,
-      mutyaShards: 4,
+      silverPieces: 5,
+      goldIngots: 0,
+      mutyaShards: 2,
       copperCoins: 80,
-      silverShillings: 45,
-      goldSovereigns: 12,
-      prismaticShards: 4,
+      silverShillings: 5,
+      goldSovereigns: 0,
+      prismaticShards: 2,
     },
     equipment: initialEquipment,
     inventory: [CONSUMABLES[0], CONSUMABLES[1], CONSUMABLES[2]],
@@ -86,27 +87,74 @@ const createInitialPlayer = (): PlayerCharacter => {
     mountUnlocked: false,
     forfeitedQuestIds: [],
     completedBossIds: [],
+    hasCreatedCharacter: false,
+    unlockedSkillIds: [],
+    equippedSkillIds: [],
+    tutorialsSeen: [],
+    unlockedActStoryIds: [],
+    discoveredBossIds: [],
   };
 };
 
-const mergePlayerWithMasterBounties = (savedPlayer: PlayerCharacter): PlayerCharacter => {
-  const existingMap = new Map((savedPlayer.bounties || []).map((b) => [b.id, b]));
-  const mergedBounties = INITIAL_BOUNTIES.map((master, idx) => {
-    const existing = existingMap.get(master.id);
+const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacter => {
+  const existingBountiesMap = new Map((savedPlayer.bounties || []).map((b) => [b.id, b]));
+  const mergedBounties = INITIAL_BOUNTIES.map((master) => {
+    const existing = existingBountiesMap.get(master.id);
     if (existing) {
       return {
         ...master,
         currentCount: existing.currentCount ?? 0,
-        isAccepted: existing.isAccepted ?? (idx === 0),
+        isAccepted: existing.isAccepted ?? false,
         isCompleted: existing.isCompleted ?? false,
         isClaimed: existing.isClaimed ?? false,
       };
     }
     return master;
   });
+
+  const existingQuestsMap = new Map((savedPlayer.sideQuests || []).map((q) => [q.id, q]));
+  const mergedSideQuests = INITIAL_SIDE_QUESTS.map((master) => {
+    const existing = existingQuestsMap.get(master.id);
+    if (existing) {
+      return {
+        ...master,
+        isDiscovered: existing.isDiscovered ?? false,
+        progressCurrent: existing.progressCurrent ?? 0,
+        isCompleted: existing.isCompleted ?? false,
+        isClaimed: existing.isClaimed ?? false,
+        isForfeited: existing.isForfeited ?? false,
+      };
+    }
+    return {
+      ...master,
+      isDiscovered: false,
+    };
+  });
+
+  const heroClass = savedPlayer.heroClass || 'Mandirigma';
+  const classSkills = getSkillsByClass(heroClass as any);
+  const classSkillIds = new Set(classSkills.map((s: Skill) => s.id));
+  const basicId = getBasicAttackId(heroClass as any);
+
+  let sanitizedEquipped = (savedPlayer.equippedSkillIds || []).filter((id) => classSkillIds.has(id));
+  if (sanitizedEquipped.length === 0 && basicId) {
+    sanitizedEquipped = [basicId];
+  }
+
   return {
     ...savedPlayer,
     bounties: mergedBounties,
+    sideQuests: mergedSideQuests,
+    forfeitedQuestIds: savedPlayer.forfeitedQuestIds || [],
+    completedBossIds: savedPlayer.completedBossIds || [],
+    // Ensure new fields are initialized for existing saves
+    hasCreatedCharacter: savedPlayer.hasCreatedCharacter ?? false,
+    unlockedSkillIds: savedPlayer.unlockedSkillIds ?? [],
+    equippedSkillIds: Array.from(new Set(sanitizedEquipped)),
+    tutorialsSeen: savedPlayer.tutorialsSeen ?? [],
+    unlockedActStoryIds: savedPlayer.unlockedActStoryIds ?? [],
+    discoveredBossIds: savedPlayer.discoveredBossIds ?? [],
+    narratorLogs: savedPlayer.narratorLogs ?? [],
   };
 };
 
@@ -116,7 +164,7 @@ export function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return mergePlayerWithMasterBounties(parsed);
+        return mergePlayerWithMasterData(parsed);
       } catch {
         return createInitialPlayer();
       }
@@ -127,6 +175,60 @@ export function App() {
   // Default to HAVEN homepage safe zone
   const [currentTab, setCurrentTab] = useState<NavTab>('HAVEN');
   const [showRaidView, setShowRaidView] = useState<boolean>(false);
+
+  // Global Toast Notification Banner State
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = useCallback(
+    (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string, durationMs?: number) => {
+      setToast({
+        id: `toast_${Date.now()}_${Math.random()}`,
+        message,
+        type,
+        icon,
+        durationMs,
+      });
+    },
+    []
+  );
+
+  // Opening story modal shown after character creation
+  const [showOpeningStory, setShowOpeningStory] = useState<boolean>(false);
+
+  // Interactive Onboarding Tutorial state
+  const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(() => {
+    return Boolean(player.hasCreatedCharacter && !(player.tutorialsSeen ?? []).includes('tut_onboarding'));
+  });
+  const [townDistrictOverride, setTownDistrictOverride] = useState<{
+    district: 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH';
+    key: number;
+  } | null>(null);
+
+  const handleCompleteOnboarding = useCallback(() => {
+    setShowOnboardingTutorial(false);
+    setTownDistrictOverride(null);
+    const seen = Array.from(new Set([...(player.tutorialsSeen ?? []), 'tut_onboarding']));
+    setPlayer((prev) => ({ ...prev, tutorialsSeen: seen }));
+  }, [player.tutorialsSeen]);
+
+  const handleSelectDistrictForTutorial = useCallback(
+    (district: 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH') => {
+      setTownDistrictOverride({ district, key: Date.now() });
+    },
+    []
+  );
+
+  const handleSelectTabForTutorial = useCallback((tab: NavTab) => {
+    setShowRaidView(false);
+    setCurrentTab(tab);
+  }, []);
+
+  // Check onboarding trigger on load or when player character state changes
+  useEffect(() => {
+    if (player.hasCreatedCharacter && !(player.tutorialsSeen ?? []).includes('tut_onboarding')) {
+      setShowOnboardingTutorial(true);
+    }
+  }, [player.hasCreatedCharacter, player.tutorialsSeen]);
 
   // Exploration & Battle State
   const [battle, setBattle] = useState<BattleState>({
@@ -143,6 +245,75 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
   }, [player]);
+
+  /**
+   * Called by CharacterCreationModal on completion.
+   * Builds the fully-initialized player state for the chosen class and name.
+   */
+  const handleCharacterCreate = (heroClass: HeroClass, heroName: string) => {
+    // Class-specific starting attributes
+    const attrsByClass: Record<HeroClass, { str: number; agi: number; int: number; vit: number }> = {
+      Mandirigma: { str: 14, agi: 9, int: 8, vit: 14 },
+      Bagani:     { str: 9, agi: 15, int: 10, vit: 11 },
+      Mangangaso: { str: 10, agi: 14, int: 11, vit: 10 },
+      Babaylan:   { str: 8, agi: 9, int: 16, vit: 12 },
+    };
+
+    // Class-locked starter weapons
+    const starterWeaponByClass = {
+      Mandirigma: SWORDS[0],
+      Bagani:     DAGGERS[0],
+      Mangangaso: BOWS[0],
+      Babaylan:   STAVES[0],
+    };
+
+    const attributes = attrsByClass[heroClass];
+    const starterWeapon = starterWeaponByClass[heroClass];
+
+    const initialEquipment = {
+      weapon: starterWeapon,
+      upperArmor: UPPER_ARMORS[0],
+      lowerArmor: LOWER_ARMORS[0],
+      mount: null,
+      bike: null,
+    };
+
+    const derived = calcDerivedStats(attributes, 1, initialEquipment);
+
+    // Skill IDs: starting character gets ONLY the basic attack unlocked & equipped (1 skill)
+    const defaultIds = getDefaultSkillIds(heroClass);
+    const equippedIds = [...defaultIds];
+
+    // New player starting wallet — modest but meaningful
+    const newWallet = cowriesToWallet(80 + 5 * 100, 2); // 580 cowries total, 2 Mutya Shards
+
+    const newPlayer: PlayerCharacter = {
+      ...player,
+      name: heroName,
+      heroClass,
+      attributes,
+      currentHp: derived.maxHp,
+      currentMp: derived.maxMp,
+      equipment: initialEquipment,
+      wallet: {
+        ...newWallet,
+        cowrieShells: 80,
+        silverPieces: 5,
+        goldIngots: 0,
+        mutyaShards: 2,
+        copperCoins: 80,
+        silverShillings: 5,
+        goldSovereigns: 0,
+        prismaticShards: 2,
+      },
+      unlockedSkillIds: defaultIds,
+      equippedSkillIds: equippedIds,
+      hasCreatedCharacter: true,
+    };
+
+    setPlayer(newPlayer);
+    setShowOpeningStory(true);
+  };
 
   const handleMonsterKilled = (enemy: EnemyMonster) => {
     const enemyNameClean = enemy.name.replace(/^Elite\s+/, '').trim().toLowerCase();
@@ -185,8 +356,12 @@ export function App() {
     }));
   };
 
+  /**
+   * Unequips an item from the given slot and returns it to inventory.
+   * Accepts the unified 'weapon' slot in addition to armor and mount slots.
+   */
   const handleUnequipItem = (
-    slot: 'upperArmor' | 'lowerArmor' | 'primaryWeapon' | 'specialWeapon' | 'heavyWeapon' | 'mount' | 'bike'
+    slot: 'weapon' | 'upperArmor' | 'lowerArmor' | 'mount' | 'bike'
   ) => {
     const item = player.equipment[slot];
     if (!item) return;
@@ -203,16 +378,33 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-amber-100 flex flex-col font-sans select-none overflow-hidden">
+      {/* Character Creation Modal — shown for new players before anything else */}
+      {!player.hasCreatedCharacter && (
+        <CharacterCreationModal onComplete={handleCharacterCreate} />
+      )}
+
+      {/* Opening Story Modal — shown once, immediately after character creation */}
+      {player.hasCreatedCharacter && showOpeningStory && (
+        <OpeningStoryModal
+          heroClass={player.heroClass}
+          heroName={player.name}
+          onClose={() => setShowOpeningStory(false)}
+        />
+      )}
+
       {/* [TOP] PERSISTENT HUD */}
-      <PersistentHUD player={player} inCombat={battle.inCombat} />
+      {player.hasCreatedCharacter && (
+        <PersistentHUD player={player} inCombat={battle.inCombat} />
+      )}
 
       {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS */}
-      <main className="flex-1 max-w-7xl w-full mx-auto overflow-hidden pb-16 md:pb-0 flex flex-col">
+      <main className="flex-1 max-w-7xl w-full mx-auto overflow-y-auto pt-[108px] md:pt-[60px] pb-28 flex flex-col">
         {showRaidView ? (
           <TitanRaidView
             player={player}
             onUpdatePlayer={setPlayer}
             onNavigateToHaven={() => setShowRaidView(false)}
+            onShowToast={showToast}
           />
         ) : (
           <>
@@ -222,6 +414,8 @@ export function App() {
                 onUpdatePlayer={setPlayer}
                 onNavigateToWorld={() => setCurrentTab('WORLD')}
                 onNavigateToTitanRaid={() => setShowRaidView(true)}
+                onShowToast={showToast}
+                activeDistrictOverride={townDistrictOverride}
               />
             )}
 
@@ -233,6 +427,8 @@ export function App() {
                 onUpdateBattle={setBattle}
                 onNavigateToHaven={() => setCurrentTab('HAVEN')}
                 onMonsterKilled={handleMonsterKilled}
+                suppressActStory={showOnboardingTutorial}
+                onShowToast={showToast}
               />
             )}
 
@@ -241,6 +437,7 @@ export function App() {
                 player={player}
                 onUpdatePlayer={setPlayer}
                 onNavigateCodebreaker={() => setCurrentTab('WORLD')}
+                onShowToast={showToast}
               />
             )}
 
@@ -257,22 +454,39 @@ export function App() {
                 player={player}
                 battleLogs={battle.logs}
                 onUpdatePlayer={setPlayer}
+                onShowToast={showToast}
               />
             )}
           </>
         )}
       </main>
 
+      {/* Global Toast Notification Popup Banner (Swipes down from top) */}
+      <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
+
       {/* [FOOTER] GLOBAL NAVIGATION BAR */}
-      <Navbar
-        currentTab={currentTab}
-        onSelectTab={(tab) => {
-          setShowRaidView(false);
-          setCurrentTab(tab);
-        }}
-        player={player}
-        inCombat={battle.inCombat}
-      />
+      {player.hasCreatedCharacter && !showOpeningStory && (
+        <Navbar
+          currentTab={currentTab}
+          onSelectTab={(tab) => {
+            setShowRaidView(false);
+            setCurrentTab(tab);
+          }}
+          player={player}
+          inCombat={battle.inCombat}
+          onShowToast={showToast}
+        />
+      )}
+
+      {/* Interactive Onboarding Tutorial Modal */}
+      {player.hasCreatedCharacter && !showOpeningStory && showOnboardingTutorial && (
+        <InteractiveOnboardingTutorial
+          onComplete={handleCompleteOnboarding}
+          onSkip={handleCompleteOnboarding}
+          onSelectDistrict={handleSelectDistrictForTutorial}
+          onSelectTab={handleSelectTabForTutorial}
+        />
+      )}
     </div>
   );
 }

@@ -46,6 +46,9 @@ export interface EncryptedMemory {
   acquiredAtLocation: string;
 }
 
+// Hero Classes (Pre-Colonial Philippine Archetypes)
+export type HeroClass = 'Mandirigma' | 'Bagani' | 'Mangangaso' | 'Babaylan';
+
 // Equipment Types & Catalogs
 export type WeaponSlotType = 'PRIMARY' | 'SPECIAL' | 'HEAVY';
 export type WeaponCategory = 'DAGGER' | 'SWORD' | 'BOW' | 'STAFF';
@@ -58,7 +61,7 @@ export interface Affix {
   id: string;
   name: string;
   type: 'PREFIX' | 'SUFFIX';
-  statBonus: Partial<PrimaryAttributes> & {
+  statBonus?: Partial<PrimaryAttributes> & {
     flatArmor?: number;
     flatHp?: number;
     flatMp?: number;
@@ -66,13 +69,25 @@ export interface Affix {
     dodgePercent?: number;
     magicResist?: number;
   };
+  statusInfliction?: {
+    type: StatusEffectType;
+    chancePercent: number;
+    durationTurns: number;
+  };
+  statusMitigation?: {
+    type: StatusEffectType;
+    resistancePercent: number;
+    isImmune?: boolean;
+  };
 }
 
 export interface EquipmentItem {
   id: string;
   name: string;
   category: WeaponCategory | ArmorCategory | VehicleCategory;
-  weaponSlot?: WeaponSlotType; // Primary, Special, or Heavy
+  /** @deprecated weaponSlot is no longer used; kept optional for backward compatibility */
+  weaponSlot?: WeaponSlotType;
+  classReq?: HeroClass[]; // Which hero classes can equip this item
   tier: number; // Tier 1-10
   levelReq: number;
   baseDefense?: number;
@@ -83,7 +98,9 @@ export interface EquipmentItem {
   archetype: string;
   costInCC: number;
   rarity: ItemRarity;
+  icon?: string;
   affixes?: Affix[];
+  blessingAttempts?: number; // Tracks Mutya blessing attempts to scale break risk (5%, 10%, 15%...)
 }
 
 export type ConsumableCategory = 'POTION' | 'FOOD' | 'ELIXIR' | 'VIAL';
@@ -125,10 +142,14 @@ export interface ActiveStatusEffect {
 export interface EquipmentSlots {
   upperArmor: EquipmentItem | null;
   lowerArmor: EquipmentItem | null;
-  primaryWeapon: EquipmentItem | null;
-  specialWeapon: EquipmentItem | null;
-  heavyWeapon: EquipmentItem | null;
+  weapon: EquipmentItem | null; // Single active weapon slot
   mount: EquipmentItem | null; // Unlocked post-Act 6
+  /** @deprecated Use `weapon` instead */
+  primaryWeapon?: EquipmentItem | null;
+  /** @deprecated Use `weapon` instead */
+  specialWeapon?: EquipmentItem | null;
+  /** @deprecated Use `weapon` instead */
+  heavyWeapon?: EquipmentItem | null;
   bike?: EquipmentItem | null; // Backward-compatible alias
 }
 
@@ -138,6 +159,7 @@ export interface GameLocation {
   name: string;
   subtitle: string;
   minLevel: number;
+  bossLevelReq?: number; // Climax Level required to challenge the Act Guardian
   lpRequired: number; // Location Points needed to unlock
   description: string;
   bgGradient: string;
@@ -172,12 +194,40 @@ export interface SideQuest {
   giver: string;
   description: string;
   objectiveText: string;
+  targetMonsterId?: string; // Monster ID that advances progress when slain
   progressCurrent: number;
   progressRequired: number;
   rewardText: string;
+  rewardExp?: number;
+  rewardCowries?: number;
+  rewardMutya?: number;
+  isDiscovered?: boolean; // Discovered via venturing forward in the world
   isCompleted: boolean;
   isClaimed: boolean;
   isForfeited?: boolean; // True if player advanced to next Act without finishing
+}
+
+// Skills System
+export type SkillDamageType = 'PHYSICAL' | 'MAGIC' | 'FIRE' | 'FROST' | 'LIGHTNING' | 'SHADOW' | 'RADIANT' | 'HEAL';
+
+export interface Skill {
+  id: string;
+  name: string;
+  icon: string; // emoji
+  classReq: HeroClass;
+  tier: number; // 1-4 (tier 1 = basic, tier 4 = ultimate)
+  mutyaCost: number; // 0 for basic attack, 1-3 for others
+  description: string;
+  flavorText: string; // pre-colonial lore quote
+  mpCost: number;
+  cooldownTurns: number;
+  damageType: SkillDamageType;
+  baseDamageMultiplier: number; // Multiplier on weapon base damage
+  isDefaultUnlocked?: boolean; // true if granted at class creation
+  isBasicAttack?: boolean; // true for the free default basic attack
+  effectType?: StatusEffectType;
+  healsPercent?: number; // % of max HP restored
+  shieldPercent?: number; // % of max HP as shield
 }
 
 // Player Character State
@@ -209,6 +259,13 @@ export interface PlayerCharacter {
   mountUnlocked?: boolean;
   isEmpoweredNextTurn?: boolean;
   isCoveredNextTurn?: boolean;
+  hasCreatedCharacter?: boolean; // True after character creation flow is complete
+  unlockedSkillIds?: string[]; // IDs of purchased Mutya skills
+  equippedSkillIds?: string[]; // Max 3 active skill IDs in combat
+  tutorialsSeen?: string[]; // Tutorial IDs that have been shown
+  unlockedActStoryIds?: string[]; // Act story overlays already shown
+  discoveredBossIds?: string[]; // Boss IDs where warning card was shown
+  narratorLogs?: string[]; // Sector narrative feed log history (persisted across tabs)
 }
 
 // Monster / Enemy State
@@ -228,6 +285,7 @@ export interface EnemyMonster {
   shardChance: number;
   memoryDropRarity?: MemoryRarity;
   specialAbility?: string;
+  isBoss?: boolean;
   activeEffects: ActiveStatusEffect[];
   spriteIcon: string;
 }

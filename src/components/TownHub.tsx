@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation } from '../types/game';
-import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS } from '../data/equipmentData';
-import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, processExpGain } from '../utils/gameFormulas';
+import React, { useState, useRef } from 'react';
+import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
+import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS } from '../data/equipmentData';
+import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina } from '../utils/gameFormulas';
+import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
+import FeatureTutorialModal, { TutorialStep } from './FeatureTutorialModal';
+import { ConfirmModal } from './ConfirmModal';
 
-type DistrictTab = 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'GATE' | 'STASH';
+type DistrictTab = 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH';
 type ForgeCategoryFilter = 'ALL' | 'WEAPONS' | 'ARMOR' | 'DAGGERS' | 'SWORDS' | 'BOWS' | 'STAVES' | 'UPPER' | 'LOWER';
 
 interface TownHubProps {
@@ -12,65 +15,265 @@ interface TownHubProps {
   onUpdatePlayer: (updated: PlayerCharacter) => void;
   onNavigateToWorld: () => void;
   onNavigateToTitanRaid?: () => void;
+  onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
+  activeDistrictOverride?: {
+    district: DistrictTab;
+    key: number;
+  } | null;
 }
 
-export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavigateToWorld, onNavigateToTitanRaid }) => {
+export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavigateToWorld, onNavigateToTitanRaid, onShowToast, activeDistrictOverride }) => {
   const [activeDistrict, setActiveDistrict] = useState<DistrictTab>('TAVERN');
+
+  const notify = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string) => {
+    onShowToast?.(msg, type, icon);
+  };
+
+  React.useEffect(() => {
+    if (activeDistrictOverride?.district) {
+      setActiveDistrict(activeDistrictOverride.district);
+    }
+  }, [activeDistrictOverride?.key, activeDistrictOverride?.district]);
+
+  React.useEffect(() => {
+    if (activeDistrict === 'TAVERN') {
+      const unlockedRestCount = REST_OPTIONS.filter((o) => player.level >= o.minLevel).length;
+      if (unlockedRestCount >= 2 && !(player.tutorialsSeen ?? []).includes('tut_rest_tiers')) {
+        setActiveTutorial({
+          id: 'tut_rest_tiers',
+          name: 'Shaman Rest Deck',
+          steps: [
+            {
+              title: 'New Shaman Resting Tier Unlocked!',
+              icon: '🛌',
+              description: 'As your hero levels up and conquers new regional Acts, higher-tier Shaman resting quarters become unlocked at Haven Citadel Inn!',
+              tip: 'Use the ◀ / ▶ controls or tap the stacked cards on the Resting Deck to flip between budget mats and premium shaman baths.',
+            },
+          ],
+        });
+      }
+    }
+  }, [activeDistrict, player.level, player.tutorialsSeen]);
   const [selectedEnchantItem, setSelectedEnchantItem] = useState<EquipmentItem | null>(null);
   const [showBountyBoard, setShowBountyBoard] = useState<boolean>(false);
   const [bountyBoardTab, setBountyBoardTab] = useState<'AVAILABLE' | 'COMPLETED'>('AVAILABLE');
+  const [activeRestCardIndex, setActiveRestCardIndex] = useState<number>(0);
+  const restCarouselRef = useRef<HTMLDivElement>(null);
+  const [activeTutorial, setActiveTutorial] = useState<{ id: string; name: string; steps: TutorialStep[] } | null>(null);
+
+  const handleSelectDistrict = (tab: DistrictTab) => {
+    setActiveDistrict(tab);
+    if (tab === 'STABLES' && player.mountUnlocked && !(player.tutorialsSeen ?? []).includes('tut_stables')) {
+      setActiveTutorial({
+        id: 'tut_stables',
+        name: 'Beastmaster Stables',
+        steps: [
+          {
+            title: 'Mythical Beast Stables Unlocked',
+            icon: '🐃',
+            description: 'Defeating Tambanokano has granted you access to the Beastmaster Stables! Mythical mounts provide massive combat bonuses.',
+            tip: 'Equipping a mount increases your Max HP, Armor, Speed, and Dodge rate.',
+          },
+        ],
+      });
+    }
+  };
+
+  const handleOpenBountyBoard = () => {
+    setShowBountyBoard(true);
+    if (!(player.tutorialsSeen ?? []).includes('tut_bounties')) {
+      setActiveTutorial({
+        id: 'tut_bounties',
+        name: 'Poblacion Bounty Board',
+        steps: [
+          {
+            title: 'Monster Bounties System',
+            icon: '📜',
+            description: 'Accept contracts from the Poblacion Sanctuary Notice Board to slay specific monsters for Cowries, EXP, and Mutya Shards.',
+            tip: 'You can hold up to 3 active bounties concurrently. Level 3 character required.',
+          },
+        ],
+      });
+    }
+  };
+
+  const handleCompleteTutorial = (tutId: string) => {
+    setActiveTutorial(null);
+    const seen = Array.from(new Set([...(player.tutorialsSeen ?? []), tutId]));
+    onUpdatePlayer({ ...player, tutorialsSeen: seen });
+  };
 
   // Forge Store State
   const [forgeCategory, setForgeCategory] = useState<ForgeCategoryFilter>('ALL');
+  const [filterByHeroClassOnly, setFilterByHeroClassOnly] = useState<boolean>(true);
   const [inspectedShopItem, setInspectedShopItem] = useState<EquipmentItem | null>(null);
+  const [selectedForgeItemId, setSelectedForgeItemId] = useState<string | null>(null);
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
-  // Regenerate 5 Stamina when resting at Tavern Inn
-  const handleRestAtInn = () => {
-    const costCC = 500; // 5 Silver Shillings
-    const playerTotalCC = totalCopperFromWallet(player.wallet);
+interface RestOption {
+  actId: string;
+  actName: string;
+  title: string;
+  minLevel: number;
+  costInCC: number;
+  hpPercent: number;
+  mpPercent: number;
+  staminaRestore: number;
+  description: string;
+}
 
-    if (playerTotalCC < costCC) {
-      alert('Not enough Silver Shillings! Inn stay costs 5 SS (500 CC).');
+const REST_OPTIONS: RestOption[] = [
+  {
+    actId: 'loc_act_1',
+    actName: 'Act I',
+    title: 'Hearthside Straw Mat',
+    minLevel: 1,
+    costInCC: 40,
+    hpPercent: 0.30,
+    mpPercent: 0.30,
+    staminaRestore: 4,
+    description: 'A cozy straw mat by the hearth fire. Restores 30% HP, 30% MP, and +4 Stamina.',
+  },
+  {
+    actId: 'loc_act_2',
+    actName: 'Act II',
+    title: "Siren's Salt Bath",
+    minLevel: 7,
+    costInCC: 120,
+    hpPercent: 0.45,
+    mpPercent: 0.45,
+    staminaRestore: 7,
+    description: 'Soak in warm coastal sea salts. Restores 45% HP, 45% MP, and +7 Stamina.',
+  },
+  {
+    actId: 'loc_act_3',
+    actName: 'Act III',
+    title: 'Ancestral Herbal Steam',
+    minLevel: 13,
+    costInCC: 300,
+    hpPercent: 0.60,
+    mpPercent: 0.60,
+    staminaRestore: 10,
+    description: 'Inhale purifying mountain herb steam. Restores 60% HP, 60% MP, and +10 Stamina.',
+  },
+  {
+    actId: 'loc_act_4',
+    actName: 'Act IV',
+    title: 'Caldera Thermal Springs',
+    minLevel: 19,
+    costInCC: 650,
+    hpPercent: 0.75,
+    mpPercent: 0.75,
+    staminaRestore: 13,
+    description: 'Bathe in mineral volcanic springs. Restores 75% HP, 75% MP, and +13 Stamina.',
+  },
+  {
+    actId: 'loc_act_5',
+    actName: 'Act V',
+    title: 'Blood Coast Anointing',
+    minLevel: 26,
+    costInCC: 1200,
+    hpPercent: 0.85,
+    mpPercent: 0.85,
+    staminaRestore: 16,
+    description: 'Anoint with sacred coconut oils. Restores 85% HP, 85% MP, and +16 Stamina.',
+  },
+  {
+    actId: 'loc_act_6',
+    actName: 'Act VI',
+    title: 'Abyssal Pearl Chamber',
+    minLevel: 33,
+    costInCC: 2500,
+    hpPercent: 0.90,
+    mpPercent: 0.90,
+    staminaRestore: 18,
+    description: 'Rest inside a glowing pearl chamber. Restores 90% HP, 90% MP, and +18 Stamina.',
+  },
+  {
+    actId: 'loc_act_7',
+    actName: 'Act VII',
+    title: 'Sky-Citadel Cloud Pavilion',
+    minLevel: 40,
+    costInCC: 5000,
+    hpPercent: 0.95,
+    mpPercent: 0.95,
+    staminaRestore: 19,
+    description: 'Meditate in the sky pavilion. Restores 95% HP, 95% MP, and +19 Stamina.',
+  },
+  {
+    actId: 'loc_act_8',
+    actName: 'Act VIII',
+    title: 'Bakunawa Eclipse Sanctuary',
+    minLevel: 47,
+    costInCC: 10000,
+    hpPercent: 1.00,
+    mpPercent: 1.00,
+    staminaRestore: 20,
+    description: 'Supreme eclipse ritual bath. Fully restores HP, MP, +20 Stamina & cleanses all debuffs.',
+  },
+];
+
+  // Rest handler for 8-Act Tiered Rest Options
+  const handleRestOption = (option: RestOption) => {
+    const maxStam = calcMaxStamina(player.level);
+    const curStam = player.stamina ?? maxStam;
+    const isFullyRestored = player.currentHp >= derived.maxHp && player.currentMp >= derived.maxMp && curStam >= maxStam;
+
+    if (isFullyRestored) {
+      notify("✨ You are already at 100% Health, Mana, and Stamina! Rest is not required.", 'info', '✨');
+      return;
+    }
+
+    const playerTotalCC = totalCopperFromWallet(player.wallet);
+    if (playerTotalCC < option.costInCC) {
+      notify(`Insufficient funds! ${option.title} requires ${formatCostInCowries(option.costInCC)}. (You have ${formatCowriesShort(player.wallet)})`, 'error', '💰');
       return;
     }
 
     soundFX.playPotionSound();
+    const remainingCC = playerTotalCC - option.costInCC;
+    const newWallet = cowriesToWallet(remainingCC, player.wallet.mutyaShards || player.wallet.prismaticShards || 0);
 
-    const remainingCC = playerTotalCC - costCC;
-    const newGold = Math.floor(remainingCC / 10000);
-    const remGold = remainingCC % 10000;
-    const newSilver = Math.floor(remGold / 100);
-    const newCopper = remGold % 100;
-
-    const currentStamina = player.stamina ?? 18;
-    const maxStamina = player.maxStamina ?? 20;
+    const newHp = Math.min(derived.maxHp, player.currentHp + Math.floor(derived.maxHp * option.hpPercent));
+    const newMp = Math.min(derived.maxMp, player.currentMp + Math.floor(derived.maxMp * option.mpPercent));
 
     onUpdatePlayer({
       ...player,
-      currentHp: derived.maxHp,
-      currentMp: derived.maxMp,
-      stamina: Math.min(maxStamina, currentStamina + 5),
-      activeEffects: [], // Cleanse all debuffs
-      wallet: {
-        ...player.wallet,
-        goldSovereigns: newGold,
-        silverShillings: newSilver,
-        copperCoins: newCopper,
-      },
+      currentHp: newHp,
+      currentMp: newMp,
+      stamina: Math.min(maxStam, curStam + option.staminaRestore),
+      activeEffects: [],
+      wallet: newWallet,
     });
 
-    alert('✨ Rested at The Rusty Goblet! HP, MP, and Stamina (+5) restored, debuffs cleansed.');
+    notify(`Rested at ${option.title}! Restored HP (+${Math.floor(derived.maxHp * option.hpPercent)}), MP (+${Math.floor(derived.maxMp * option.mpPercent)}), and +${option.staminaRestore} Stamina.`, 'success', '✨');
   };
 
   const handleAcceptBounty = (bountyId: string) => {
+    if (player.level < 3) {
+      notify('🔒 Bounties Locked! Reach Character Level 3 to unlock the Bounty Notice Board.', 'warning', '🔒');
+      return;
+    }
+    const activeCount = (player.bounties || []).filter((b) => b.isAccepted && !b.isClaimed).length;
+    if (activeCount >= 3) {
+      notify('⚠️ Maximum 3 Active Bounties! You can only accept 3 bounties concurrently. Complete or abandon an active contract before accepting another.', 'warning', '⚠️');
+      return;
+    }
     soundFX.playClickSound();
     const updatedBounties = player.bounties.map((b) =>
       b.id === bountyId ? { ...b, isAccepted: true } : b
     );
     onUpdatePlayer({ ...player, bounties: updatedBounties });
-    alert('📜 Contract Accepted! Check your Active Quest & Bounty Journal under Log & Chat tab.');
+    notify('📜 Contract Accepted! Check your Active Quest & Bounty Journal under Log & Chat tab.', 'success', '📜');
+  };
+
+  const handleAbandonBounty = (bountyId: string) => {
+    soundFX.playClickSound();
+    const updatedBounties = player.bounties.map((b) =>
+      b.id === bountyId ? { ...b, isAccepted: false, currentCount: 0 } : b
+    );
+    onUpdatePlayer({ ...player, bounties: updatedBounties });
   };
 
   const handleClaimBounty = (bounty: Bounty) => {
@@ -93,11 +296,11 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
       b.id === bounty.id ? { ...b, isClaimed: true } : b
     );
 
-    const totalCC = player.wallet.copperCoins + bounty.rewardCC + (player.wallet.silverShillings * 100) + (player.wallet.goldSovereigns * 10000);
-    const newGold = Math.floor(totalCC / 10000);
-    const remGold = totalCC % 10000;
-    const newSilver = Math.floor(remGold / 100);
-    const newCopper = remGold % 100;
+    const rewardCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
+    const currentTotalCowries = totalCowriesFromWallet(player.wallet);
+    const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
+    updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + 1;
+    updatedWallet.prismaticShards = updatedWallet.mutyaShards;
 
     const expResult = processExpGain(player.level, player.exp, bounty.rewardExp);
 
@@ -108,75 +311,174 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
       availableAP: player.availableAP + expResult.apGained,
       encryptedMemories: newMemories,
       bounties: updatedBounties,
-      wallet: {
-        ...player.wallet,
-        goldSovereigns: newGold,
-        silverShillings: newSilver,
-        copperCoins: newCopper,
-      },
+      wallet: updatedWallet,
     });
 
+    const memText = `💎 1x Encrypted Memory (${bounty.rewardMemoryRarity})`;
     if (expResult.levelsGained > 0) {
-      alert(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${bounty.rewardCC} CC, and 1x Encrypted Memory (${bounty.rewardMemoryRarity})!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`);
+      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'success', '🎉');
     } else {
-      alert(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${bounty.rewardCC} CC, and 1x Encrypted Memory (${bounty.rewardMemoryRarity})!`);
+      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)`, 'success', '🎉');
     }
   };
 
   const handleBuyItem = (item: EquipmentItem | ConsumableItem) => {
-    const playerTotalCC = totalCopperFromWallet(player.wallet);
+    const playerTotalCC = totalCowriesFromWallet(player.wallet);
 
     if (playerTotalCC < item.costInCC) {
-      alert('Insufficient currency to purchase this item!');
+      notify('Insufficient currency to purchase this item!', 'error', '🪙');
       return;
     }
 
     if (player.inventory.length >= derived.inventoryCapacity) {
-      alert('Inventory capacity reached! Move items to Stash or unequip/salvage first.');
+      notify('Inventory capacity reached! Move items to Stash or unequip/salvage first.', 'warning', '🎒');
       return;
     }
 
     soundFX.playCoinSound();
 
     const remainingCC = playerTotalCC - item.costInCC;
-    const newGold = Math.floor(remainingCC / 10000);
-    const remGold = remainingCC % 10000;
-    const newSilver = Math.floor(remGold / 100);
-    const newCopper = remGold % 100;
+    const updatedWallet = cowriesToWallet(remainingCC, player.wallet.mutyaShards || player.wallet.prismaticShards || 0);
 
     onUpdatePlayer({
       ...player,
       inventory: [...player.inventory, { ...item, id: `bought_${Date.now()}_${Math.random()}` }],
-      wallet: {
-        ...player.wallet,
-        goldSovereigns: newGold,
-        silverShillings: newSilver,
-        copperCoins: newCopper,
-      },
+      wallet: updatedWallet,
     });
   };
+  const calcMutyaBreakRisk = (attempts: number): { breakRisk: number; isTooFragile: boolean } => {
+    const risks = [5, 15, 30, 50, 80];
+    if (attempts >= 5) {
+      return { breakRisk: 100, isTooFragile: true };
+    }
+    return { breakRisk: risks[attempts], isTooFragile: false };
+  };
+
+  const calcMutyaCost = (attempts: number): number => {
+    // Attempt 1 (0 prev): 1 Mutya
+    // Attempt 2 (1 prev): 1 Mutya
+    // Attempt 3 (2 prev): 2 Mutya
+    // Attempt 4 (3 prev): 2 Mutya
+    // Attempt 5 (4 prev): 3 Mutya
+    const costs = [1, 1, 2, 2, 3];
+    return costs[Math.min(attempts, 4)];
+  };
+
+  const [confirmBlessingData, setConfirmBlessingData] = useState<{
+    item: EquipmentItem;
+    requiredMutya: number;
+    breakRisk: number;
+    currentAttempts: number;
+    currentMutya: number;
+  } | null>(null);
 
   const handleRerollEnchantment = () => {
     if (!selectedEnchantItem) return;
 
-    if (player.wallet.prismaticShards < 1) {
-      alert('Requires 1 Prismatic Shard (PS) to reroll affixes!');
+    const currentMutya = player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0;
+    const currentAttempts = selectedEnchantItem.blessingAttempts || 0;
+    const { breakRisk, isTooFragile } = calcMutyaBreakRisk(currentAttempts);
+    const requiredMutya = calcMutyaCost(currentAttempts);
+
+    if (isTooFragile) {
+      notify(
+        `⛔ EQUIPMENT HAS BECOME TOO FRAGILE TO ATTEMPT!\n\n` +
+        `[${selectedEnchantItem.name}] has been blessed ${currentAttempts} times and reached maximum structural brittleness.\n\n` +
+        `Further Mutya blessing is no longer possible because it has a 100% chance to break into dust.`,
+        'error',
+        '⛔'
+      );
       return;
     }
 
+    if (currentMutya < requiredMutya) {
+      notify(`Insufficient Mutya Shards! Blessing attempt #${currentAttempts + 1} requires ${requiredMutya} Mutya Shard(s). (You have ${currentMutya})`, 'warning', '🔮');
+      return;
+    }
+
+    setConfirmBlessingData({
+      item: selectedEnchantItem,
+      requiredMutya,
+      breakRisk,
+      currentAttempts,
+      currentMutya,
+    });
+  };
+
+  const executeMutyaBlessing = () => {
+    if (!confirmBlessingData) return;
+    const { item, requiredMutya, breakRisk, currentAttempts, currentMutya } = confirmBlessingData;
+    setConfirmBlessingData(null);
+
+    const newMutya = Math.max(0, currentMutya - requiredMutya);
+
+    // Roll for Destruction Failure
+    const isDestroyed = Math.random() * 100 < breakRisk;
+
+    if (isDestroyed) {
+      soundFX.playDefeatSound();
+
+      const updatedInventory = player.inventory.filter((inv) => inv.id !== item.id);
+
+      onUpdatePlayer({
+        ...player,
+        inventory: updatedInventory,
+        wallet: {
+          ...player.wallet,
+          mutyaShards: newMutya,
+          prismaticShards: newMutya,
+        },
+      });
+
+      const destroyedName = item.name;
+      setSelectedEnchantItem(null);
+      notify(`💥 RITUAL FAILED (${breakRisk}% Break Risk)! The surge of primordial Mutya energy shattered [${destroyedName}] into glowing dust! The item has been destroyed.`, 'error', '💥');
+      return;
+    }
+
+    // Success! Roll affixes based on category
     soundFX.playSpellSound();
 
-    const prefix = ENCHANTER_PREFIXES[Math.floor(Math.random() * ENCHANTER_PREFIXES.length)];
-    const suffix = ENCHANTER_SUFFIXES[Math.floor(Math.random() * ENCHANTER_SUFFIXES.length)];
+    const isWeapon = ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
+    let chosenPrefix: typeof ENCHANTER_PREFIXES[0];
+    let chosenSuffix: typeof ENCHANTER_SUFFIXES[0];
 
+    if (isWeapon) {
+      if (Math.random() < 0.5) {
+        const attrPrefixes = ENCHANTER_PREFIXES.filter((p) => !p.statusInfliction && !p.statusMitigation);
+        const inflictionSuffixes = ENCHANTER_SUFFIXES.filter((s) => s.statusInfliction);
+        chosenPrefix = attrPrefixes[Math.floor(Math.random() * attrPrefixes.length)] || ENCHANTER_PREFIXES[0];
+        chosenSuffix = inflictionSuffixes[Math.floor(Math.random() * inflictionSuffixes.length)] || ENCHANTER_SUFFIXES[0];
+      } else {
+        const attrPrefixes = ENCHANTER_PREFIXES.filter((p) => !p.statusInfliction && !p.statusMitigation);
+        const attrSuffixes = ENCHANTER_SUFFIXES.filter((s) => !s.statusInfliction && !s.statusMitigation);
+        chosenPrefix = attrPrefixes[Math.floor(Math.random() * attrPrefixes.length)] || ENCHANTER_PREFIXES[0];
+        chosenSuffix = attrSuffixes[Math.floor(Math.random() * attrSuffixes.length)] || ENCHANTER_SUFFIXES[0];
+      }
+    } else {
+      if (Math.random() < 0.5) {
+        const mitigationPrefixes = ENCHANTER_PREFIXES.filter((p) => p.statusMitigation);
+        const attrSuffixes = ENCHANTER_SUFFIXES.filter((s) => !s.statusInfliction && !s.statusMitigation);
+        chosenPrefix = mitigationPrefixes[Math.floor(Math.random() * mitigationPrefixes.length)] || ENCHANTER_PREFIXES[0];
+        chosenSuffix = attrSuffixes[Math.floor(Math.random() * attrSuffixes.length)] || ENCHANTER_SUFFIXES[0];
+      } else {
+        const attrPrefixes = ENCHANTER_PREFIXES.filter((p) => !p.statusInfliction && !p.statusMitigation);
+        const attrSuffixes = ENCHANTER_SUFFIXES.filter((s) => !s.statusInfliction && !s.statusMitigation);
+        chosenPrefix = attrPrefixes[Math.floor(Math.random() * attrPrefixes.length)] || ENCHANTER_PREFIXES[0];
+        chosenSuffix = attrSuffixes[Math.floor(Math.random() * attrSuffixes.length)] || ENCHANTER_SUFFIXES[0];
+      }
+    }
+
+    const cleanBaseName = item.name.replace(/.*?\s(.*)/, '$1');
     const updatedItem: EquipmentItem = {
-      ...selectedEnchantItem,
-      name: `${prefix.name} ${selectedEnchantItem.name.replace(/.*?\s(.*)/, '$1')} ${suffix.name}`,
-      affixes: [prefix, suffix],
+      ...item,
+      name: `${chosenPrefix.name} ${cleanBaseName} ${chosenSuffix.name}`,
+      affixes: [chosenPrefix, chosenSuffix],
+      blessingAttempts: currentAttempts + 1,
     };
 
     const updatedInventory = player.inventory.map((inv) =>
-      inv.id === selectedEnchantItem.id ? updatedItem : inv
+      inv.id === item.id ? updatedItem : inv
     );
 
     onUpdatePlayer({
@@ -184,12 +486,14 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
       inventory: updatedInventory,
       wallet: {
         ...player.wallet,
-        prismaticShards: player.wallet.prismaticShards - 1,
+        mutyaShards: newMutya,
+        prismaticShards: newMutya,
       },
     });
 
     setSelectedEnchantItem(updatedItem);
-    alert(`✨ Enchanted ${updatedItem.name}! Prefix: ${prefix.name}, Suffix: ${suffix.name}`);
+    const nextRisk = 5 + (currentAttempts + 1) * 5;
+    notify(`✨ Mutya Blessing Success! Applied to ${updatedItem.name}!\nPrefix: ${chosenPrefix.name}, Suffix: ${chosenSuffix.name}.\n(Next blessing risk: ${nextRisk}%)`, 'success', '✨');
   };
 
   const handleMoveToStash = (item: EquipmentItem | ConsumableItem) => {
@@ -206,7 +510,7 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
 
   const handleWithdrawFromStash = (item: EquipmentItem | ConsumableItem) => {
     if (player.inventory.length >= derived.inventoryCapacity) {
-      alert('Inventory is full! Free up space first.');
+      notify('Inventory is full! Free up space first.', 'warning', '🎒');
       return;
     }
 
@@ -220,37 +524,111 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
     });
     soundFX.playCoinSound();
   };
-  // ALL FORGE EQUIPMENT ITEMS CATALOG
-  const ALL_FORGE_GEAR: EquipmentItem[] = [
-    ...DAGGERS,
-    ...SWORDS,
-    ...BOWS,
-    ...STAVES,
-    ...UPPER_ARMORS,
-    ...LOWER_ARMORS,
-  ];
 
-  const filteredForgeItems = ALL_FORGE_GEAR.filter((item) => {
-    if (forgeCategory === 'ALL') return true;
-    if (forgeCategory === 'WEAPONS') return ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
-    if (forgeCategory === 'ARMOR') return ['UPPER', 'LOWER'].includes(item.category);
-    if (forgeCategory === 'DAGGERS') return item.category === 'DAGGER';
-    if (forgeCategory === 'SWORDS') return item.category === 'SWORD';
-    if (forgeCategory === 'BOWS') return item.category === 'BOW';
-    if (forgeCategory === 'STAVES') return item.category === 'STAFF';
-    if (forgeCategory === 'UPPER') return item.category === 'UPPER';
-    if (forgeCategory === 'LOWER') return item.category === 'LOWER';
-    return true;
-  });
+  // POST-ACT 6 BEASTMASTER STABLES HANDLERS
+  const handleBuyMount = (mount: EquipmentItem) => {
+    const totalCowries = totalCowriesFromWallet(player.wallet);
+    const cost = mount.costInCC || 10000;
 
+    if (totalCowries < cost) {
+      notify(`Insufficient funds! ${mount.name} requires ${formatCostInCowries(cost)}. (You have ${formatCowriesShort(player.wallet)})`, 'error', '🪙');
+      return;
+    }
+
+    if (player.inventory.length >= derived.inventoryCapacity) {
+      notify('Inventory capacity reached! Free up space in your bag first.', 'warning', '🎒');
+      return;
+    }
+
+    soundFX.playCoinSound();
+
+    const newTotalCowries = totalCowries - cost;
+    const updatedWallet = cowriesToWallet(newTotalCowries, player.wallet.mutyaShards || player.wallet.prismaticShards || 0);
+
+    let updatedEquipment = { ...player.equipment };
+    let updatedInventory = [...player.inventory];
+
+    if (!updatedEquipment.mount && !updatedEquipment.bike) {
+      updatedEquipment.mount = mount;
+      updatedEquipment.bike = mount;
+      notify(`🐃 Beast Tamed! You tamed and equipped the [${mount.name}]!`, 'success', '🐃');
+    } else {
+      updatedInventory.push(mount);
+      notify(`🐃 Beast Tamed! You purchased the [${mount.name}]! It is now in your gear bag.`, 'success', '🐃');
+    }
+
+    onUpdatePlayer({
+      ...player,
+      equipment: updatedEquipment,
+      inventory: updatedInventory,
+      wallet: updatedWallet,
+    });
+  };
+
+  const handleEquipMountFromStables = (mount: EquipmentItem) => {
+    soundFX.playClickSound();
+    const prevMount = player.equipment.mount || player.equipment.bike || null;
+    let newInventory = player.inventory.filter((i) => i.id !== mount.id);
+    if (prevMount) {
+      newInventory.push(prevMount);
+    }
+    onUpdatePlayer({
+      ...player,
+      equipment: {
+        ...player.equipment,
+        mount: mount,
+        bike: mount,
+      },
+      inventory: newInventory,
+    });
+  };
+
+  const handleUnequipMount = () => {
+    const currentMount = player.equipment.mount || player.equipment.bike;
+    if (!currentMount) return;
+    if (player.inventory.length >= derived.inventoryCapacity) {
+      notify('Cannot unequip mount: inventory is full!', 'warning', '🎒');
+      return;
+    }
+    soundFX.playClickSound();
+    onUpdatePlayer({
+      ...player,
+      equipment: {
+        ...player.equipment,
+        mount: null,
+        bike: null,
+      },
+      inventory: [...player.inventory, currentMount],
+    });
+  };
   const getEquippedItemForShopItem = (shopItem: EquipmentItem): EquipmentItem | null => {
     if (shopItem.category === 'UPPER') return player.equipment.upperArmor || null;
     if (shopItem.category === 'LOWER') return player.equipment.lowerArmor || null;
     if (['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(shopItem.category)) {
-      return player.equipment.primaryWeapon || null;
+      return player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
     }
     return null;
   };
+
+  // DYNAMIC LEVEL-SCALED FORGE EQUIPMENT CATALOG (STAT UPGRADES ONLY)
+  const rawForgeItems = getScaledForgeCatalog(
+    player.level,
+    player.heroClass as HeroClass,
+    forgeCategory,
+    filterByHeroClassOnly
+  );
+
+  const filteredForgeItems = rawForgeItems.filter((item) => {
+    const equipped = getEquippedItemForShopItem(item);
+    if (!equipped) return true;
+    if (item.baseDefense !== undefined && equipped.baseDefense !== undefined) {
+      return item.baseDefense > equipped.baseDefense;
+    }
+    if (item.baseDamageMax !== undefined && equipped.baseDamageMax !== undefined) {
+      return item.baseDamageMax > equipped.baseDamageMax;
+    }
+    return true;
+  });
 
   const renderItemComparison = (shopItem: EquipmentItem) => {
     const equipped = getEquippedItemForShopItem(shopItem);
@@ -317,17 +695,113 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
       {/* Town Banner */}
-      <div className="bg-zinc-900/90 border border-amber-900/50 rounded-xl p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+      <div data-tutorial-target="town-banner" className="bg-zinc-900/90 border border-amber-900/50 rounded-xl p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <div className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">SAFE ZONE • HAVEN'S REST CITADEL</div>
-          <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200">The Haven Citadel</h2>
+          <div className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">SAFE ZONE • PRE-COLONIAL SANCTUARY</div>
+          <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200">Poblacion Sanctuary</h2>
           <p className="text-xs text-zinc-400 mt-1">
-            Zero combat zone. Stamina regenerates. Visit facilities below or step through the Anchor Gate.
+            Pre-colonial sanctuary hub of the archipelago. Stamina regenerates, Panday Pira crafts, Shaman brews potions, and Datu guards the vault.
           </p>
         </div>
 
-        <div className="bg-zinc-950 px-3 py-1.5 rounded-lg border border-amber-500/30 text-xs font-mono text-emerald-400 font-bold">
-          ⚡ Stamina Restored
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              const seen = (player.tutorialsSeen ?? []).filter((t) => t !== 'tut_onboarding');
+              onUpdatePlayer({ ...player, tutorialsSeen: seen });
+            }}
+            className="bg-zinc-800 hover:bg-zinc-700 text-amber-300 px-3 py-1.5 rounded-lg border border-amber-500/30 text-xs font-mono font-bold transition-all min-h-[36px]"
+            title="Replay 14-Step Interactive Onboarding Tutorial"
+          >
+            ❓ Replay Tutorial
+          </button>
+          <div className="bg-zinc-950 px-3 py-1.5 rounded-lg border border-amber-500/30 text-xs font-mono text-emerald-400 font-bold min-h-[36px] flex items-center">
+            ⚡ Stamina Restored
+          </div>
+        </div>
+      </div>
+
+      {/* HAVEN DISTRICT ACTION PAD — Positioned directly below Poblacion Sanctuary Banner */}
+      <div className="bg-zinc-950 border border-amber-900/60 p-2 md:p-3 rounded-xl shadow-2xl">
+        <div className="text-[9px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-1 text-center md:text-left tracking-wider">
+          HAVEN DISTRICT ACTION PAD
+        </div>
+        <div className={`grid grid-cols-2 ${player.act6Completed || player.mountUnlocked ? 'sm:grid-cols-3 md:grid-cols-6' : 'sm:grid-cols-3 md:grid-cols-5'} gap-1.5 md:gap-2`}>
+          <button
+            onClick={() => handleSelectDistrict('TAVERN')}
+            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              activeDistrict === 'TAVERN'
+                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
+            }`}
+          >
+            <span className="text-sm md:text-base">🍺</span>
+            <span className="truncate">Tavern</span>
+          </button>
+
+          <button
+            data-tutorial-target="district-forge"
+            onClick={() => handleSelectDistrict('FORGE')}
+            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              activeDistrict === 'FORGE'
+                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
+            }`}
+          >
+            <span className="text-sm md:text-base">⚒️</span>
+            <span className="truncate">Forge</span>
+          </button>
+
+          <button
+            data-tutorial-target="district-alchemist"
+            onClick={() => handleSelectDistrict('ALCHEMIST')}
+            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              activeDistrict === 'ALCHEMIST'
+                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
+            }`}
+          >
+            <span className="text-sm md:text-base">🧪</span>
+            <span className="truncate">Alchemist</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectDistrict('GATE')}
+            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              activeDistrict === 'GATE'
+                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
+            }`}
+          >
+            <span className="text-sm md:text-base">🌀</span>
+            <span className="truncate">Gate</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectDistrict('STASH')}
+            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              activeDistrict === 'STASH'
+                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
+            }`}
+          >
+            <span className="text-sm md:text-base">🏛️</span>
+            <span className="truncate">Stash</span>
+          </button>
+
+          {(player.act6Completed || player.mountUnlocked) && (
+            <button
+              onClick={() => handleSelectDistrict('STABLES')}
+              className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+                activeDistrict === 'STABLES'
+                  ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
+                  : 'bg-emerald-950/80 text-emerald-200 border-emerald-500/50 hover:border-emerald-400 animate-pulse'
+              }`}
+            >
+              <span className="text-sm md:text-base">🐃</span>
+              <span className="truncate">Stables ✨</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -339,43 +813,241 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
             <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
               <span className="text-3xl">🍺</span>
               <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">The Rusty Goblet (Inn & Tavern)</h3>
-                <p className="text-xs text-zinc-400">Rest in warm beds, clear Exhaustion, or inspect daily Colossus Bounties.</p>
+                <h3 className="text-xl font-bold font-serif text-amber-200">Sanctuary Inn & Shaman's Hearth</h3>
+                <p className="text-xs text-zinc-400">Rest by the hearth fire, clear fatigue, or inspect regional Bounties at the Notice Board.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Rest Option */}
-              <div className="bg-zinc-950 border border-amber-900/40 p-4 rounded-xl space-y-3">
-                <h4 className="text-sm font-bold font-serif text-amber-300">Feather Bed Rest</h4>
-                <p className="text-xs text-zinc-400">
-                  Fully recovers Health & Mana, restores +5 Stamina, and cleanses active debuffs like Bleed & Burn.
-                </p>
-                <div className="text-xs font-mono text-amber-400">Cost: 5 SS (500 CC)</div>
-                <button
-                  onClick={handleRestAtInn}
-                  className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-2 rounded text-xs uppercase font-mono tracking-wider transition-all shadow-md active:scale-95"
-                >
-                  Rest & Restore
-                </button>
-              </div>
+            {/* Shaman & Inn Resting Card Carousel Deck */}
+            {(() => {
+              const displayOptions = REST_OPTIONS.filter((o) => player.level >= o.minLevel);
+
+              const safeIndex = Math.min(activeRestCardIndex, Math.max(0, displayOptions.length - 1));
+
+              const scrollToCard = (index: number) => {
+                soundFX.playClickSound();
+                const newIdx = (index + displayOptions.length) % displayOptions.length;
+                setActiveRestCardIndex(newIdx);
+                if (restCarouselRef.current) {
+                  const container = restCarouselRef.current;
+                  const cardEl = container.children[newIdx] as HTMLElement;
+                  if (cardEl) {
+                    cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  }
+                }
+              };
+
+              const handleScroll = () => {
+                if (!restCarouselRef.current) return;
+                const container = restCarouselRef.current;
+                const children = Array.from(container.children) as HTMLElement[];
+                if (children.length === 0) return;
+
+                const containerCenter = container.scrollLeft + container.clientWidth / 2;
+                let closestIndex = 0;
+                let minDistance = Infinity;
+
+                children.forEach((child, idx) => {
+                  const childCenter = child.offsetLeft + child.clientWidth / 2;
+                  const dist = Math.abs(containerCenter - childCenter);
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    closestIndex = idx;
+                  }
+                });
+
+                if (closestIndex !== activeRestCardIndex) {
+                  setActiveRestCardIndex(closestIndex);
+                }
+              };
+
+              return (
+                <div data-tutorial-target="inn-card" className="space-y-3 bg-zinc-950/90 border border-zinc-800/90 p-4 rounded-2xl shadow-2xl">
+                  <div className="flex justify-between items-center border-b border-zinc-800/80 pb-2">
+                    <div className="flex items-center space-x-2">
+                      <h4 className="text-xs font-bold uppercase font-mono tracking-wider text-amber-400 flex items-center space-x-1.5">
+                        <span>🛌 Shaman & Inn Resting Quarters</span>
+                      </h4>
+                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 hidden sm:inline">
+                        👈 Swipe left / right 👉
+                      </span>
+                    </div>
+                    {displayOptions.length > 1 && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-mono text-amber-300 font-semibold">
+                          Option {safeIndex + 1} of {displayOptions.length}
+                        </span>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => scrollToCard(safeIndex - 1)}
+                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-2 py-0.5 rounded text-xs border border-amber-500/30 font-mono active:scale-95 transition-all"
+                            title="Previous Rest Option"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            onClick={() => scrollToCard(safeIndex + 1)}
+                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-2 py-0.5 rounded text-xs border border-amber-500/30 font-mono active:scale-95 transition-all"
+                            title="Next Rest Option"
+                          >
+                            ▶
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Real Swipeable Horizontal Card Carousel */}
+                  <div
+                    ref={restCarouselRef}
+                    onScroll={handleScroll}
+                    className="flex space-x-3 overflow-x-auto snap-x snap-mandatory scroll-smooth py-2 px-1 scrollbar-thin scrollbar-thumb-amber-900/60 scrollbar-track-zinc-950 touch-pan-x select-none"
+                  >
+                    {displayOptions.map((opt, idx) => {
+                      const isUnlocked = player.level >= opt.minLevel;
+                      const isActive = idx === safeIndex;
+                      const maxStam = calcMaxStamina(player.level);
+                      const curStam = player.stamina ?? maxStam;
+                      const isFullyRestored = player.currentHp >= derived.maxHp && player.currentMp >= derived.maxMp && curStam >= maxStam;
+
+                      return (
+                        <div
+                          key={opt.actId}
+                          onClick={() => {
+                            if (!isActive) scrollToCard(idx);
+                          }}
+                          className={`w-[85%] sm:w-[320px] md:w-[330px] shrink-0 snap-center rounded-2xl p-4 transition-all duration-300 flex flex-col justify-between min-h-[195px] cursor-pointer border ${
+                            isActive
+                              ? 'bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/50 scale-[1.01] ring-1 ring-amber-500/40'
+                              : 'bg-zinc-900/60 border-zinc-800/90 opacity-70 hover:opacity-95 hover:border-zinc-700'
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center space-x-1.5">
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider border ${
+                                  isUnlocked
+                                    ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                }`}>
+                                  {opt.actName}
+                                </span>
+                                {!isUnlocked && (
+                                  <span className="text-[10px] font-mono bg-red-950 text-red-300 border border-red-500/30 px-1.5 py-0.5 rounded font-bold">
+                                    🔒 Lv {opt.minLevel} Req
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs font-mono text-amber-400 font-bold bg-zinc-950 px-2.5 py-1 rounded-lg border border-amber-500/30 shadow-inner">
+                                {formatCostInCowries(opt.costInCC)}
+                              </span>
+                            </div>
+
+                            <h5 className="text-base font-bold font-serif text-amber-200">
+                              {opt.title}
+                            </h5>
+
+                            <p className="text-xs text-zinc-300 leading-relaxed font-sans line-clamp-3">
+                              {opt.description}
+                            </p>
+                          </div>
+
+                          <div className="pt-3 border-t border-zinc-800/80 mt-2 space-y-2">
+                            <div className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-500/30 px-2 py-1 rounded flex items-center justify-between">
+                              <span>✨ +{Math.round(opt.hpPercent * 100)}% HP • +{Math.round(opt.mpPercent * 100)}% MP</span>
+                              <span className="text-amber-300 font-bold">+{opt.staminaRestore} ST</span>
+                            </div>
+
+                            {isUnlocked ? (
+                              isFullyRestored ? (
+                                <button
+                                  disabled
+                                  className="w-full bg-zinc-800 text-zinc-400 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-80"
+                                  title="Health, Mana, and Stamina are all 100% full!"
+                                >
+                                  <span>✨ HP, MP & ST Fully Restored</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRestOption(opt);
+                                  }}
+                                  className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center"
+                                >
+                                  <span>Rest & Regenerate</span>
+                                </button>
+                              )
+                            ) : (
+                              <button
+                                disabled
+                                className="w-full bg-zinc-800 text-zinc-500 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-75"
+                              >
+                                <span>🔒 Requires Character Level {opt.minLevel}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Carousel Pagination Indicator Dots */}
+                  {displayOptions.length > 1 && (
+                    <div className="flex items-center space-x-1.5 justify-center pt-1">
+                      {displayOptions.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => scrollToCard(idx)}
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            idx === safeIndex
+                              ? 'w-6 bg-amber-400 shadow-sm shadow-amber-400/50'
+                              : 'w-2 bg-zinc-700 hover:bg-zinc-500'
+                          }`}
+                          title={`Go to Rest Option ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
               {/* Tavern Bounties Notice */}
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-3">
-                <h4 className="text-sm font-bold font-serif text-purple-300">Bounty Notice Board</h4>
-                <p className="text-xs text-zinc-400">
-                  Inspect posted contracts for hunting mutated beasts in the wilderness.
-                </p>
-                <button
-                  onClick={() => setShowBountyBoard(true)}
-                  className="w-full bg-purple-900/80 hover:bg-purple-800 border border-purple-500/40 text-purple-200 font-bold py-2 rounded text-xs uppercase font-mono tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2"
-                >
-                  <span>📜 Inspect Bounty Notice Board</span>
-                  <span className="bg-purple-950 px-2 py-0.5 rounded-full text-[10px] border border-purple-400/40">
-                    {displayedBounties.length} Available
-                  </span>
-                </button>
-              </div>
+              {player.level < 3 ? (
+                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-2 opacity-80">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-zinc-500 font-bold text-xs uppercase font-mono">🔒 Bounty Board Locked</span>
+                    <span className="bg-zinc-800 text-amber-400 font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">Unlocks at Lv 3</span>
+                  </div>
+                  <p className="text-xs text-zinc-400 font-mono">
+                    The Town Elders require warriors to reach <strong className="text-amber-300">Character Level 3</strong> before taking on lethal creature bounties.
+                  </p>
+                  <div className="text-[10px] font-mono text-zinc-500">Progress: Level {player.level} / 3</div>
+                </div>
+              ) : (
+                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-sm font-bold font-serif text-purple-300">Bounty Notice Board</h4>
+                    <span className="text-[10px] font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">
+                      {activeAcceptedBounties.length}/3 Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    Inspect posted contracts for hunting dangerous mythological beasts in the wilderness.
+                  </p>
+                  <button
+                    onClick={handleOpenBountyBoard}
+                    className="w-full bg-purple-900/80 hover:bg-purple-800 border border-purple-500/40 text-purple-200 font-bold py-2 rounded text-xs uppercase font-mono tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2"
+                  >
+                    <span>📜 Inspect Bounty Notice Board</span>
+                    <span className="bg-purple-950 px-2 py-0.5 rounded-full text-[10px] border border-purple-400/40">
+                      {displayedBounties.length} Available
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Dedicated Bounty Board Panel inside Tavern */}
@@ -494,8 +1166,17 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                                 Claim Reward
                               </button>
                             ) : (
-                              <div className="bg-purple-950/80 border border-purple-500/40 text-purple-200 font-bold font-mono px-4 py-2 rounded-lg text-xs uppercase tracking-wider text-center shrink-0">
-                                ⏳ In Progress ({bounty.currentCount}/{bounty.targetCount})
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <div className="bg-purple-950/80 border border-purple-500/40 text-purple-200 font-bold font-mono px-3 py-1.5 rounded-lg text-xs uppercase tracking-wider text-center">
+                                  ⏳ In Progress ({bounty.currentCount}/{bounty.targetCount})
+                                </div>
+                                <button
+                                  onClick={() => handleAbandonBounty(bounty.id)}
+                                  className="text-zinc-500 hover:text-red-400 font-mono text-[10px] uppercase underline px-1 py-1"
+                                  title="Abandon Contract to free active slot"
+                                >
+                                  Abandon
+                                </button>
                               </div>
                             )}
                           </div>
@@ -538,23 +1219,23 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
           </div>
         )}
 
-        {/* DISTRICT 2: THE IRON ANVIL (FORGE & ENCHANTER) */}
+        {/* DISTRICT 2: PANDAY PIRA'S FORGE */}
         {activeDistrict === 'FORGE' && (
-          <div className="space-y-4">
+          <div data-tutorial-target="forge-view" className="space-y-4">
             <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
               <span className="text-3xl">⚒️</span>
               <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">The Iron Anvil (Forge & Enchanter)</h3>
-                <p className="text-xs text-zinc-400">Torvald's forge: Buy base gear, or reroll prefixes/suffixes using Prismatic Shards (PS).</p>
+                <h3 className="text-xl font-bold font-serif text-amber-200">Panday Pira's Ancient Forge</h3>
+                <p className="text-xs text-zinc-400">Panday Pira's Forge: Buy 10 tiers of pre-colonial weapons & armors, or reroll affixes using Mutya Shards.</p>
               </div>
             </div>
 
             {/* Enchanter Panel */}
             <div className="bg-zinc-950 border border-purple-900/50 p-4 rounded-xl space-y-3">
               <div className="flex justify-between items-center">
-                <h4 className="text-sm font-bold font-serif text-purple-300">Prismatic Affix Reroll</h4>
-                <span className="text-xs font-mono font-bold text-purple-300 bg-purple-950 px-2 py-0.5 rounded border border-purple-500/40">
-                  {player.wallet.prismaticShards} PS Available
+                <h4 className="text-sm font-bold font-serif text-purple-300">Mutya Pearl Affix Blessing</h4>
+                <span className="text-xs font-mono font-bold text-purple-300 bg-purple-950 px-2.5 py-1 rounded border border-purple-500/40">
+                  🔮 {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0} Mutya Available
                 </span>
               </div>
 
@@ -565,37 +1246,134 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                     onClick={() => setSelectedEnchantItem(item)}
                     className={`p-2 rounded border text-left text-xs font-mono transition-all ${
                       selectedEnchantItem?.id === item.id
-                        ? 'border-purple-500 bg-purple-950/60 text-purple-200 ring-1 ring-purple-500'
+                        ? 'border-purple-500 bg-purple-950/60 text-purple-200 ring-1 ring-purple-500 shadow-md'
                         : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
                     }`}
                   >
-                    <div className="font-bold">{item.name}</div>
+                    <div className="font-bold flex justify-between items-center">
+                      <span>{item.name}</span>
+                      <span className="text-[10px] font-mono text-purple-400">
+                        {item.baseDefense ? `🛡️ +${item.baseDefense}` : `⚔️ ${item.baseDamageMin}-${item.baseDamageMax}`}
+                      </span>
+                    </div>
                     <div className="text-[10px] text-zinc-500">{item.archetype} • Tier {item.tier}</div>
                   </button>
                 ))}
               </div>
 
+              {/* Selected Equipment Detailed Stats Breakdown */}
               {selectedEnchantItem && (
-                <div className="pt-2 flex justify-between items-center border-t border-zinc-800">
-                  <span className="text-xs font-mono text-purple-200">Enchanting: <strong>{selectedEnchantItem.name}</strong></span>
-                  <button
-                    onClick={handleRerollEnchantment}
-                    disabled={player.wallet.prismaticShards < 1}
-                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-1.5 rounded text-xs font-mono uppercase tracking-wider disabled:opacity-40"
-                  >
-                    Reroll Affixes (1 PS)
-                  </button>
+                <div className="bg-zinc-900 border border-purple-500/40 rounded-xl p-3 text-xs font-mono space-y-1.5 shadow-inner animate-fade-in">
+                  <div className="flex justify-between items-center text-purple-300 font-bold border-b border-zinc-800 pb-1">
+                    <span>📊 Selected Gear Specs: <strong>{selectedEnchantItem.name}</strong></span>
+                    <span className="text-amber-400 text-[10px]">Tier {selectedEnchantItem.tier} • {selectedEnchantItem.archetype}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[11px]">
+                    {selectedEnchantItem.baseDefense !== undefined && (
+                      <span className="text-emerald-400 font-bold">🛡️ Base Physical Armor: +{selectedEnchantItem.baseDefense}</span>
+                    )}
+                    {selectedEnchantItem.baseDamageMin !== undefined && (
+                      <span className="text-amber-300 font-bold">⚔️ Attack Damage: {selectedEnchantItem.baseDamageMin} - {selectedEnchantItem.baseDamageMax} ({selectedEnchantItem.damageType || 'PHYSICAL'})</span>
+                    )}
+                    <span className="text-zinc-400">Lvl Req: {selectedEnchantItem.levelReq}</span>
+                  </div>
+
+                  {/* Affixes Breakdown */}
+                  {selectedEnchantItem.affixes && selectedEnchantItem.affixes.length > 0 ? (
+                    <div className="space-y-1 pt-1">
+                      <div className="text-[10px] font-bold uppercase text-purple-400">Current Blessed Affixes:</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                        {selectedEnchantItem.affixes.map((aff, idx) => (
+                          <div key={idx} className="bg-purple-950/60 border border-purple-700/40 p-1.5 rounded text-[11px] text-purple-200">
+                            <div className="font-bold">✨ {aff.name} ({aff.type})</div>
+                            {aff.statusInfliction && (
+                              <div className="text-[10px] text-amber-300">🩸 Inflicts {aff.statusInfliction.type} ({aff.statusInfliction.chancePercent}% chance)</div>
+                            )}
+                            {aff.statusMitigation && (
+                              <div className="text-[10px] text-emerald-300">🛡️ {aff.statusMitigation.type} {aff.statusMitigation.isImmune ? 'Immunity' : `Resist ${aff.statusMitigation.resistancePercent}%`}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-zinc-500 italic text-[10px] pt-1">No Mutya affixes currently applied.</div>
+                  )}
+
+                  {selectedEnchantItem.inherentPerk && (
+                    <div className="text-[10px] text-amber-300/90 font-semibold pt-1 border-t border-zinc-800/60">
+                      ✨ Inherent Perk: {selectedEnchantItem.inherentPerk}
+                    </div>
+                  )}
                 </div>
               )}
+
+              {selectedEnchantItem && (() => {
+                const currentAttempts = selectedEnchantItem.blessingAttempts || 0;
+                const { breakRisk, isTooFragile } = calcMutyaBreakRisk(currentAttempts);
+                const requiredMutya = calcMutyaCost(currentAttempts);
+                const hasEnoughMutya = (player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0) >= requiredMutya;
+
+                return (
+                  <div className="pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center border-t border-zinc-800 gap-2">
+                    <div className="flex flex-col space-y-0.5">
+                      <div className="text-[10px] font-mono text-amber-400 font-semibold flex items-center space-x-2 flex-wrap gap-1">
+                        <span>Blessings: {currentAttempts}/5 Max</span>
+                        <span className="text-purple-300">• Cost: {requiredMutya} Mutya</span>
+                        {isTooFragile ? (
+                          <span className="bg-red-950 text-red-300 border border-red-500/40 px-1.5 py-0.5 rounded font-bold">
+                            🚫 Has become too fragile to attempt (100% Break Risk)
+                          </span>
+                        ) : (
+                          <span className="bg-amber-950/80 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-bold">
+                            ⚠️ Risk: {breakRisk}% Break Chance
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleRerollEnchantment}
+                      disabled={!hasEnoughMutya || isTooFragile}
+                      className={`font-bold px-4 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all shadow-md ${
+                        isTooFragile
+                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                          : !hasEnoughMutya
+                          ? 'bg-zinc-800 text-purple-300/60 border border-purple-900/40 cursor-not-allowed'
+                          : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95'
+                      }`}
+                    >
+                      {isTooFragile ? 'Too Fragile' : `Bless (${requiredMutya} Mutya)`}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Categorized Armory Store */}
             <div className="space-y-3">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-zinc-800 pb-2">
-                <h4 className="text-xs font-mono uppercase text-amber-400 font-bold flex items-center space-x-1.5">
-                  <span>⚒️ FORGE WEAPONS & ARMOR STORE</span>
-                  <span className="text-zinc-500 text-[10px]">({filteredForgeItems.length} Items)</span>
-                </h4>
+                <div className="flex items-center space-x-2">
+                  <h4 className="text-xs font-mono uppercase text-amber-400 font-bold flex items-center space-x-1.5">
+                    <span>⚒️ FORGE WEAPONS & ARMOR STORE</span>
+                    <span className="text-zinc-500 text-[10px]">({filteredForgeItems.length} Items)</span>
+                  </h4>
+
+                  {/* 4-Class Fit Filter Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setFilterByHeroClassOnly(!filterByHeroClassOnly)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center space-x-1 transition-all ${
+                      filterByHeroClassOnly
+                        ? 'bg-purple-950 text-purple-200 border border-purple-500/60 shadow-md ring-1 ring-purple-500'
+                        : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                    }`}
+                  >
+                    <span>{filterByHeroClassOnly ? '🎯' : '🌐'}</span>
+                    <span>{filterByHeroClassOnly ? `Class Fit: ${player.heroClass}` : 'Show All Classes'}</span>
+                  </button>
+                </div>
 
                 {/* Category Filter Pills */}
                 <div className="flex flex-wrap gap-1">
@@ -626,17 +1404,23 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                 </div>
               </div>
 
-              {/* Equipment Item Store Grid */}
+              {/* Equipment Item Store Grid - Sleek & Clutter-Free (Stats expand when selected) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-1">
                 {filteredForgeItems.map((item) => {
                   const meetsLevelReq = player.level >= item.levelReq;
                   const equipped = getEquippedItemForShopItem(item);
+                  const isSelected = selectedForgeItemId === item.id;
 
                   return (
                     <div
                       key={item.id}
-                      className={`bg-zinc-950 border rounded-xl p-3 flex flex-col justify-between space-y-2.5 hover:border-amber-500/50 transition-all ${
-                        item.rarity === 'LEGENDARY'
+                      onClick={() => setSelectedForgeItemId(isSelected ? null : item.id)}
+                      className={`bg-zinc-950 border rounded-xl p-3 flex flex-col justify-between space-y-2 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-amber-400 ring-2 ring-amber-500/40 bg-zinc-900/90'
+                          : !meetsLevelReq
+                          ? 'border-zinc-800/80 opacity-85'
+                          : item.rarity === 'LEGENDARY'
                           ? 'border-amber-500/80 bg-amber-950/10'
                           : item.rarity === 'EPIC'
                           ? 'border-purple-500/60 bg-purple-950/10'
@@ -644,38 +1428,53 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                           ? 'border-cyan-500/60 bg-cyan-950/10'
                           : item.rarity === 'UNCOMMON'
                           ? 'border-emerald-500/60 bg-emerald-950/10'
-                          : 'border-zinc-800'
+                          : 'border-zinc-800 hover:border-zinc-700'
                       }`}
                     >
                       {/* Item Header */}
                       <div>
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <span
-                              className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded border ${
-                                item.rarity === 'LEGENDARY'
-                                  ? 'bg-amber-950 text-amber-300 border-amber-500/60'
-                                  : item.rarity === 'EPIC'
-                                  ? 'bg-purple-950 text-purple-300 border-purple-500/60'
-                                  : item.rarity === 'RARE'
-                                  ? 'bg-cyan-950 text-cyan-300 border-cyan-500/60'
-                                  : item.rarity === 'UNCOMMON'
-                                  ? 'bg-emerald-950 text-emerald-300 border-emerald-500/60'
-                                  : 'bg-zinc-900 text-zinc-400 border-zinc-700'
-                              }`}
-                            >
-                              {item.rarity}
-                            </span>
+                            <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                              <span
+                                className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded border ${
+                                  item.rarity === 'LEGENDARY'
+                                    ? 'bg-amber-950 text-amber-300 border-amber-500/60'
+                                    : item.rarity === 'EPIC'
+                                    ? 'bg-purple-950 text-purple-300 border-purple-500/60'
+                                    : item.rarity === 'RARE'
+                                    ? 'bg-cyan-950 text-cyan-300 border-cyan-500/60'
+                                    : item.rarity === 'UNCOMMON'
+                                    ? 'bg-emerald-950 text-emerald-300 border-emerald-500/60'
+                                    : 'bg-zinc-900 text-zinc-400 border-zinc-700'
+                                }`}
+                              >
+                                {item.rarity}
+                              </span>
+
+                              {/* Hero Class Badge */}
+                              {item.classReq && item.classReq.length === 1 && (
+                                <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-600/40">
+                                  {item.classReq[0] === 'Mandirigma' && '⚔️ Mandirigma'}
+                                  {item.classReq[0] === 'Bagani' && '🗡️ Bagani'}
+                                  {item.classReq[0] === 'Mangangaso' && '🏹 Mangangaso'}
+                                  {item.classReq[0] === 'Babaylan' && '🔮 Babaylan'}
+                                </span>
+                              )}
+                            </div>
+
                             <h5 className="text-sm font-bold font-serif text-amber-200 mt-1">{item.name}</h5>
                           </div>
 
                           <div className="text-right shrink-0">
                             <span
                               className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                                meetsLevelReq ? 'bg-zinc-900 text-emerald-400 border border-emerald-900' : 'bg-red-950 text-red-400 border border-red-900'
+                                meetsLevelReq
+                                  ? 'bg-zinc-900 text-emerald-400 border border-emerald-900'
+                                  : 'bg-amber-950/80 text-amber-300 border border-amber-600/80'
                               }`}
                             >
-                              Req Lvl {item.levelReq}
+                              {meetsLevelReq ? `Req Lvl ${item.levelReq}` : `🔒 Lv ${item.levelReq}`}
                             </span>
                           </div>
                         </div>
@@ -686,34 +1485,43 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                         </div>
                       </div>
 
-                      {/* Primary Stats Display */}
-                      <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-lg p-2 space-y-1 text-xs font-mono">
-                        {item.baseDefense !== undefined && (
-                          <div className="flex justify-between items-center text-emerald-300 font-bold">
-                            <span>🛡️ Base Armor:</span>
-                            <span>+{item.baseDefense} Defense</span>
-                          </div>
-                        )}
+                      {/* Primary Stats Display: EXPANDED ONLY WHEN SELECTED to reduce clutter */}
+                      {isSelected ? (
+                        <div className="bg-zinc-900/90 border border-amber-500/30 rounded-lg p-2 space-y-1 text-xs font-mono animate-fade-in">
+                          {item.baseDefense !== undefined && (
+                            <div className="flex justify-between items-center text-emerald-300 font-bold">
+                              <span>🛡️ Base Armor:</span>
+                              <span>+{item.baseDefense} Defense</span>
+                            </div>
+                          )}
 
-                        {item.baseDamageMin !== undefined && item.baseDamageMax !== undefined && (
-                          <div className="flex justify-between items-center text-amber-300 font-bold">
-                            <span>⚔️ Weapon Damage:</span>
-                            <span>{item.baseDamageMin} - {item.baseDamageMax} ({item.damageType})</span>
-                          </div>
-                        )}
+                          {item.baseDamageMin !== undefined && item.baseDamageMax !== undefined && (
+                            <div className="flex justify-between items-center text-amber-300 font-bold">
+                              <span>⚔️ Weapon Damage:</span>
+                              <span>{item.baseDamageMin} - {item.baseDamageMax} ({item.damageType})</span>
+                            </div>
+                          )}
 
-                        {item.inherentPerk && (
-                          <div className="text-[11px] text-purple-300 font-semibold pt-1 border-t border-zinc-800/60">
-                            ✨ {item.inherentPerk}
-                          </div>
-                        )}
-                      </div>
+                          {item.inherentPerk && (
+                            <div className="text-[11px] text-purple-300 font-semibold pt-1 border-t border-zinc-800/60">
+                              ✨ {item.inherentPerk}
+                            </div>
+                          )}
 
-                      {/* Equipped Gear Comparison Indicator */}
-                      <div className="flex justify-between items-center text-[10px] font-mono pt-1 border-t border-zinc-900">
-                        {renderItemComparison(item)}
-                        <span className="text-zinc-400">vs {equipped ? equipped.name : 'Empty Slot'}</span>
-                      </div>
+                          {/* Equipped Gear Comparison Indicator */}
+                          <div className="flex justify-between items-center text-[10px] font-mono pt-1 border-t border-zinc-800">
+                            {renderItemComparison(item)}
+                            <span className="text-zinc-400">vs {equipped ? equipped.name : 'Empty'}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center text-[11px] font-mono bg-zinc-900/60 border border-zinc-800/60 px-2 py-1 rounded">
+                          <span className="text-zinc-300 font-semibold">
+                            {item.baseDefense !== undefined ? `🛡️ +${item.baseDefense} Armor` : `⚔️ ${item.baseDamageMin}-${item.baseDamageMax} DMG`}
+                          </span>
+                          <span className="text-amber-400 text-[10px] underline">Tap to View Stats</span>
+                        </div>
+                      )}
 
                       {/* Cost & Action Buttons */}
                       <div className="flex justify-between items-center pt-2 border-t border-zinc-800">
@@ -721,12 +1529,12 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                           {formatCostInCC(item.costInCC)}
                         </div>
 
-                        <div className="flex space-x-1.5">
+                        <div className="flex space-x-1.5" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => setInspectedShopItem(item)}
                             className="bg-zinc-800 hover:bg-zinc-700 text-amber-200 font-bold text-[10px] font-mono px-2.5 py-1 rounded transition-all"
                           >
-                            🔍 Details
+                            🔍 Specs
                           </button>
                           <button
                             onClick={() => handleBuyItem(item)}
@@ -734,10 +1542,10 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                             className={`font-bold font-mono text-[10px] uppercase px-3 py-1 rounded shadow transition-all ${
                               meetsLevelReq
                                 ? 'bg-amber-600 hover:bg-amber-500 text-zinc-950 active:scale-95'
-                                : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                                : 'bg-zinc-800 text-amber-400/80 border border-amber-900/40 cursor-not-allowed'
                             }`}
                           >
-                            Buy
+                            {meetsLevelReq ? 'Buy' : `🔒 Lv ${item.levelReq}`}
                           </button>
                         </div>
                       </div>
@@ -853,14 +1661,14 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
           </div>
         )}
 
-        {/* DISTRICT 3: THE ALCHEMIST'S MORTAR */}
+        {/* DISTRICT 3: BABAYLAN SHAMAN'S APOTHECARY */}
         {activeDistrict === 'ALCHEMIST' && (
-          <div className="space-y-4">
+          <div data-tutorial-target="alchemist-view" className="space-y-4">
             <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
               <span className="text-3xl">🧪</span>
               <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">The Alchemist’s Mortar</h3>
-                <p className="text-xs text-zinc-400">Apothecary brewing recovery draughts, clarity elixirs, and panacea vials.</p>
+                <h3 className="text-xl font-bold font-serif text-amber-200">Babaylan Shaman's Apothecary</h3>
+                <p className="text-xs text-zinc-400">Apothecary brewing sacred healing draughts, clarity elixirs, and panacea vials.</p>
               </div>
             </div>
 
@@ -884,27 +1692,28 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
           </div>
         )}
 
-        {/* DISTRICT 4: THE ANCHOR GATE */}
+        {/* DISTRICT 4: POBLACION SANCTUARY GATE */}
         {activeDistrict === 'GATE' && (
           <div className="space-y-4">
             <div className="flex flex-col items-center border-b border-zinc-800 pb-3 text-center">
               <span className="text-4xl">🌀</span>
-              <h3 className="text-2xl font-bold font-serif text-cyan-200 mt-1">The Anchor Gate</h3>
+              <h3 className="text-2xl font-bold font-serif text-cyan-200 mt-1">Poblacion Sanctuary Gate</h3>
               <p className="text-xs text-zinc-400 max-w-md mt-1">
-                Ancient ward-portal connecting Haven's Rest to unlocked wilderness sectors and World Titan Raids.
+                Ancient ward-portal connecting Poblacion Sanctuary to unlocked expedition realms and the Bakunawa Moon Serpent Raid.
               </p>
             </div>
 
             <div className="space-y-3">
               <h4 className="text-xs font-mono uppercase text-cyan-400 font-bold flex items-center space-x-1">
-                <span>🌌 WILDERNESS EXPEDITION SECTORS</span>
-                <span className="text-zinc-500 font-normal">({unlockedLocationIds.length} / 5 Acts Unlocked)</span>
+                <span>🌌 EXPEDITION REALMS & ACT ZONES</span>
+                <span className="text-zinc-500 font-normal">({unlockedLocationIds.length} / 8 Acts Unlocked)</span>
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {GAME_LOCATIONS.map((loc) => {
+                {GAME_LOCATIONS.map((loc, idx) => {
                   const isUnlocked = player.level >= loc.minLevel;
                   const isCurrent = player.currentLocationId === loc.id;
+                  const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx] || `${idx + 1}`;
 
                   return (
                     <div
@@ -917,7 +1726,9 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                     >
                       <div>
                         <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-mono font-bold uppercase text-cyan-400">{loc.subtitle}</span>
+                          <span className="text-[10px] font-mono font-bold uppercase text-cyan-400">
+                            {isUnlocked ? loc.subtitle : '??? UNDISCOVERED REGION'}
+                          </span>
                           <span
                             className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
                               isUnlocked
@@ -928,14 +1739,20 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                             {isUnlocked ? '✅ Unlocked' : `🔒 Req: Lv ${loc.minLevel}`}
                           </span>
                         </div>
-                        <h4 className="text-base font-bold font-serif text-white mt-1">{loc.name}</h4>
-                        <p className="text-xs text-zinc-400 font-mono mt-1 line-clamp-2">{loc.description}</p>
+                        <h4 className="text-base font-bold font-serif text-white mt-1">
+                          {isUnlocked ? loc.name : `Act ${actRoman}: ??? Unknown Territory`}
+                        </h4>
+                        <p className="text-xs text-zinc-400 font-mono mt-1 line-clamp-2">
+                          {isUnlocked
+                            ? loc.description
+                            : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`}
+                        </p>
                       </div>
 
                       <button
                         onClick={() => {
                           if (!isUnlocked) {
-                            alert(`🔒 Sector Locked! Reach Level ${loc.minLevel} to access ${loc.name}. (Your Level: ${player.level})`);
+                            notify(`🔒 Realm Locked! Reach Level ${loc.minLevel} to access Act ${actRoman}. (Your Level: ${player.level})`, 'warning', '🔒');
                             return;
                           }
                           onUpdatePlayer({ ...player, currentLocationId: loc.id });
@@ -954,29 +1771,37 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                   );
                 })}
 
-                {/* World Titan Raid Gate Card */}
+                {/* Bakunawa Moon Serpent Raid Gate Card */}
                 <div className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
                   player.level >= 40
-                    ? 'bg-gradient-to-b from-red-950/60 to-zinc-950 border-red-500/60 shadow-xl'
+                    ? 'bg-gradient-to-b from-purple-950/60 to-zinc-950 border-purple-500/60 shadow-xl'
                     : 'bg-zinc-950/60 border-zinc-800/80 opacity-60'
                 }`}>
                   <div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono font-bold uppercase text-red-400">WORLD TITAN RAID</span>
+                      <span className="text-[10px] font-mono font-bold uppercase text-purple-400">
+                        {player.level >= 40 ? 'CELESTIAL RAID EVENT' : '??? CELESTIAL THREAT'}
+                      </span>
                       <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                        player.level >= 40 ? 'bg-red-950 text-red-300 border border-red-500/40' : 'bg-zinc-900 text-zinc-500'
+                        player.level >= 40 ? 'bg-purple-950 text-purple-300 border border-purple-500/40' : 'bg-zinc-900 text-zinc-500'
                       }`}>
                         {player.level >= 40 ? '⚔️ Raid Ready' : '🔒 Req: Lv 40'}
                       </span>
                     </div>
-                    <h4 className="text-base font-bold font-serif text-red-200 mt-1">Gorgoroth, Earth-Breaker</h4>
-                    <p className="text-xs text-zinc-400 font-mono mt-1">Prime Titan multi-phase global raid event for ultimate endgame rewards.</p>
+                    <h4 className="text-base font-bold font-serif text-purple-200 mt-1">
+                      {player.level >= 40 ? 'Bakunawa: The Great Moon Serpent' : '??? Celestial Raid Event'}
+                    </h4>
+                    <p className="text-xs text-zinc-400 font-mono mt-1">
+                      {player.level >= 40
+                        ? 'Multi-phase global celestial eclipse raid event for ultimate endgame rewards.'
+                        : 'Mysterious celestial threat lurking beyond the void. Unlocks at Character Level 40.'}
+                    </p>
                   </div>
 
                   <button
                     onClick={() => {
                       if (player.level < 40) {
-                        alert('🔒 Titan Raid Locked! Requires Character Level 40+.');
+                        notify('🔒 Bakunawa Raid Locked! Requires Character Level 40+.', 'warning', '🔒');
                         return;
                       }
                       onNavigateToTitanRaid?.();
@@ -984,11 +1809,11 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
                     disabled={player.level < 40}
                     className={`w-full py-2 rounded-lg font-mono font-bold text-xs uppercase tracking-wider transition-all shadow ${
                       player.level >= 40
-                        ? 'bg-red-700 hover:bg-red-600 text-white active:scale-95'
+                        ? 'bg-purple-700 hover:bg-purple-600 text-white active:scale-95'
                         : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
                     }`}
                   >
-                    {player.level >= 40 ? 'Challenge World Titan' : '🔒 Locked (Level 40)'}
+                    {player.level >= 40 ? 'Challenge Bakunawa Raid' : '🔒 Locked (Level 40)'}
                   </button>
                 </div>
               </div>
@@ -996,14 +1821,14 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
           </div>
         )}
 
-        {/* DISTRICT 5: THE MARKET / ACCOUNT STASH */}
+        {/* DISTRICT 5: DATU'S ROYAL STASH & VAULT */}
         {activeDistrict === 'STASH' && (
           <div className="space-y-4">
             <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
               <span className="text-3xl">🏛️</span>
               <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">The Market & Account Vault</h3>
-                <p className="text-xs text-zinc-400">Store excess weapons, armor, and potions safely in your account stash.</p>
+                <h3 className="text-xl font-bold font-serif text-amber-200">Datu's Royal Stash & Account Vault</h3>
+                <p className="text-xs text-zinc-400">Store excess bladed weapons, armor tunics, and potions safely in your royal account vault.</p>
               </div>
             </div>
 
@@ -1054,75 +1879,160 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
             </div>
           </div>
         )}
+
+        {/* DISTRICT: BEASTMASTER STABLES (POST-ACT 6) */}
+        {activeDistrict === 'STABLES' && (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
+              <span className="text-3xl">🐃</span>
+              <div>
+                <h3 className="text-xl font-bold font-serif text-amber-200">Beastmaster Stables & Corrals</h3>
+                <p className="text-xs text-zinc-400">Tame, purchase, and equip mythical beasts of the pre-colonial Philippine archipelago.</p>
+              </div>
+            </div>
+
+            {!player.act6Completed && !player.mountUnlocked ? (
+              /* Locked Stables Gate */
+              <div className="bg-zinc-950 border-2 border-amber-900/60 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
+                <div className="text-4xl">🔒 🐃</div>
+                <h4 className="text-lg font-bold font-serif text-amber-300">
+                  Beastmaster Stables Locked (Post-Act VI Gate)
+                </h4>
+                <p className="text-xs font-mono text-zinc-300 max-w-md mx-auto leading-relaxed">
+                  The high training corrals and pens are sealed by the ancient beastmasters. The mythical beasts will only submit to a warrior who has conquered the deep ocean trenches.
+                </p>
+                <div className="inline-block bg-red-950/80 border border-red-500/60 rounded-xl px-4 py-2 text-xs font-mono font-bold text-red-200">
+                  ⚔️ Requirement: Slay Act VI Guardian Boss (Tambanokano, The Moon-Crusher) in Trench of the Abyssal Tide
+                </div>
+              </div>
+            ) : (
+              /* Unlocked Stables View */
+              <div className="space-y-4">
+                {/* Active Equipped Mount Status Card */}
+                <div className="bg-zinc-950 border border-amber-500/40 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-3xl">🏇</span>
+                    <div>
+                      <div className="text-[10px] font-mono uppercase text-amber-500 font-bold tracking-wider">Currently Stabled & Ridden</div>
+                      <div className="text-base font-bold font-serif text-amber-200">
+                        {player.equipment.mount?.name || player.equipment.bike?.name || 'No Mount Equipped'}
+                      </div>
+                      <div className="text-xs font-mono text-zinc-400">
+                        {(player.equipment.mount || player.equipment.bike)?.inherentPerk || 'Equip a tamed beast below to gain movement speed and combat buffs.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(player.equipment.mount || player.equipment.bike) && (
+                    <button
+                      onClick={handleUnequipMount}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-mono font-bold text-xs uppercase px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      Unequip Mount
+                    </button>
+                  )}
+                </div>
+
+                {/* Stables Marketplace Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {MOUNTS.map((mount) => {
+                    const isEquipped = (player.equipment.mount?.id === mount.id) || (player.equipment.bike?.id === mount.id);
+                    const isInBag = player.inventory.some((i) => i.id === mount.id);
+                    const totalCowries = totalCowriesFromWallet(player.wallet);
+                    const cost = mount.costInCC || 10000;
+                    const canAfford = totalCowries >= cost;
+
+                    return (
+                      <div
+                        key={mount.id}
+                        className={`bg-zinc-950 border rounded-xl p-4 flex flex-col justify-between space-y-3 transition-all ${
+                          isEquipped
+                            ? 'border-emerald-500/80 ring-1 ring-emerald-500/30'
+                            : isInBag
+                            ? 'border-cyan-500/60'
+                            : 'border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex justify-between items-start text-[10px] font-mono">
+                            <span className="uppercase text-amber-400 font-bold">Tier {mount.tier} • {mount.rarity}</span>
+                            <span className="text-zinc-400 font-semibold">Req: Lv {mount.levelReq || 39}</span>
+                          </div>
+                          <h4 className="text-sm font-bold font-serif text-amber-200 mt-1">{mount.name}</h4>
+                          <div className="text-xs text-emerald-400 font-mono mt-1">
+                            +{mount.baseDefense || 0} Armor
+                          </div>
+                          <p className="text-xs text-zinc-300 font-mono mt-1 bg-zinc-900 p-2 rounded border border-zinc-800">
+                            {mount.inherentPerk}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-zinc-900 flex justify-between items-center">
+                          <div className="text-[11px] font-mono">
+                            <span className="text-zinc-500 block text-[9px] uppercase">Stables Price</span>
+                            <span className="text-amber-300 font-bold">{formatCostInCowries(cost)}</span>
+                          </div>
+
+                          <div>
+                            {isEquipped ? (
+                              <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/50 text-xs px-3 py-1.5 rounded-lg font-mono font-bold uppercase">
+                                ✅ Equipped
+                              </span>
+                            ) : isInBag ? (
+                              <button
+                                onClick={() => handleEquipMountFromStables(mount)}
+                                className="bg-cyan-600 hover:bg-cyan-500 text-zinc-950 font-mono font-bold text-xs uppercase px-3 py-1.5 rounded-lg transition-all"
+                              >
+                                Equip Now
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleBuyMount(mount)}
+                                disabled={!canAfford}
+                                className={`font-mono font-bold text-xs uppercase px-3 py-1.5 rounded-lg transition-all ${
+                                  canAfford
+                                    ? 'bg-amber-600 hover:bg-amber-500 text-zinc-950 shadow-md active:scale-95'
+                                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                                }`}
+                              >
+                                {canAfford ? 'Tame & Buy' : 'Need Funds'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* [BOTTOM] CONTEXTUAL ACTION PAD FOR HOMEPAGE */}
-      <div className="bg-zinc-950 border border-amber-900/60 p-2 md:p-3 rounded-xl shadow-2xl">
-        <div className="text-[10px] font-mono text-amber-500 uppercase font-semibold mb-1.5 text-center md:text-left">
-          HAVEN DISTRICT ACTION PAD
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <button
-            onClick={() => setActiveDistrict('TAVERN')}
-            className={`p-2.5 rounded-lg border font-mono text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1.5 ${
-              activeDistrict === 'TAVERN'
-                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
-            }`}
-          >
-            <span>🍺</span>
-            <span>Enter Tavern</span>
-          </button>
+      {/* Feature Tutorial Modal (Phase 9.2) */}
+      {activeTutorial && (
+        <FeatureTutorialModal
+          tutorialId={activeTutorial.id}
+          featureName={activeTutorial.name}
+          steps={activeTutorial.steps}
+          onComplete={() => handleCompleteTutorial(activeTutorial.id)}
+          onSkip={() => handleCompleteTutorial(activeTutorial.id)}
+        />
+      )}
 
-          <button
-            onClick={() => setActiveDistrict('FORGE')}
-            className={`p-2.5 rounded-lg border font-mono text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1.5 ${
-              activeDistrict === 'FORGE'
-                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
-            }`}
-          >
-            <span>⚒️</span>
-            <span>Visit Forge</span>
-          </button>
-
-          <button
-            onClick={() => setActiveDistrict('ALCHEMIST')}
-            className={`p-2.5 rounded-lg border font-mono text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1.5 ${
-              activeDistrict === 'ALCHEMIST'
-                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
-            }`}
-          >
-            <span>🧪</span>
-            <span>Alchemist</span>
-          </button>
-
-          <button
-            onClick={() => setActiveDistrict('GATE')}
-            className={`p-2.5 rounded-lg border font-mono text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1.5 ${
-              activeDistrict === 'GATE'
-                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
-            }`}
-          >
-            <span>🌀</span>
-            <span>Open Gate</span>
-          </button>
-
-          <button
-            onClick={() => setActiveDistrict('STASH')}
-            className={`col-span-2 md:col-span-1 p-2.5 rounded-lg border font-mono text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1.5 ${
-              activeDistrict === 'STASH'
-                ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
-                : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
-            }`}
-          >
-            <span>🏛️</span>
-            <span>Manage Stash</span>
-          </button>
-        </div>
-      </div>
+      {/* Mutya Blessing Ritual Confirmation Modal */}
+      {confirmBlessingData && (
+        <ConfirmModal
+          title="MUTYA PEARL AFFIX BLESSING RITUAL"
+          message={`Item: [${confirmBlessingData.item.name}]\nAttempt: #${confirmBlessingData.currentAttempts + 1} of 5 Max\nCost: ${confirmBlessingData.requiredMutya} Mutya Shard(s)\n⚠️ Break Risk: ${confirmBlessingData.breakRisk}% Failure Chance!\n\nIf the ritual fails, [${confirmBlessingData.item.name}] will shatter into dust and be PERMANENTLY DESTROYED!\n\nSpend ${confirmBlessingData.requiredMutya} Mutya Shard(s) to proceed?`}
+          confirmText="Begin Ritual"
+          cancelText="Cancel"
+          type="danger"
+          onConfirm={executeMutyaBlessing}
+          onCancel={() => setConfirmBlessingData(null)}
+        />
+      )}
     </div>
   );
 };

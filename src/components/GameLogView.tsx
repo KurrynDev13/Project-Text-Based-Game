@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, BattleLogEntry } from '../types/game';
 import { JournalView } from './JournalView';
-import { RoadmapView } from './RoadmapView';
 
 interface GameLogViewProps {
   player: PlayerCharacter;
   battleLogs: BattleLogEntry[];
   onUpdatePlayer: (updated: PlayerCharacter) => void;
+  onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
-export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, onUpdatePlayer }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'JOURNAL' | 'CHAT' | 'COMBAT_LOG' | 'ROADMAP'>('JOURNAL');
+export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, onUpdatePlayer, onShowToast }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'JOURNAL' | 'CHAT' | 'COMBAT_LOG'>('JOURNAL');
   const [chatInput, setChatInput] = useState('');
   const [messages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string }>>([
     { sender: 'System', text: 'Welcome Wayfarer! Global chat channel established across Aethelgard.', time: '08:00' },
@@ -55,19 +55,13 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
           >
             ⚔️ Combat History
           </button>
-          <button
-            onClick={() => setActiveSubTab('ROADMAP')}
-            className={`px-3 py-1.5 rounded transition-all ${activeSubTab === 'ROADMAP' ? 'bg-amber-600 text-zinc-950 font-bold' : 'text-zinc-400'}`}
-          >
-            📋 QA Roadmap
-          </button>
         </div>
       </div>
 
       {/* SubTab Content */}
       <div className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 shadow-xl flex flex-col justify-between min-h-[300px]">
         {activeSubTab === 'JOURNAL' && (
-          <JournalView player={player} onUpdatePlayer={onUpdatePlayer} />
+          <JournalView player={player} onUpdatePlayer={onUpdatePlayer} onShowToast={onShowToast} />
         )}
 
         {activeSubTab === 'CHAT' && (
@@ -116,8 +110,6 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
             )}
           </div>
         )}
-
-        {activeSubTab === 'ROADMAP' && <RoadmapView />}
       </div>
     </div>
   );

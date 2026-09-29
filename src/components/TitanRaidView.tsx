@@ -7,15 +7,16 @@ interface TitanRaidViewProps {
   player: PlayerCharacter;
   onUpdatePlayer: (updated: PlayerCharacter) => void;
   onNavigateToHaven: () => void;
+  onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
-export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePlayer, onNavigateToHaven }) => {
-  const [globalTitanHp, setGlobalTitanHp] = useState<number>(38450);
+export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePlayer, onNavigateToHaven, onShowToast }) => {
+  const [globalBakunawaHp, setGlobalBakunawaHp] = useState<number>(38450);
   const maxGlobalHp = 50000;
-  const [isTelegraphedShockwave, setIsTelegraphedShockwave] = useState<boolean>(true);
+  const [isTelegraphedEclipseRoar, setIsTelegraphedEclipseRoar] = useState<boolean>(true);
   const [raidLog, setRaidLog] = useState<string[]>([
-    '🔥 WORLD TITAN RAID ACTIVE: Gorgoroth, the Earth-Breaker has manifested!',
-    '⚠️ TELEGRAPHED WARNING: Gorgoroth raises continental fists! Brace for Tremor Shockwave!',
+    '🌕 CELESTIAL RAID ACTIVE: Bakunawa, The Moon-Devouring Serpent has coiled around the sky!',
+    '⚠️ TELEGRAPHED WARNING: Bakunawa opens its abyssal jaws! Brace for Total Eclipse Roar!',
   ]);
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
@@ -24,16 +25,16 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePl
     setRaidLog((prev) => [text, ...prev.slice(0, 19)]);
   };
 
-  // RAID ACTION 1: Strike Colossus
-  const handleStrikeColossus = () => {
+  // RAID ACTION 1: Kampilan Sundering Strike
+  const handleStrikeSerpent = () => {
     soundFX.playAttackSound();
 
-    let strikeDmg = Math.floor(45 + derived.meleeDamage * 1.5 + derived.rangedDamage * 1.2);
-    if (isTelegraphedShockwave) {
-      // Striking during shockwave telegraph takes severe damage!
+    let strikeDmg = Math.floor(55 + derived.meleeDamage * 1.6 + derived.rangedDamage * 1.3);
+    if (isTelegraphedEclipseRoar) {
+      // Striking during eclipse roar without shielding takes severe damage!
       const shockwaveDmg = 85;
       const newPlayerHp = Math.max(0, player.currentHp - shockwaveDmg);
-      addRaidLog(`💥 TREMOR SHOCKWAVE HIT YOU! Took ${shockwaveDmg} damage for failing to defend!`);
+      addRaidLog(`💥 ECLIPSE ROAR DEVASTATION! Took ${shockwaveDmg} damage for failing to invoke Shaman Shield!`);
 
       onUpdatePlayer({
         ...player,
@@ -41,27 +42,27 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePl
       });
     }
 
-    const newTitanHp = Math.max(0, globalTitanHp - strikeDmg);
-    setGlobalTitanHp(newTitanHp);
-    addRaidLog(`⚔️ You struck Gorgoroth for ${strikeDmg} damage! Global Raid HP: ${newTitanHp}/${maxGlobalHp}`);
+    const newSerpentHp = Math.max(0, globalBakunawaHp - strikeDmg);
+    setGlobalBakunawaHp(newSerpentHp);
+    addRaidLog(`⚔️ Kampilan Cleave struck Bakunawa for ${strikeDmg} damage! Global Serpent HP: ${newSerpentHp}/${maxGlobalHp}`);
 
     // Toggle shockwave status randomly
-    setIsTelegraphedShockwave(Math.random() < 0.4);
+    setIsTelegraphedEclipseRoar(Math.random() < 0.45);
   };
 
-  // RAID ACTION 2: Defend Shockwave
-  const handleDefendShockwave = () => {
+  // RAID ACTION 2: Shaman Tidal Shield
+  const handleDefendEclipseRoar = () => {
     soundFX.playPotionSound();
-    setIsTelegraphedShockwave(false);
-    addRaidLog(`🛡️ Raised Kinetic Barrier! Absorbed Gorgoroth's Tremor Shockwave with 0 damage taken.`);
+    setIsTelegraphedEclipseRoar(false);
+    addRaidLog(`🛡️ Invoked Babaylan Shaman Shield! Absorbed Bakunawa's Eclipse Roar with 0 damage taken.`);
   };
 
-  // RAID ACTION 3: Aid Fallen Ally
-  const handleAidFallenAlly = () => {
+  // RAID ACTION 3: Rally Tribal Warriors & Aid Allies
+  const handleRallyWarriors = () => {
     soundFX.playSpellSound();
     const healMp = 20;
     if (player.currentMp < healMp) {
-      alert('Not enough MP to aid ally! Costs 20 MP.');
+      onShowToast?.('Not enough MP to rally warriors! Costs 20 MP.', 'warning', '⚡');
       return;
     }
 
@@ -71,56 +72,57 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePl
       locationPoints: player.locationPoints + 25,
       wallet: {
         ...player.wallet,
-        prismaticShards: player.wallet.prismaticShards + 1,
+        mutyaShards: (player.wallet.mutyaShards || 0) + 1,
+        prismaticShards: (player.wallet.mutyaShards || 0) + 1,
       },
     });
 
-    addRaidLog(`✨ Aided a fallen Wayfarer! Granted team shield & earned +1 Prismatic Shard & +25 LP.`);
+    addRaidLog(`✨ Rallied Maharlika Tribal Warriors! Granted team defense & earned +1 Mutya Shard & +25 LP.`);
   };
 
-  const titanHpPercent = Math.max(0, Math.min(100, Math.floor((globalTitanHp / maxGlobalHp) * 100)));
+  const serpentHpPercent = Math.max(0, Math.min(100, Math.floor((globalBakunawaHp / maxGlobalHp) * 100)));
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
       {/* World Boss Banner */}
-      <div className="bg-zinc-900/90 border border-red-900/60 rounded-xl p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+      <div className="bg-zinc-900/90 border border-purple-900/60 rounded-xl p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <div className="text-[10px] font-mono text-red-500 uppercase tracking-widest font-bold">
-            GLOBAL TITAN RAID EVENT • LEVEL 50 PRIME COLOSSUS
+          <div className="text-[10px] font-mono text-purple-400 uppercase tracking-widest font-bold">
+            GLOBAL CELESTIAL RAID EVENT • LEVEL 55 MYTHIC SERPENT
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold font-serif text-red-300">Gorgoroth, the Earth-Breaker</h2>
-          <p className="text-xs text-zinc-400 mt-0.5">Pooled Server Health Bar. Sunder structural limbs to claim Triumphant Red Memories!</p>
+          <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200">Bakunawa: The Great Moon Serpent</h2>
+          <p className="text-xs text-zinc-400 mt-0.5">Sever the celestial coils of the moon-devourer to protect the seven moons and claim Triumphant Red Memories!</p>
         </div>
 
         <button
           onClick={onNavigateToHaven}
           className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-mono text-xs font-bold px-3 py-1.5 rounded"
         >
-          Retreat to Haven
+          Retreat to Sanctuary
         </button>
       </div>
 
       {/* Global Titan HP Pool Meter */}
       <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl space-y-2 shadow-inner">
         <div className="flex justify-between text-xs font-mono font-bold">
-          <span className="text-red-400">POOLED GLOBAL SERVER HEALTH</span>
-          <span>{globalTitanHp} / {maxGlobalHp} HP ({titanHpPercent}%)</span>
+          <span className="text-purple-400">POOLED GLOBAL BAKUNAWA HEALTH</span>
+          <span>{globalBakunawaHp} / {maxGlobalHp} HP ({serpentHpPercent}%)</span>
         </div>
-        <div className="w-full h-4 bg-zinc-950 rounded-full border border-red-900/60 overflow-hidden">
+        <div className="w-full h-4 bg-zinc-950 rounded-full border border-purple-900/60 overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-red-700 via-amber-600 to-yellow-500 transition-all duration-300"
-            style={{ width: `${titanHpPercent}%` }}
+            className="h-full bg-gradient-to-r from-purple-700 via-amber-600 to-yellow-500 transition-all duration-300"
+            style={{ width: `${serpentHpPercent}%` }}
           />
         </div>
       </div>
 
       {/* Telegraphed Warning Alert */}
-      {isTelegraphedShockwave && (
-        <div className="bg-red-950/90 border-2 border-red-600 text-red-100 p-3 rounded-xl flex items-center space-x-3 shadow-lg animate-pulse">
+      {isTelegraphedEclipseRoar && (
+        <div className="bg-purple-950/90 border-2 border-purple-600 text-purple-100 p-3 rounded-xl flex items-center space-x-3 shadow-lg animate-pulse">
           <span className="text-2xl">⚠️</span>
           <div className="text-xs font-mono">
-            <strong className="text-red-300 uppercase block">Telegraphed High-Damage Shockwave Warning!</strong>
-            Gorgoroth is channeling Continental Tremor! Tap <strong>[ Defend Shockwave ]</strong> before striking!
+            <strong className="text-purple-300 uppercase block">Telegraphed Eclipse Roar Warning!</strong>
+            Bakunawa is channeling Total Lunar Eclipse! Tap <strong>[ Shaman Tidal Shield ]</strong> before striking!
           </div>
         </div>
       )}
@@ -137,32 +139,32 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({ player, onUpdatePl
 
       {/* [BOTTOM] TITAN RAID CONTEXTUAL ACTION PAD */}
       <div className="bg-zinc-950 border border-amber-900/60 p-2 md:p-3 rounded-xl shadow-2xl">
-        <div className="text-[10px] font-mono text-red-500 uppercase font-semibold mb-1.5 text-center md:text-left">
-          TITAN RAID CONTEXTUAL ACTION PAD
+        <div className="text-[10px] font-mono text-purple-400 uppercase font-semibold mb-1.5 text-center md:text-left">
+          BAKUNAWA CELESTIAL RAID ACTION PAD
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 font-mono text-xs font-bold">
           <button
-            onClick={handleStrikeColossus}
+            onClick={handleStrikeSerpent}
             className="p-3 bg-red-900 hover:bg-red-800 border border-red-500/50 text-red-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
           >
-            <span>⚔️</span>
-            <span>[ Strike Colossus ]</span>
+            <span>🗡️</span>
+            <span>[ Kampilan Strike ]</span>
           </button>
 
           <button
-            onClick={handleDefendShockwave}
+            onClick={handleDefendEclipseRoar}
             className="p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
           >
             <span>🛡️</span>
-            <span>[ Defend Shockwave ]</span>
+            <span>[ Shaman Tidal Shield ]</span>
           </button>
 
           <button
-            onClick={handleAidFallenAlly}
-            className="p-3 bg-sky-900 hover:bg-sky-800 border border-sky-500/50 text-sky-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
+            onClick={handleRallyWarriors}
+            className="p-3 bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
           >
             <span>✨</span>
-            <span>[ Aid Fallen Ally ] (20 MP)</span>
+            <span>[ Rally Warriors ] (20 MP)</span>
           </button>
         </div>
       </div>

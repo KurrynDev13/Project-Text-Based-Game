@@ -27,6 +27,13 @@ You operate as a **Senior Android & Responsive Game Developer** building a high-
 - **Instead of outputting all changes, implementation logs, and QA breakdowns directly in chat, create/update a Walkthrough canvas artifact (`walkthrough.md`).**
 - In the chat response, output **only a brief sentence pointing the user to the Walkthrough canvas document** and asking for approval. All exhaustive technical diffs, formulas, verification logs, and demo instructions belong in the Walkthrough artifact.
 
+### Rule 5: Anti-Spoiler & Narrative Mystery Protocol
+- **No Plain-Text Spoilers in UI/Data**: Location descriptions, quest headers, data catalogs, and UI banners must NEVER reveal upcoming boss identities, unencountered beast lists, or future act plot twists in plain text.
+- **Dynamic Content Masking**:
+  - **Locked Acts**: Display locked Acts in location menus as `Act [Roman]: ??? Unknown Territory (Requires Level X / Defeat Previous Act Guardian)`.
+  - **Undiscovered Act Bosses**: Mask undiscovered or level-gated Act Guardian names as `??? Undiscovered Act Guardian` until the player reaches the required Climax Level and triggers the Boss Discovery event.
+  - **Undiscovered Quests & Bounties**: Mask unencountered quest targets, bounty details, and enemy names until discovered in-game.
+
 ---
 
 ## 3. Game Systems & Formula Fidelity

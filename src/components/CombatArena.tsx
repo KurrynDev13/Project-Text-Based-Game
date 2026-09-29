@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, ActiveStatusEffect } from '../types/game';
-import { calcDerivedStats } from '../utils/gameFormulas';
+import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, Skill, StatusEffectType, ActiveStatusEffect, EquipmentItem } from '../types/game';
+import { calcDerivedStats, totalCowriesFromWallet, cowriesToWallet } from '../utils/gameFormulas';
+import { ALL_SKILLS, getDefaultSkillIds } from '../data/skillsData';
 import { soundFX } from '../utils/audio';
 
 interface CombatArenaProps {
@@ -9,6 +10,7 @@ interface CombatArenaProps {
   onUpdatePlayer: (updated: PlayerCharacter) => void;
   onUpdateBattle: (updated: BattleState) => void;
   onMonsterKilled: (monster: EnemyMonster) => void;
+  onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
 export const CombatArena: React.FC<CombatArenaProps> = ({
@@ -17,6 +19,7 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
   onUpdatePlayer,
   onUpdateBattle,
   onMonsterKilled,
+  onShowToast,
 }) => {
   const [selectedPotionId, setSelectedPotionId] = useState<string>('');
 
@@ -38,128 +41,158 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     return [newEntry, ...currentLogs.slice(0, 49)];
   };
 
-  const handlePrimaryAttack = () => {
+  /**
+   * Handles using an equipped skill in combat.
+   * Basic attacks use weapon base damage + derived stat.
+   * Non-basic skills apply baseDamageMultiplier on top of weapon + derived stat.
+   * Heal skills restore % of maxHp instead of damaging the enemy.
+   */
+  const handleUseSkill = (skill: Skill) => {
     if (!battle.enemy || !battle.inCombat) return;
 
-    soundFX.playAttackSound();
+    // MP gating
+    if (player.currentMp < skill.mpCost) {
+      onShowToast?.(`Not enough Mana for ${skill.name}! Need ${skill.mpCost} MP.`, 'warning', '⚡');
+      return;
+    }
+
+    // Resolve active weapon (new unified slot with backward-compat fallback)
+    const activeWeapon = player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
+
     let logs = battle.logs;
     const enemy = { ...battle.enemy };
 
-    // Weapon Damage Calculation
-    const primaryWeapon = player.equipment.primaryWeapon;
-    const minDmg = primaryWeapon?.baseDamageMin || 8;
-    const maxDmg = primaryWeapon?.baseDamageMax || 14;
-    let baseAttack = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1)) + Math.floor(derived.meleeDamage * 0.4);
+    let updatedPlayer = { ...player, currentMp: player.currentMp - skill.mpCost };
+
+    // Process Active Debuff Ticks on Player at start of turn
+    if (updatedPlayer.activeEffects && updatedPlayer.activeEffects.length > 0) {
+      const remainingEffects: typeof updatedPlayer.activeEffects = [];
+
+      for (const effect of updatedPlayer.activeEffects) {
+        if (!effect.isBuff && effect.durationTurnsLeft > 0) {
+          if (effect.type === 'BLEED') {
+            const bleedDmg = Math.max(1, Math.floor(derived.maxHp * 0.05));
+            updatedPlayer.currentHp = Math.max(0, updatedPlayer.currentHp - bleedDmg);
+            logs = addLog(logs, `🩸 Bleed tick: Lost -${bleedDmg} HP (5% Max HP pure physical damage)!`, 'DAMAGE', 'SYSTEM');
+          } else if (effect.type === 'POISON') {
+            const elapsedTurns = (3 - effect.durationTurnsLeft + 1);
+            const poisonDmg = Math.max(2, Math.floor((10 + player.level * 2) * elapsedTurns));
+            updatedPlayer.currentHp = Math.max(0, updatedPlayer.currentHp - poisonDmg);
+            logs = addLog(logs, `🤢 Poison tick (Turn ${elapsedTurns}): Lost -${poisonDmg} Nature damage!`, 'DAMAGE', 'SYSTEM');
+          } else if (effect.type === 'BURN') {
+            const burnDmg = Math.max(2, Math.floor(8 + player.level * 1.5));
+            updatedPlayer.currentHp = Math.max(0, updatedPlayer.currentHp - burnDmg);
+            logs = addLog(logs, `🔥 Burn tick: Lost -${burnDmg} Fire damage (Healing reduced while burning)!`, 'DAMAGE', 'SYSTEM');
+          } else if (effect.type === 'EXHAUSTION') {
+            logs = addLog(logs, `🌀 Exhausted: Mana regen & Dodge reduced by 15%!`, 'DEBUFF', 'SYSTEM');
+          }
+
+          if (effect.durationTurnsLeft - 1 > 0) {
+            remainingEffects.push({ ...effect, durationTurnsLeft: effect.durationTurnsLeft - 1 });
+          } else {
+            logs = addLog(logs, `✨ ${effect.name} status effect expired.`, 'INFO', 'SYSTEM');
+          }
+        } else {
+          remainingEffects.push(effect);
+        }
+      }
+      updatedPlayer.activeEffects = remainingEffects;
+    }
+
+    // --- HEAL SKILLS ---
+    if (skill.damageType === 'HEAL') {
+      const isBurning = (updatedPlayer.activeEffects || []).some((e) => e.type === 'BURN');
+      const healMult = isBurning ? 0.5 : 1.0;
+      const healAmount = Math.floor((skill.healsPercent ?? 0) * derived.maxHp * healMult);
+      updatedPlayer = {
+        ...updatedPlayer,
+        currentHp: Math.min(derived.maxHp, updatedPlayer.currentHp + healAmount),
+      };
+      soundFX.playPotionSound();
+      if (isBurning) {
+        logs = addLog(logs, `🔥 Burn halved healing! ${skill.icon} ${skill.name} restored +${healAmount} HP!`, 'HEAL', 'PLAYER');
+      } else {
+        logs = addLog(logs, `${skill.icon} ${skill.name} restored +${healAmount} HP!`, 'HEAL', 'PLAYER');
+      }
+
+      // Apply status effect if any
+      if (skill.effectType) {
+        logs = addLog(logs, `✨ ${skill.effectType} effect applied!`, 'BUFF', 'PLAYER');
+      }
+
+      logs = executeEnemyTurn(enemy, logs);
+
+      onUpdatePlayer(updatedPlayer);
+      onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs });
+      return;
+    }
+
+    // --- DAMAGE SKILLS ---
+    soundFX.playAttackSound();
+
+    const weaponMin = activeWeapon?.baseDamageMin ?? 8;
+    const weaponMax = activeWeapon?.baseDamageMax ?? 14;
+    const weaponRoll = Math.floor(weaponMin + Math.random() * (weaponMax - weaponMin + 1));
+
+    // Pick the relevant derived damage stat based on skill's damage type
+    let derivedBonus = derived.meleeDamage;
+    if (skill.damageType === 'MAGIC' || skill.damageType === 'LIGHTNING' || skill.damageType === 'SHADOW' || skill.damageType === 'RADIANT') {
+      derivedBonus = derived.magicDamage;
+    } else if (skill.damageType === 'FIRE' || skill.damageType === 'FROST') {
+      derivedBonus = derived.magicDamage * 0.8 + derived.rangedDamage * 0.2;
+    } else if (!skill.isBasicAttack) {
+      // Non-basic physical: blend melee and ranged
+      derivedBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
+    }
+
+    let baseDamage: number;
+    if (skill.isBasicAttack) {
+      // Basic attack: raw weapon roll + 40% of relevant derived stat
+      baseDamage = weaponRoll + Math.floor(derivedBonus * 0.4);
+    } else {
+      // Skill attack: weapon roll × multiplier + derived bonus
+      baseDamage = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * skill.baseDamageMultiplier);
+    }
 
     // Crit check
     const isCrit = Math.random() * 100 < derived.critChancePercent;
     if (isCrit) {
-      baseAttack = Math.floor(baseAttack * 1.6);
+      baseDamage = Math.floor(baseDamage * 1.6);
       soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! Primary Attack hit ${enemy.name} for ${baseAttack} DMG!`, 'CRIT', 'PLAYER');
+      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} struck ${enemy.name} for ${baseDamage} DMG!`, 'CRIT', 'PLAYER');
     } else {
-      logs = addLog(logs, `⚔️ Primary Strike dealt ${baseAttack} physical damage to ${enemy.name}.`, 'DAMAGE', 'PLAYER');
+      logs = addLog(logs, `${skill.icon} ${skill.name} hit ${enemy.name} for ${baseDamage} damage!`, 'DAMAGE', 'PLAYER');
     }
 
-    // Apply Enemy Armor DR
-    const enemyDR = enemy.armor / (enemy.armor + 150);
-    const finalDmg = Math.max(1, Math.floor(baseAttack * (1 - enemyDR)));
+    // Apply Enemy Armor DR (physical only; magic pierces partially)
+    const isPurePhysical = skill.damageType === 'PHYSICAL';
+    const enemyDR = isPurePhysical ? enemy.armor / (enemy.armor + 150) : enemy.armor / (enemy.armor + 300);
+    const finalDmg = Math.max(1, Math.floor(baseDamage * (1 - enemyDR)));
     enemy.currentHp -= finalDmg;
+
+    // Apply status effect if skill triggers one
+    if (skill.effectType) {
+      logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+    }
+
+    // Player Weapon Affix Status Infliction Proc Check
+    for (const affix of activeWeapon?.affixes || []) {
+      if (affix.statusInfliction) {
+        const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
+        if (Math.random() * 100 < chancePercent) {
+          logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+        }
+      }
+    }
 
     if (enemy.currentHp <= 0) {
       enemy.currentHp = 0;
+      onUpdatePlayer(updatedPlayer);
       handleVictory(enemy, logs);
       return;
     }
 
     // Enemy Turn Counter Attack
-    logs = executeEnemyTurn(enemy, logs);
-
-    onUpdateBattle({
-      ...battle,
-      turnNumber: battle.turnNumber + 1,
-      enemy,
-      logs,
-    });
-  };
-
-  const handleSpecialAbility = () => {
-    if (!battle.enemy || !battle.inCombat) return;
-
-    const mpCost = 15;
-    if (player.currentMp < mpCost) {
-      alert('Not enough Mana for Special Action!');
-      return;
-    }
-
-    soundFX.playSpellSound();
-    let logs = battle.logs;
-    const enemy = { ...battle.enemy };
-
-    const updatedPlayer = { ...player, currentMp: player.currentMp - mpCost };
-    const specialWeapon = player.equipment.specialWeapon;
-    const minDmg = specialWeapon?.baseDamageMin || 15;
-    const maxDmg = specialWeapon?.baseDamageMax || 25;
-    let baseSpell = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1)) + Math.floor(derived.rangedDamage * 0.5 + derived.magicDamage * 0.5);
-
-    if (player.isEmpoweredNextTurn) {
-      baseSpell = Math.floor(baseSpell * 1.5);
-      updatedPlayer.isEmpoweredNextTurn = false;
-      logs = addLog(logs, `🔥 EMPOWERED SPECIAL BURST! Deals +50% bonus damage!`, 'BUFF', 'PLAYER');
-    }
-
-    logs = addLog(logs, `🏹 Special Attack (${specialWeapon?.name || 'Ranged Ability'}) hit ${enemy.name} for ${baseSpell} damage!`, 'DAMAGE', 'PLAYER');
-
-    enemy.currentHp -= baseSpell;
-
-    if (enemy.currentHp <= 0) {
-      enemy.currentHp = 0;
-      onUpdatePlayer(updatedPlayer);
-      handleVictory(enemy, logs);
-      return;
-    }
-
-    logs = executeEnemyTurn(enemy, logs);
-
-    onUpdatePlayer(updatedPlayer);
-    onUpdateBattle({
-      ...battle,
-      turnNumber: battle.turnNumber + 1,
-      enemy,
-      logs,
-    });
-  };
-
-  const handleHeavyStrike = () => {
-    if (!battle.enemy || !battle.inCombat) return;
-
-    const mpCost = 25;
-    if (player.currentMp < mpCost) {
-      alert('Not enough Mana for Heavy Strike!');
-      return;
-    }
-
-    soundFX.playSpellSound();
-    let logs = battle.logs;
-    const enemy = { ...battle.enemy };
-
-    const updatedPlayer = { ...player, currentMp: player.currentMp - mpCost };
-    const heavyWeapon = player.equipment.heavyWeapon;
-    const minDmg = heavyWeapon?.baseDamageMin || 30;
-    const maxDmg = heavyWeapon?.baseDamageMax || 50;
-    const baseHeavy = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1)) + Math.floor(derived.meleeDamage * 0.8 + derived.magicDamage * 0.8);
-
-    logs = addLog(logs, `💥 HEAVY TITAN STRIKE (${heavyWeapon?.name || 'Ultimate Attack'}) slammed ${enemy.name} for ${baseHeavy} DEVASTATING damage!`, 'DAMAGE', 'PLAYER');
-
-    enemy.currentHp -= baseHeavy;
-
-    if (enemy.currentHp <= 0) {
-      enemy.currentHp = 0;
-      onUpdatePlayer(updatedPlayer);
-      handleVictory(enemy, logs);
-      return;
-    }
-
     logs = executeEnemyTurn(enemy, logs);
 
     onUpdatePlayer(updatedPlayer);
@@ -202,6 +235,29 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     });
   };
 
+  const checkArmorMitigation = (statusType: StatusEffectType): { blocked: boolean; reason?: string } => {
+    const equippedArmors = [
+      player.equipment.upperArmor,
+      player.equipment.lowerArmor,
+      player.equipment.mount,
+    ].filter(Boolean) as EquipmentItem[];
+
+    for (const armor of equippedArmors) {
+      for (const affix of armor.affixes || []) {
+        if (affix.statusMitigation && affix.statusMitigation.type === statusType) {
+          if (affix.statusMitigation.isImmune) {
+            return { blocked: true, reason: `🛡️ IMMUNE! [${armor.name}] (${affix.name}) granted complete immunity to ${statusType}!` };
+          }
+          const resChance = affix.statusMitigation.resistancePercent;
+          if (Math.random() * 100 < resChance) {
+            return { blocked: true, reason: `🛡️ RESISTED! [${armor.name}] (${affix.name}) resisted incoming ${statusType} (${resChance}% chance)!` };
+          }
+        }
+      }
+    }
+    return { blocked: false };
+  };
+
   const executeEnemyTurn = (enemy: EnemyMonster, currentLogs: BattleLogEntry[], isPlayerCovered = false): BattleLogEntry[] => {
     let logs = currentLogs;
 
@@ -222,7 +278,48 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     netDmg = Math.max(1, netDmg);
 
     const newHp = Math.max(0, player.currentHp - netDmg);
-    onUpdatePlayer({ ...player, currentHp: newHp });
+
+    // Enemy Status Infliction Proc Check (17.5% regular status monsters, 80% Bosses)
+    const isBoss = enemy.isBoss || enemy.id.startsWith('boss_');
+    const procChance = isBoss ? 80 : 17.5;
+    const hasStatusTrait = isBoss || enemy.specialAbility !== undefined || ['m_nuno', 'm_berbalang', 'm_santelmo', 'm_manananggal', 'm_tiktik', 'm_syokoy_chieftain', 'm_corrupted_shaman_lich'].includes(enemy.id);
+
+    let updatedActiveEffects = player.activeEffects || [];
+
+    if (hasStatusTrait && Math.random() * 100 < procChance) {
+      let inflictedStatus: StatusEffectType = 'POISON';
+      const abilityLower = (enemy.specialAbility || enemy.name || '').toLowerCase();
+
+      if (abilityLower.includes('burn') || abilityLower.includes('fire') || abilityLower.includes('cigar') || abilityLower.includes('lava') || abilityLower.includes('santelmo')) {
+        inflictedStatus = 'BURN';
+      } else if (abilityLower.includes('bleed') || abilityLower.includes('rend') || abilityLower.includes('manananggal') || abilityLower.includes('berbalang') || abilityLower.includes('aswang')) {
+        inflictedStatus = 'BLEED';
+      } else if (abilityLower.includes('exhaust') || abilityLower.includes('shadow') || abilityLower.includes('curse')) {
+        inflictedStatus = 'EXHAUSTION';
+      } else {
+        inflictedStatus = 'POISON';
+      }
+
+      const mitigationResult = checkArmorMitigation(inflictedStatus);
+      if (mitigationResult.blocked) {
+        logs = addLog(logs, mitigationResult.reason || `🛡️ Incoming ${inflictedStatus} was resisted!`, 'BUFF', 'PLAYER');
+      } else {
+        const duration = inflictedStatus === 'BURN' ? 4 : 3;
+        const existing = updatedActiveEffects.filter((e) => e.type !== inflictedStatus);
+        const newEffect: ActiveStatusEffect = {
+          type: inflictedStatus,
+          name: inflictedStatus,
+          isBuff: false,
+          durationTurnsLeft: duration,
+          magnitude: 1,
+          stackCount: 1,
+        };
+        updatedActiveEffects = [...existing, newEffect];
+        logs = addLog(logs, `🤢 ${enemy.name} afflicted you with ${inflictedStatus} for ${duration} turns!`, 'DEBUFF', 'ENEMY');
+      }
+    }
+
+    onUpdatePlayer({ ...player, currentHp: newHp, activeEffects: updatedActiveEffects });
 
     logs = addLog(logs, `🩸 ${enemy.name} attacked for ${netDmg} damage!`, 'DAMAGE', 'ENEMY');
 
@@ -239,7 +336,7 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     soundFX.playVictorySound();
 
     let finalLogs = addLog(logs, `🏆 VICTORY! Defeated ${enemy.name}!`, 'INFO', 'SYSTEM');
-    finalLogs = addLog(finalLogs, `✨ Gained +${enemy.expReward} EXP, +${enemy.copperReward} CC, +10 Location Points (LP)`, 'DROP', 'SYSTEM');
+    finalLogs = addLog(finalLogs, `✨ Gained +${enemy.expReward} EXP, +${enemy.copperReward} Cowrie Shells`, 'DROP', 'SYSTEM');
 
     // Grant Encrypted Memory Drop (Titan Conquest Codebreaker drop)
     const newMemories = [...player.encryptedMemories];
@@ -268,12 +365,9 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
       finalLogs = addLog(finalLogs, `🌟 LEVEL UP! You reached Level ${newLevel}! +3 Attribute Points earned!`, 'BUFF', 'SYSTEM');
     }
 
-    // Currency update
-    const totalCC = player.wallet.copperCoins + enemy.copperReward + (player.wallet.silverShillings * 100) + (player.wallet.goldSovereigns * 10000);
-    const newGold = Math.floor(totalCC / 10000);
-    const remGold = totalCC % 10000;
-    const newSilver = Math.floor(remGold / 100);
-    const newCopper = remGold % 100;
+    // Award cowries via unified currency helper
+    const newTotalCowries = totalCowriesFromWallet(player.wallet) + enemy.copperReward;
+    const newWallet = cowriesToWallet(newTotalCowries, player.wallet.mutyaShards);
 
     onUpdatePlayer({
       ...player,
@@ -282,12 +376,7 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
       availableAP: newAP,
       locationPoints: player.locationPoints + 10,
       encryptedMemories: newMemories,
-      wallet: {
-        ...player.wallet,
-        goldSovereigns: newGold,
-        silverShillings: newSilver,
-        copperCoins: newCopper,
-      },
+      wallet: newWallet,
     });
 
     onMonsterKilled(enemy);
@@ -301,6 +390,16 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
   };
 
   const currentEnemy = battle.enemy;
+
+  // Resolve the player's equipped skill objects (up to 3 slots, with fallback to default class skills)
+  const rawSkillIds = player.equippedSkillIds && player.equippedSkillIds.length > 0
+    ? player.equippedSkillIds
+    : getDefaultSkillIds((player.heroClass || 'Mandirigma') as any);
+
+  const equippedSkills: Skill[] = rawSkillIds
+    .map(id => ALL_SKILLS.find(s => s.id === id))
+    .filter((s): s is Skill => s !== undefined)
+    .slice(0, 3);
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4">
@@ -339,44 +438,53 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
         </div>
       )}
 
-      {/* Combat Action Dock (Titan Conquest 3-Weapon Action Dock) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-        <button
-          onClick={handlePrimaryAttack}
-          disabled={!battle.inCombat || !currentEnemy}
-          className="bg-amber-950/80 hover:bg-amber-900 border border-amber-600/50 text-amber-100 p-3 rounded-lg flex flex-col items-center justify-center space-y-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-md"
-        >
-          <span className="text-xs font-mono uppercase text-amber-400 font-semibold">1. Primary</span>
-          <span className="text-sm font-bold font-serif">{player.equipment.primaryWeapon?.name || 'Primary Strike'}</span>
-          <span className="text-[10px] text-zinc-400">Quick Melee / Ranged Attack</span>
-        </button>
+      {/* Combat Action Dock — 3 Skill Buttons + Take Cover */}
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
+        {/* Equipped Skill Buttons (up to 3) */}
+        {equippedSkills.map((skill, idx) => {
+          const colorMap = [
+            { bg: 'bg-amber-950/80 hover:bg-amber-900', border: 'border-amber-600/50', text: 'text-amber-100', label: 'text-amber-400' },
+            { bg: 'bg-sky-950/80 hover:bg-sky-900', border: 'border-sky-500/50', text: 'text-sky-100', label: 'text-sky-400' },
+            { bg: 'bg-purple-950/80 hover:bg-purple-900', border: 'border-purple-500/50', text: 'text-purple-100', label: 'text-purple-400' },
+          ];
+          const colors = colorMap[idx] ?? colorMap[0];
 
-        <button
-          onClick={handleSpecialAbility}
-          disabled={!battle.inCombat || !currentEnemy || player.currentMp < 15}
-          className="bg-sky-950/80 hover:bg-sky-900 border border-sky-500/50 text-sky-100 p-3 rounded-lg flex flex-col items-center justify-center space-y-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-md"
-        >
-          <span className="text-xs font-mono uppercase text-sky-400 font-semibold">2. Special (15 MP)</span>
-          <span className="text-sm font-bold font-serif">{player.equipment.specialWeapon?.name || 'Special Shot'}</span>
-          <span className="text-[10px] text-zinc-400">High Velocity Precision Hit</span>
-        </button>
+          return (
+            <button
+              key={skill.id}
+              onClick={() => handleUseSkill(skill)}
+              disabled={!battle.inCombat || !currentEnemy || player.currentMp < skill.mpCost}
+              className={`${colors.bg} border ${colors.border} ${colors.text} p-3 rounded-lg flex flex-col items-center justify-center space-y-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-md`}
+            >
+              <span className={`text-xs font-mono uppercase ${colors.label} font-semibold`}>
+                {idx + 1}. {skill.mpCost > 0 ? `${skill.mpCost} MP` : 'Free'}
+              </span>
+              <span className="text-base">{skill.icon}</span>
+              <span className="text-sm font-bold font-serif text-center leading-tight">{skill.name}</span>
+              <span className="text-[10px] text-zinc-400">{skill.damageType}</span>
+            </button>
+          );
+        })}
 
-        <button
-          onClick={handleHeavyStrike}
-          disabled={!battle.inCombat || !currentEnemy || player.currentMp < 25}
-          className="bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-100 p-3 rounded-lg flex flex-col items-center justify-center space-y-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-md"
-        >
-          <span className="text-xs font-mono uppercase text-purple-400 font-semibold">3. Heavy (25 MP)</span>
-          <span className="text-sm font-bold font-serif">{player.equipment.heavyWeapon?.name || 'Heavy Titan Slam'}</span>
-          <span className="text-[10px] text-zinc-400">Massive Burst Damage</span>
-        </button>
+        {/* Placeholder slots when fewer than 3 skills equipped */}
+        {Array.from({ length: Math.max(0, 3 - equippedSkills.length) }).map((_, i) => (
+          <div
+            key={`empty_skill_${i}`}
+            className="bg-zinc-900/40 border border-dashed border-zinc-800 p-3 rounded-lg flex flex-col items-center justify-center space-y-1 opacity-40"
+          >
+            <span className="text-xs font-mono uppercase text-zinc-600">{equippedSkills.length + i + 1}. Empty Slot</span>
+            <span className="text-sm text-zinc-600">—</span>
+          </div>
+        ))}
 
+        {/* Take Cover / Brace & Heal */}
         <button
           onClick={handleTakeCover}
           disabled={!battle.inCombat || !currentEnemy}
           className="bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-100 p-3 rounded-lg flex flex-col items-center justify-center space-y-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-md"
         >
           <span className="text-xs font-mono uppercase text-emerald-400 font-semibold">4. Take Cover</span>
+          <span className="text-base">🛡️</span>
           <span className="text-sm font-bold font-serif">Brace & Heal</span>
           <span className="text-[10px] text-zinc-400">+15% HP/MP & 50% DR</span>
         </button>

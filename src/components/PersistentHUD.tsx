@@ -1,6 +1,6 @@
 import React from 'react';
 import { PlayerCharacter } from '../types/game';
-import { calcDerivedStats } from '../utils/gameFormulas';
+import { calcDerivedStats, calcMaxStamina } from '../utils/gameFormulas';
 
 interface PersistentHUDProps {
   player: PlayerCharacter;
@@ -13,11 +13,11 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }
   const hpPercent = Math.max(0, Math.min(100, Math.floor((player.currentHp / derived.maxHp) * 100)));
   const mpPercent = Math.max(0, Math.min(100, Math.floor((player.currentMp / derived.maxMp) * 100)));
 
-  const currentStamina = player.stamina ?? 18;
-  const maxStamina = player.maxStamina ?? 20;
+  const maxStamina = calcMaxStamina(player.level);
+  const currentStamina = Math.min(maxStamina, player.stamina ?? maxStamina);
 
   return (
-    <div className="bg-zinc-950 border-b border-amber-900/60 text-amber-100 px-3 py-2 shadow-2xl font-mono text-xs select-none">
+    <div data-tutorial-target="persistent-hud" className="fixed top-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-md border-b border-amber-900/60 text-amber-100 px-3 py-2 shadow-2xl font-mono text-xs select-none z-40">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         {/* Top Line: Wayfarer Level & Name & Combat Indicator */}
         <div className="flex items-center space-x-3 w-full md:w-auto justify-between">

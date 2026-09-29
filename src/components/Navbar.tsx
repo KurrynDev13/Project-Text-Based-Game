@@ -8,32 +8,36 @@ interface NavbarProps {
   onSelectTab: (tab: NavTab) => void;
   player: PlayerCharacter;
   inCombat?: boolean;
+  onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player, inCombat }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player, inCombat, onShowToast }) => {
   const isLocked = Boolean(inCombat && currentTab !== 'HAVEN');
+
+  const completedBountiesCount = player.bounties.filter((b) => b.isCompleted && !b.isClaimed).length;
+  const encryptedMemoriesCount = (player.encryptedMemories || []).length;
 
   const tabs: { id: NavTab; label: string; icon: string; badge?: number; desc: string }[] = [
     { id: 'HAVEN', label: 'Haven', icon: '🏰', desc: 'Town Hub & Safe Rest' },
-    { id: 'WORLD', label: 'World / Hunt', icon: '🌌', desc: 'Exploration & Combat', badge: player.bounties.filter((b) => b.isCompleted && !b.isClaimed).length },
-    { id: 'INVENTORY', label: 'Inventory', icon: '🎒', desc: 'Gear & Paper Doll' },
+    { id: 'WORLD', label: 'World / Hunt', icon: '🌌', desc: 'Exploration & Combat' },
+    { id: 'INVENTORY', label: 'Inventory', icon: '🎒', desc: 'Gear & Paper Doll', badge: encryptedMemoriesCount > 0 ? encryptedMemoriesCount : undefined },
     { id: 'CHARACTER', label: 'Character', icon: '👤', desc: 'Stats & AP Allocation', badge: player.availableAP > 0 ? player.availableAP : undefined },
-    { id: 'LOG', label: 'Log & Chat', icon: '📜', desc: 'Social & Combat Logs' },
+    { id: 'LOG', label: 'Log & Chat', icon: '📜', desc: 'Social & Combat Logs', badge: completedBountiesCount > 0 ? completedBountiesCount : undefined },
   ];
 
   const handleTabClick = (tabId: NavTab) => {
     if (isLocked) {
-      alert('🔒 Combat in Progress! Finish your turn, resolve the battle, or select [Flee] before switching tabs.');
+      onShowToast?.('🔒 Combat in Progress! Finish your turn, resolve battle, or select [Flee] before switching tabs.', 'warning', '🔒');
       return;
     }
     onSelectTab(tabId);
   };
 
   return (
-    <nav className="bg-zinc-950 border-t border-zinc-800 text-amber-100 select-none z-50 relative">
+    <nav data-tutorial-target="navbar-bottom" className="fixed bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-md border-t border-amber-900/40 text-amber-100 select-none z-30 shadow-2xl">
       {/* Strict Combat Lock Barrier Overlay */}
       {isLocked && (
-        <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md z-50 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
+        <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
           <div className="flex items-center space-x-2 text-red-400 font-mono text-xs font-bold animate-pulse">
             <span>🔒</span>
             <span>COMBAT LOCKED — SELECT [ 5. FLEE ] OR DEFEAT ENEMY TO LEAVE BATTLE</span>
@@ -47,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
           return (
             <button
               key={tab.id}
+              data-tutorial-target={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => handleTabClick(tab.id)}
               disabled={isLocked}
               className={`px-4 py-2 rounded-xl flex items-center space-x-2 transition-all relative ${
@@ -74,12 +79,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
       </div>
 
       {/* Mobile Sticky Bottom Navigation Pad */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-lg border-t border-amber-900/40 px-2 py-1.5 flex justify-around items-center z-50">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-lg border-t border-amber-900/40 px-2 py-1.5 flex justify-around items-center z-30">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
             <button
               key={tab.id}
+              data-tutorial-target={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => handleTabClick(tab.id)}
               disabled={inCombat}
               className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all min-w-[56px] relative ${

@@ -219,6 +219,60 @@ class SoundEffectsManager {
   public playClickSound() {
     this.playClick();
   }
+
+  public playBossWarningSound() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+
+    // Deep ominous drone
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(60, now);
+    osc1.frequency.linearRampToValueAtTime(45, now + 2.0);
+    gain1.gain.setValueAtTime(0.0, now);
+    gain1.gain.linearRampToValueAtTime(0.35, now + 0.3);
+    gain1.gain.linearRampToValueAtTime(0.0, now + 2.0);
+    osc1.connect(gain1);
+    gain1.connect(this.ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 2.0);
+
+    // Warning pulse (sawtooth)
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(120, now + 0.4);
+    osc2.frequency.exponentialRampToValueAtTime(60, now + 1.2);
+    gain2.gain.setValueAtTime(0.0, now + 0.4);
+    gain2.gain.linearRampToValueAtTime(0.25, now + 0.6);
+    gain2.gain.linearRampToValueAtTime(0.0, now + 1.2);
+    osc2.connect(gain2);
+    gain2.connect(this.ctx.destination);
+    osc2.start(now + 0.4);
+    osc2.stop(now + 1.2);
+
+    // High stinger chord
+    [220, 277, 330].forEach((freq, i) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const startAt = now + 0.8 + i * 0.05;
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0, startAt);
+      gain.gain.linearRampToValueAtTime(0.18, startAt + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.6);
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      osc.start(startAt);
+      osc.stop(startAt + 0.6);
+    });
+  }
+
+  public playBossWarning() { this.playBossWarningSound(); }
 }
 
 export const soundFx = new SoundEffectsManager();
