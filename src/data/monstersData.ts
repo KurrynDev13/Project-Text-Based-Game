@@ -783,8 +783,13 @@ export function generateMonsterForLocation(
       : MONSTER_TEMPLATES[0];
   }
 
-  const levelScale = Math.pow(1.12, Math.max(0, locationMinLevel - 1));
-  const statScale = 1 + (locationMinLevel - 1) * 0.18;
+  const levelScale = Math.pow(1.14, Math.max(0, locationMinLevel - 1));
+  
+  // Act-aware stat scaling multiplier to ensure newly unlocked Acts present a real tactical challenge
+  const actNumber = Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6)));
+  const actStatMult = 1.0 + Math.pow(actNumber - 1, 1.45) * 0.55;
+
+  const statScale = (1 + (locationMinLevel - 1) * 0.22) * actStatMult;
   const maxHp = Math.floor(template.baseHp * (template.isBoss ? 1 : statScale));
   const armor = Math.floor(template.baseArmor * (template.isBoss ? 1 : statScale));
   const attackMin = Math.floor(template.baseMinDmg * (template.isBoss ? 1 : statScale));

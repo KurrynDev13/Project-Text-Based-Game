@@ -419,9 +419,17 @@ const REST_OPTIONS: RestOption[] = [
       soundFX.playDefeatSound();
 
       const updatedInventory = player.inventory.filter((inv) => inv.id !== item.id);
+      let updatedEquipment = { ...player.equipment };
+      if (updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = null;
+      if (updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = null;
+      if (updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = null;
+      if (updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = null;
+      if (updatedEquipment.mount?.id === item.id) updatedEquipment.mount = null;
+      if (updatedEquipment.bike?.id === item.id) updatedEquipment.bike = null;
 
       onUpdatePlayer({
         ...player,
+        equipment: updatedEquipment,
         inventory: updatedInventory,
         wallet: {
           ...player.wallet,
@@ -469,10 +477,34 @@ const REST_OPTIONS: RestOption[] = [
       }
     }
 
+    // 45% Chance to trigger a Sacred Mutya Stat Surge (increasing base damage or base armor)
+    let newBaseDefense = item.baseDefense;
+    let newBaseDamageMin = item.baseDamageMin;
+    let newBaseDamageMax = item.baseDamageMax;
+    let statSurgeMsg = '';
+
+    const rollStatSurge = Math.random() < 0.45;
+    if (rollStatSurge) {
+      if (isWeapon && item.baseDamageMin !== undefined && item.baseDamageMax !== undefined) {
+        const minBoost = Math.max(1, Math.round(item.baseDamageMin * 0.12));
+        const maxBoost = Math.max(2, Math.round(item.baseDamageMax * 0.12));
+        newBaseDamageMin = item.baseDamageMin + minBoost;
+        newBaseDamageMax = item.baseDamageMax + maxBoost;
+        statSurgeMsg = `\n⚔️ BASE DAMAGE INCREASED! (+${minBoost} Min Dmg, +${maxBoost} Max Dmg)`;
+      } else if (item.baseDefense !== undefined && item.baseDefense > 0) {
+        const armorBoost = Math.max(1, Math.round(item.baseDefense * 0.12));
+        newBaseDefense = item.baseDefense + armorBoost;
+        statSurgeMsg = `\n🛡️ BASE ARMOR INCREASED! (+${armorBoost} Base Defense)`;
+      }
+    }
+
     const cleanBaseName = item.name.replace(/.*?\s(.*)/, '$1');
     const updatedItem: EquipmentItem = {
       ...item,
       name: `${chosenPrefix.name} ${cleanBaseName} ${chosenSuffix.name}`,
+      baseDefense: newBaseDefense,
+      baseDamageMin: newBaseDamageMin,
+      baseDamageMax: newBaseDamageMax,
       affixes: [chosenPrefix, chosenSuffix],
       blessingAttempts: currentAttempts + 1,
     };
@@ -481,8 +513,17 @@ const REST_OPTIONS: RestOption[] = [
       inv.id === item.id ? updatedItem : inv
     );
 
+    let updatedEquipment = { ...player.equipment };
+    if (updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = updatedItem;
+    if (updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = updatedItem;
+    if (updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = updatedItem;
+    if (updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = updatedItem;
+    if (updatedEquipment.mount?.id === item.id) updatedEquipment.mount = updatedItem;
+    if (updatedEquipment.bike?.id === item.id) updatedEquipment.bike = updatedItem;
+
     onUpdatePlayer({
       ...player,
+      equipment: updatedEquipment,
       inventory: updatedInventory,
       wallet: {
         ...player.wallet,
@@ -493,7 +534,7 @@ const REST_OPTIONS: RestOption[] = [
 
     setSelectedEnchantItem(updatedItem);
     const nextRisk = 5 + (currentAttempts + 1) * 5;
-    notify(`✨ Mutya Blessing Success! Applied to ${updatedItem.name}!\nPrefix: ${chosenPrefix.name}, Suffix: ${chosenSuffix.name}.\n(Next blessing risk: ${nextRisk}%)`, 'success', '✨');
+    notify(`✨ Mutya Blessing Success! Applied to ${updatedItem.name}!${statSurgeMsg}\nPrefix: ${chosenPrefix.name}, Suffix: ${chosenSuffix.name}.\n(Next blessing risk: ${nextRisk}%)`, 'success', '✨');
   };
 
   const handleMoveToStash = (item: EquipmentItem | ConsumableItem) => {
@@ -667,14 +708,10 @@ const REST_OPTIONS: RestOption[] = [
   });
 
   // Pick up to 3 bounties to show at a time:
-  // First prioritize accepted/active bounties, then unaccepted eligible bounties
-  const activeAcceptedBounties = eligibleBounties.filter((b) => b.isAccepted);
-  const unacceptedEligibleBounties = eligibleBounties.filter((b) => !b.isAccepted);
-
-  const displayedBounties: Bounty[] = [
-    ...activeAcceptedBounties,
-    ...unacceptedEligibleBounties,
-  ].slice(0, 3);
+  // Active bounties managed in Log & Chat / Journal; Notice Board displays unaccepted contracts only
+  const activeAcceptedBounties = eligibleBounties.filter((b) => b.isAccepted && !b.isClaimed);
+  const availableBounties = eligibleBounties.filter((b) => !b.isAccepted && !b.isClaimed);
+  const displayedBounties: Bounty[] = availableBounties.slice(0, 3);
 
   // Completed bounties for the Completed tab
   const completedBounties = (player.bounties || []).filter((b) => b.isClaimed);
@@ -693,132 +730,132 @@ const REST_OPTIONS: RestOption[] = [
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-2 md:p-6 space-y-2.5 md:space-y-4 overflow-y-auto">
       {/* Town Banner */}
-      <div data-tutorial-target="town-banner" className="bg-zinc-900/90 border border-amber-900/50 rounded-xl p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+      <div data-tutorial-target="town-banner" className="bg-zinc-900/90 border border-amber-900/50 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-3">
         <div>
-          <div className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">SAFE ZONE • PRE-COLONIAL SANCTUARY</div>
-          <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200">Poblacion Sanctuary</h2>
-          <p className="text-xs text-zinc-400 mt-1">
+          <div className="text-[9px] md:text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">SAFE ZONE • PRE-COLONIAL SANCTUARY</div>
+          <h2 className="text-lg md:text-2xl font-bold font-serif text-amber-200">Poblacion Sanctuary</h2>
+          <p className="text-[11px] md:text-xs text-zinc-400 mt-0.5 line-clamp-2 md:line-clamp-none">
             Pre-colonial sanctuary hub of the archipelago. Stamina regenerates, Panday Pira crafts, Shaman brews potions, and Datu guards the vault.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 w-full md:w-auto">
           <button
             onClick={() => {
               const seen = (player.tutorialsSeen ?? []).filter((t) => t !== 'tut_onboarding');
               onUpdatePlayer({ ...player, tutorialsSeen: seen });
             }}
-            className="bg-zinc-800 hover:bg-zinc-700 text-amber-300 px-3 py-1.5 rounded-lg border border-amber-500/30 text-xs font-mono font-bold transition-all min-h-[36px]"
+            className="flex-1 md:flex-none bg-zinc-800 hover:bg-zinc-700 text-amber-300 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg border border-amber-500/30 text-[10px] md:text-xs font-mono font-bold transition-all min-h-[32px] md:min-h-[36px]"
             title="Replay 14-Step Interactive Onboarding Tutorial"
           >
             ❓ Replay Tutorial
           </button>
-          <div className="bg-zinc-950 px-3 py-1.5 rounded-lg border border-amber-500/30 text-xs font-mono text-emerald-400 font-bold min-h-[36px] flex items-center">
+          <div className="bg-zinc-950 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg border border-amber-500/30 text-[10px] md:text-xs font-mono text-emerald-400 font-bold min-h-[32px] md:min-h-[36px] flex items-center justify-center">
             ⚡ Stamina Restored
           </div>
         </div>
       </div>
 
       {/* HAVEN DISTRICT ACTION PAD — Positioned directly below Poblacion Sanctuary Banner */}
-      <div className="bg-zinc-950 border border-amber-900/60 p-2 md:p-3 rounded-xl shadow-2xl">
-        <div className="text-[9px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-1 text-center md:text-left tracking-wider">
+      <div className="bg-zinc-950 border border-amber-900/60 p-1.5 md:p-3 rounded-lg md:rounded-xl shadow-2xl">
+        <div className="text-[8px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-1 text-center md:text-left tracking-wider">
           HAVEN DISTRICT ACTION PAD
         </div>
-        <div className={`grid grid-cols-2 ${player.act6Completed || player.mountUnlocked ? 'sm:grid-cols-3 md:grid-cols-6' : 'sm:grid-cols-3 md:grid-cols-5'} gap-1.5 md:gap-2`}>
+        <div className={`grid grid-cols-3 ${player.act6Completed || player.mountUnlocked ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-1 md:gap-2`}>
           <button
             onClick={() => handleSelectDistrict('TAVERN')}
-            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+            className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
               activeDistrict === 'TAVERN'
                 ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                 : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
             }`}
           >
-            <span className="text-sm md:text-base">🍺</span>
+            <span className="text-xs md:text-base">🍺</span>
             <span className="truncate">Tavern</span>
           </button>
 
           <button
             data-tutorial-target="district-forge"
             onClick={() => handleSelectDistrict('FORGE')}
-            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+            className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
               activeDistrict === 'FORGE'
                 ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                 : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
             }`}
           >
-            <span className="text-sm md:text-base">⚒️</span>
+            <span className="text-xs md:text-base">⚒️</span>
             <span className="truncate">Forge</span>
           </button>
 
           <button
             data-tutorial-target="district-alchemist"
             onClick={() => handleSelectDistrict('ALCHEMIST')}
-            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+            className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
               activeDistrict === 'ALCHEMIST'
                 ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                 : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
             }`}
           >
-            <span className="text-sm md:text-base">🧪</span>
+            <span className="text-xs md:text-base">🧪</span>
             <span className="truncate">Alchemist</span>
           </button>
 
           <button
             onClick={() => handleSelectDistrict('GATE')}
-            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+            className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
               activeDistrict === 'GATE'
                 ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                 : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
             }`}
           >
-            <span className="text-sm md:text-base">🌀</span>
+            <span className="text-xs md:text-base">🌀</span>
             <span className="truncate">Gate</span>
           </button>
 
           <button
             onClick={() => handleSelectDistrict('STASH')}
-            className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+            className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
               activeDistrict === 'STASH'
                 ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                 : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-amber-600/50'
             }`}
           >
-            <span className="text-sm md:text-base">🏛️</span>
+            <span className="text-xs md:text-base">🏛️</span>
             <span className="truncate">Stash</span>
           </button>
 
           {(player.act6Completed || player.mountUnlocked) && (
             <button
               onClick={() => handleSelectDistrict('STABLES')}
-              className={`py-2 px-2 md:py-2.5 md:px-3 rounded-lg border font-mono text-[11px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 md:space-x-1.5 ${
+              className={`py-1.5 px-1.5 md:py-2.5 md:px-3 rounded-md md:rounded-lg border font-mono text-[10px] md:text-xs font-bold uppercase transition-all flex items-center justify-center space-x-1 min-h-[36px] ${
                 activeDistrict === 'STABLES'
                   ? 'bg-amber-600 text-zinc-950 border-amber-400 shadow-md ring-1 ring-amber-400'
                   : 'bg-emerald-950/80 text-emerald-200 border-emerald-500/50 hover:border-emerald-400 animate-pulse'
               }`}
             >
-              <span className="text-sm md:text-base">🐃</span>
-              <span className="truncate">Stables ✨</span>
+              <span className="text-xs md:text-base">🐃</span>
+              <span className="truncate">Stables</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Main Viewport Content based on Selected District */}
-      <div className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 md:p-6 space-y-4 shadow-xl min-h-[280px]">
+      <div className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded-lg md:rounded-xl p-2.5 md:p-6 space-y-3 md:space-y-4 shadow-xl min-h-[240px]">
         {/* DISTRICT 1: TAVERN & INN */}
         {activeDistrict === 'TAVERN' && (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
-              <span className="text-3xl">🍺</span>
+          <div className="space-y-3 md:space-y-4">
+            <div className="flex items-center space-x-2 md:space-x-3 border-b border-zinc-800 pb-2 md:pb-3">
+              <span className="text-2xl md:text-3xl">🍺</span>
               <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">Sanctuary Inn & Shaman's Hearth</h3>
-                <p className="text-xs text-zinc-400">Rest by the hearth fire, clear fatigue, or inspect regional Bounties at the Notice Board.</p>
+                <h3 className="text-base md:text-xl font-bold font-serif text-amber-200">Sanctuary Inn & Shaman's Hearth</h3>
+                <p className="text-[10px] md:text-xs text-zinc-400">Rest by the hearth fire, clear fatigue, or inspect regional Bounties at the Notice Board.</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             {/* Shaman & Inn Resting Card Carousel Deck */}
             {(() => {
               const displayOptions = REST_OPTIONS.filter((o) => player.level >= o.minLevel);
@@ -863,32 +900,32 @@ const REST_OPTIONS: RestOption[] = [
               };
 
               return (
-                <div data-tutorial-target="inn-card" className="space-y-3 bg-zinc-950/90 border border-zinc-800/90 p-4 rounded-2xl shadow-2xl">
-                  <div className="flex justify-between items-center border-b border-zinc-800/80 pb-2">
+                <div data-tutorial-target="inn-card" className="space-y-2 md:space-y-3 bg-zinc-950/90 border border-zinc-800/90 p-2.5 md:p-4 rounded-xl md:rounded-2xl shadow-2xl">
+                  <div className="flex justify-between items-center border-b border-zinc-800/80 pb-1.5 md:pb-2">
                     <div className="flex items-center space-x-2">
-                      <h4 className="text-xs font-bold uppercase font-mono tracking-wider text-amber-400 flex items-center space-x-1.5">
-                        <span>🛌 Shaman & Inn Resting Quarters</span>
+                      <h4 className="text-[11px] md:text-xs font-bold uppercase font-mono tracking-wider text-amber-400 flex items-center space-x-1.5">
+                        <span>🛌 Shaman Resting Quarters</span>
                       </h4>
-                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 hidden sm:inline">
+                      <span className="text-[9px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 hidden sm:inline">
                         👈 Swipe left / right 👉
                       </span>
                     </div>
                     {displayOptions.length > 1 && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[10px] font-mono text-amber-300 font-semibold">
+                      <div className="flex items-center space-x-1.5 md:space-x-2">
+                        <span className="text-[9px] md:text-[10px] font-mono text-amber-300 font-semibold">
                           Option {safeIndex + 1} of {displayOptions.length}
                         </span>
                         <div className="flex space-x-1">
                           <button
                             onClick={() => scrollToCard(safeIndex - 1)}
-                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-2 py-0.5 rounded text-xs border border-amber-500/30 font-mono active:scale-95 transition-all"
+                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/30 font-mono active:scale-95 transition-all"
                             title="Previous Rest Option"
                           >
                             ◀
                           </button>
                           <button
                             onClick={() => scrollToCard(safeIndex + 1)}
-                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-2 py-0.5 rounded text-xs border border-amber-500/30 font-mono active:scale-95 transition-all"
+                            className="bg-zinc-900 hover:bg-zinc-800 text-amber-300 px-1.5 py-0.5 rounded text-[10px] border border-amber-500/30 font-mono active:scale-95 transition-all"
                             title="Next Rest Option"
                           >
                             ▶
@@ -902,7 +939,7 @@ const REST_OPTIONS: RestOption[] = [
                   <div
                     ref={restCarouselRef}
                     onScroll={handleScroll}
-                    className="flex space-x-3 overflow-x-auto snap-x snap-mandatory scroll-smooth py-2 px-1 scrollbar-thin scrollbar-thumb-amber-900/60 scrollbar-track-zinc-950 touch-pan-x select-none"
+                    className="flex space-x-2.5 overflow-x-auto snap-x snap-mandatory scroll-smooth py-1 px-0.5 scrollbar-thin scrollbar-thumb-amber-900/60 scrollbar-track-zinc-950 touch-pan-x select-none"
                   >
                     {displayOptions.map((opt, idx) => {
                       const isUnlocked = player.level >= opt.minLevel;
@@ -917,16 +954,16 @@ const REST_OPTIONS: RestOption[] = [
                           onClick={() => {
                             if (!isActive) scrollToCard(idx);
                           }}
-                          className={`w-[85%] sm:w-[320px] md:w-[330px] shrink-0 snap-center rounded-2xl p-4 transition-all duration-300 flex flex-col justify-between min-h-[195px] cursor-pointer border ${
+                          className={`w-[88%] sm:w-[310px] md:w-[330px] shrink-0 snap-center rounded-xl md:rounded-2xl p-3 md:p-4 transition-all duration-300 flex flex-col justify-between min-h-[175px] md:min-h-[195px] cursor-pointer border ${
                             isActive
                               ? 'bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/50 scale-[1.01] ring-1 ring-amber-500/40'
                               : 'bg-zinc-900/60 border-zinc-800/90 opacity-70 hover:opacity-95 hover:border-zinc-700'
                           }`}
                         >
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <div className="flex justify-between items-start">
                               <div className="flex items-center space-x-1.5">
-                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider border ${
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase tracking-wider border ${
                                   isUnlocked
                                     ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
                                     : 'bg-zinc-800 text-zinc-400 border-zinc-700'
@@ -934,27 +971,27 @@ const REST_OPTIONS: RestOption[] = [
                                   {opt.actName}
                                 </span>
                                 {!isUnlocked && (
-                                  <span className="text-[10px] font-mono bg-red-950 text-red-300 border border-red-500/30 px-1.5 py-0.5 rounded font-bold">
-                                    🔒 Lv {opt.minLevel} Req
+                                  <span className="text-[9px] font-mono bg-red-950 text-red-300 border border-red-500/30 px-1 py-0.5 rounded font-bold">
+                                    🔒 Lv {opt.minLevel}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs font-mono text-amber-400 font-bold bg-zinc-950 px-2.5 py-1 rounded-lg border border-amber-500/30 shadow-inner">
+                              <span className="text-[11px] font-mono text-amber-400 font-bold bg-zinc-950 px-2 py-0.5 rounded-lg border border-amber-500/30 shadow-inner">
                                 {formatCostInCowries(opt.costInCC)}
                               </span>
                             </div>
 
-                            <h5 className="text-base font-bold font-serif text-amber-200">
+                            <h5 className="text-sm md:text-base font-bold font-serif text-amber-200">
                               {opt.title}
                             </h5>
 
-                            <p className="text-xs text-zinc-300 leading-relaxed font-sans line-clamp-3">
+                            <p className="text-[11px] md:text-xs text-zinc-300 leading-snug md:leading-relaxed font-sans line-clamp-2 md:line-clamp-3">
                               {opt.description}
                             </p>
                           </div>
 
-                          <div className="pt-3 border-t border-zinc-800/80 mt-2 space-y-2">
-                            <div className="text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-500/30 px-2 py-1 rounded flex items-center justify-between">
+                          <div className="pt-2 border-t border-zinc-800/80 mt-1.5 space-y-1.5">
+                            <div className="text-[9px] md:text-[10px] font-mono text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center justify-between">
                               <span>✨ +{Math.round(opt.hpPercent * 100)}% HP • +{Math.round(opt.mpPercent * 100)}% MP</span>
                               <span className="text-amber-300 font-bold">+{opt.staminaRestore} ST</span>
                             </div>
@@ -963,10 +1000,10 @@ const REST_OPTIONS: RestOption[] = [
                               isFullyRestored ? (
                                 <button
                                   disabled
-                                  className="w-full bg-zinc-800 text-zinc-400 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-80"
+                                  className="w-full bg-zinc-800 text-zinc-400 font-bold py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-80"
                                   title="Health, Mana, and Stamina are all 100% full!"
                                 >
-                                  <span>✨ HP, MP & ST Fully Restored</span>
+                                  <span>✨ HP, MP & ST Full</span>
                                 </button>
                               ) : (
                                 <button
@@ -974,7 +1011,7 @@ const REST_OPTIONS: RestOption[] = [
                                     e.stopPropagation();
                                     handleRestOption(opt);
                                   }}
-                                  className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center"
+                                  className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs uppercase font-mono tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center"
                                 >
                                   <span>Rest & Regenerate</span>
                                 </button>
@@ -982,7 +1019,7 @@ const REST_OPTIONS: RestOption[] = [
                             ) : (
                               <button
                                 disabled
-                                className="w-full bg-zinc-800 text-zinc-500 font-bold py-2 rounded-xl text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-75"
+                                className="w-full bg-zinc-800 text-zinc-500 font-bold py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs uppercase font-mono tracking-wider cursor-not-allowed border border-zinc-700/50 flex items-center justify-center space-x-1 opacity-75"
                               >
                                 <span>🔒 Requires Character Level {opt.minLevel}</span>
                               </button>
@@ -995,15 +1032,15 @@ const REST_OPTIONS: RestOption[] = [
 
                   {/* Carousel Pagination Indicator Dots */}
                   {displayOptions.length > 1 && (
-                    <div className="flex items-center space-x-1.5 justify-center pt-1">
+                    <div className="flex items-center space-x-1.5 justify-center pt-0.5">
                       {displayOptions.map((_, idx) => (
                         <button
                           key={idx}
                           onClick={() => scrollToCard(idx)}
-                          className={`h-2 rounded-full transition-all duration-300 ${
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
                             idx === safeIndex
-                              ? 'w-6 bg-amber-400 shadow-sm shadow-amber-400/50'
-                              : 'w-2 bg-zinc-700 hover:bg-zinc-500'
+                              ? 'w-5 bg-amber-400 shadow-sm shadow-amber-400/50'
+                              : 'w-1.5 bg-zinc-700 hover:bg-zinc-500'
                           }`}
                           title={`Go to Rest Option ${idx + 1}`}
                         />
@@ -1016,33 +1053,33 @@ const REST_OPTIONS: RestOption[] = [
 
               {/* Tavern Bounties Notice */}
               {player.level < 3 ? (
-                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-2 opacity-80">
+                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl space-y-1.5 opacity-80">
                   <div className="flex items-center space-x-2">
                     <span className="text-zinc-500 font-bold text-xs uppercase font-mono">🔒 Bounty Board Locked</span>
                     <span className="bg-zinc-800 text-amber-400 font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">Unlocks at Lv 3</span>
                   </div>
-                  <p className="text-xs text-zinc-400 font-mono">
+                  <p className="text-[11px] md:text-xs text-zinc-400 font-mono">
                     The Town Elders require warriors to reach <strong className="text-amber-300">Character Level 3</strong> before taking on lethal creature bounties.
                   </p>
                   <div className="text-[10px] font-mono text-zinc-500">Progress: Level {player.level} / 3</div>
                 </div>
               ) : (
-                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-3">
+                <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-3 md:p-4 rounded-xl space-y-2 md:space-y-3">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-bold font-serif text-purple-300">Bounty Notice Board</h4>
-                    <span className="text-[10px] font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">
+                    <h4 className="text-xs md:text-sm font-bold font-serif text-purple-300">Bounty Notice Board</h4>
+                    <span className="text-[9px] md:text-[10px] font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-500/30">
                       {activeAcceptedBounties.length}/3 Active
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-[11px] md:text-xs text-zinc-400">
                     Inspect posted contracts for hunting dangerous mythological beasts in the wilderness.
                   </p>
                   <button
                     onClick={handleOpenBountyBoard}
-                    className="w-full bg-purple-900/80 hover:bg-purple-800 border border-purple-500/40 text-purple-200 font-bold py-2 rounded text-xs uppercase font-mono tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2"
+                    className="w-full bg-purple-900/80 hover:bg-purple-800 border border-purple-500/40 text-purple-200 font-bold py-1.5 md:py-2 rounded text-[10px] md:text-xs uppercase font-mono tracking-wider transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2"
                   >
                     <span>📜 Inspect Bounty Notice Board</span>
-                    <span className="bg-purple-950 px-2 py-0.5 rounded-full text-[10px] border border-purple-400/40">
+                    <span className="bg-purple-950 px-2 py-0.5 rounded-full text-[9px] md:text-[10px] border border-purple-400/40">
                       {displayedBounties.length} Available
                     </span>
                   </button>
@@ -1052,33 +1089,41 @@ const REST_OPTIONS: RestOption[] = [
 
             {/* Dedicated Bounty Board Panel inside Tavern */}
             {showBountyBoard && (
-              <div className="bg-zinc-950 border border-purple-900/60 p-4 md:p-6 rounded-2xl space-y-4 shadow-2xl animate-fade-in mt-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-zinc-800 pb-3 gap-2">
-                  <div>
-                    <h4 className="text-lg font-bold font-serif text-purple-200 flex items-center space-x-2">
-                      <span>📜 Haven Citadel Bounty Notice Board</span>
-                    </h4>
-                    <p className="text-xs text-zinc-400 font-mono mt-0.5">
-                      Progressive contracts scaled to your level and unlocked acts. Showing up to 3 available contracts.
-                    </p>
+              <div className="bg-zinc-950 border border-purple-900/60 p-2.5 md:p-6 rounded-xl md:rounded-2xl space-y-3 md:space-y-4 shadow-2xl animate-fade-in mt-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-zinc-800 pb-2 md:pb-3 gap-2">
+                  <div className="flex justify-between items-start w-full sm:w-auto">
+                    <div>
+                      <h4 className="text-sm md:text-lg font-bold font-serif text-purple-200 flex items-center space-x-1.5">
+                        <span>📜 Haven Citadel Bounty Notice Board</span>
+                      </h4>
+                      <p className="text-[10px] md:text-xs text-zinc-400 font-mono mt-0.5">
+                        Unaccepted contracts scaled to your level. Active contracts are managed in Log &amp; Chat.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowBountyBoard(false)}
+                      className="text-zinc-400 hover:text-white text-xs font-mono px-2 py-1 bg-zinc-900 rounded border border-zinc-800 sm:hidden shrink-0"
+                    >
+                      ✕ Close
+                    </button>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                     {/* Notice Board Tabs */}
-                    <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 text-xs font-mono">
+                    <div className="flex bg-zinc-900 p-0.5 md:p-1 rounded-lg border border-zinc-800 text-[10px] md:text-xs font-mono w-full sm:w-auto">
                       <button
                         onClick={() => setBountyBoardTab('AVAILABLE')}
-                        className={`px-3 py-1 rounded-md font-bold transition-all ${
+                        className={`flex-1 sm:flex-none px-2.5 py-1 rounded-md font-bold transition-all text-center ${
                           bountyBoardTab === 'AVAILABLE'
                             ? 'bg-purple-600 text-white shadow'
                             : 'text-zinc-400 hover:text-white'
                         }`}
                       >
-                        📋 Active & Available ({displayedBounties.length})
+                        📋 Available ({displayedBounties.length})
                       </button>
                       <button
                         onClick={() => setBountyBoardTab('COMPLETED')}
-                        className={`px-3 py-1 rounded-md font-bold transition-all ${
+                        className={`flex-1 sm:flex-none px-2.5 py-1 rounded-md font-bold transition-all text-center ${
                           bountyBoardTab === 'COMPLETED'
                             ? 'bg-emerald-600 text-white shadow'
                             : 'text-zinc-400 hover:text-white'
@@ -1090,27 +1135,31 @@ const REST_OPTIONS: RestOption[] = [
 
                     <button
                       onClick={() => setShowBountyBoard(false)}
-                      className="text-zinc-500 hover:text-white text-xs font-mono p-1"
+                      className="text-zinc-400 hover:text-white text-xs font-mono px-2 py-1 bg-zinc-900 rounded border border-zinc-800 hidden sm:inline shrink-0"
                     >
                       ✕ Close
                     </button>
                   </div>
                 </div>
 
-                {/* TAB 1: ACTIVE & AVAILABLE BOUNTIES (MAX 3) */}
+                {/* TAB 1: AVAILABLE BOUNTIES (UNACCEPTED ONLY) */}
                 {bountyBoardTab === 'AVAILABLE' && (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5 md:space-y-3">
                     {displayedBounties.length === 0 ? (
-                      <div className="bg-zinc-900/60 border border-dashed border-zinc-800 p-8 rounded-xl text-center space-y-2">
-                        <div className="text-3xl">📜</div>
-                        <h5 className="text-base font-bold font-serif text-amber-300">
-                          No bounties available, level up and come back later
+                      <div className="bg-zinc-900/60 border border-dashed border-zinc-800 p-6 md:p-8 rounded-xl text-center space-y-2">
+                        <div className="text-2xl md:text-3xl">📜</div>
+                        <h5 className="text-sm md:text-base font-bold font-serif text-amber-300">
+                          {activeAcceptedBounties.length >= 3
+                            ? 'Maximum 3 Active Bounties Accepted!'
+                            : 'No new bounties available, level up and come back later'}
                         </h5>
-                        <p className="text-xs font-mono text-zinc-400 max-w-md mx-auto">
-                          You have completed all available contracts for your current character level (Level {player.level}).
+                        <p className="text-[11px] md:text-xs font-mono text-zinc-400 max-w-md mx-auto">
+                          {activeAcceptedBounties.length >= 3
+                            ? 'You are currently carrying 3 active bounty contracts! Complete or claim them in Log & Chat to free up slots.'
+                            : `You have accepted or completed all available contracts for Character Level ${player.level}.`}
                         </p>
                         {nextLockedBounty && (
-                          <div className="text-xs font-mono text-purple-300 pt-2 font-bold">
+                          <div className="text-[11px] md:text-xs font-mono text-purple-300 pt-1.5 font-bold">
                             🔒 Next Contract ({nextLockedBounty.title}) unlocks at Level {nextLockedBounty.minLevel}!
                           </div>
                         )}
@@ -1119,66 +1168,48 @@ const REST_OPTIONS: RestOption[] = [
                       displayedBounties.map((bounty) => (
                         <div
                           key={bounty.id}
-                          className={`p-4 border rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 transition-all ${
-                            bounty.isCompleted
-                              ? 'bg-emerald-950/40 border-emerald-500/80'
-                              : bounty.isAccepted
-                              ? 'bg-purple-950/40 border-purple-500/60'
-                              : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                          }`}
+                          className="p-2.5 md:p-4 border rounded-xl flex flex-col space-y-2 md:space-y-2.5 transition-all bg-zinc-900 border-zinc-800 hover:border-zinc-700"
                         >
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-xs font-mono font-bold uppercase text-amber-400">{bounty.title}</span>
-                              <span className="text-[10px] font-mono text-zinc-400">
-                                • Level {bounty.minLevel ?? 1}+ Req
-                              </span>
-                              {bounty.isAccepted && (
-                                <span className="bg-purple-900 text-purple-200 border border-purple-500/40 text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase">
-                                  Active Contract
+                          {/* Top Row: Title & Level Requirement */}
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                                <span className="text-[11px] md:text-xs font-mono font-bold uppercase text-amber-400">{bounty.title}</span>
+                                <span className="text-[9px] md:text-[10px] font-mono text-zinc-400">
+                                  • Level {bounty.minLevel ?? 1}+ Req
                                 </span>
-                              )}
+                              </div>
+                              <h5 className="text-sm md:text-base font-bold font-serif text-white">Target: {bounty.targetMonsterName}</h5>
                             </div>
-                            <h5 className="text-base font-bold font-serif text-white">Target: {bounty.targetMonsterName}</h5>
-                            <p className="text-xs text-zinc-400 font-mono">
-                              Target Count: <strong className="text-amber-300">{bounty.currentCount} / {bounty.targetCount}</strong>
-                            </p>
+                            <span className="bg-purple-950 text-purple-300 border border-purple-500/40 text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0">
+                              Target: {bounty.targetCount}x
+                            </span>
                           </div>
 
-                          <div className="flex items-center space-x-4 w-full md:w-auto justify-between md:justify-end">
-                            <div className="text-right font-mono text-xs text-zinc-300">
-                              <div>Rewards: <strong className="text-emerald-400">+{bounty.rewardExp} EXP</strong> | <strong className="text-yellow-400">+{bounty.rewardCC} CC</strong></div>
-                              <div className="text-purple-300 font-bold">1x Memory ({bounty.rewardMemoryRarity})</div>
+                          {/* Middle Row: Target Count & Rewards */}
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs font-mono bg-zinc-950/60 p-2 rounded-lg border border-purple-900/30 gap-1">
+                            <div className="text-[11px] md:text-xs text-zinc-400">
+                              Required Slay Count: <strong className="text-amber-300">{bounty.targetCount} Monsters</strong>
                             </div>
 
-                            {!bounty.isAccepted ? (
-                              <button
-                                onClick={() => handleAcceptBounty(bounty.id)}
-                                className="bg-purple-600 hover:bg-purple-500 text-white font-bold font-mono px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 shrink-0"
-                              >
-                                Accept Contract
-                              </button>
-                            ) : bounty.isCompleted && !bounty.isClaimed ? (
-                              <button
-                                onClick={() => handleClaimBounty(bounty)}
-                                className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold font-mono px-4 py-2 rounded-lg text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 shrink-0 animate-bounce"
-                              >
-                                Claim Reward
-                              </button>
-                            ) : (
-                              <div className="flex items-center space-x-2 shrink-0">
-                                <div className="bg-purple-950/80 border border-purple-500/40 text-purple-200 font-bold font-mono px-3 py-1.5 rounded-lg text-xs uppercase tracking-wider text-center">
-                                  ⏳ In Progress ({bounty.currentCount}/{bounty.targetCount})
-                                </div>
-                                <button
-                                  onClick={() => handleAbandonBounty(bounty.id)}
-                                  className="text-zinc-500 hover:text-red-400 font-mono text-[10px] uppercase underline px-1 py-1"
-                                  title="Abandon Contract to free active slot"
-                                >
-                                  Abandon
-                                </button>
-                              </div>
-                            )}
+                            <div className="text-[10px] md:text-xs text-zinc-300 flex items-center space-x-1 flex-wrap">
+                              <span className="text-zinc-400 font-semibold">Rewards: </span>
+                              <span className="text-emerald-400 font-bold">+{bounty.rewardExp} EXP</span>
+                              <span className="text-zinc-500">•</span>
+                              <span className="text-yellow-400 font-bold">+{bounty.rewardCC} CC</span>
+                              <span className="text-zinc-500">•</span>
+                              <span className="text-purple-300 font-bold">1x Memory ({bounty.rewardMemoryRarity})</span>
+                            </div>
+                          </div>
+
+                          {/* Bottom Row: Actions */}
+                          <div className="flex items-center justify-end space-x-2 pt-0.5">
+                            <button
+                              onClick={() => handleAcceptBounty(bounty.id)}
+                              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold font-mono px-4 py-1.5 rounded-lg text-[10px] md:text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                            >
+                              [ Accept Contract ]
+                            </button>
                           </div>
                         </div>
                       ))
@@ -1188,7 +1219,7 @@ const REST_OPTIONS: RestOption[] = [
 
                 {/* TAB 2: COMPLETED BOUNTIES HISTORY */}
                 {bountyBoardTab === 'COMPLETED' && (
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                  <div className="space-y-2 md:space-y-3 max-h-96 overflow-y-auto pr-1">
                     {completedBounties.length === 0 ? (
                       <div className="bg-zinc-900/40 border border-zinc-800 p-6 rounded-xl text-center text-xs font-mono text-zinc-400">
                         No completed contracts yet. Complete and claim contracts to build your slayer record!
@@ -1197,16 +1228,16 @@ const REST_OPTIONS: RestOption[] = [
                       completedBounties.map((bounty) => (
                         <div
                           key={bounty.id}
-                          className="bg-zinc-900/40 border border-zinc-800 p-3 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 opacity-80"
+                          className="bg-zinc-900/40 border border-zinc-800 p-2.5 md:p-3 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-1.5 md:gap-2 opacity-80 text-[10px] md:text-xs"
                         >
                           <div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-xs font-mono text-emerald-400 font-bold">✅ {bounty.title}</span>
-                              <span className="text-[10px] font-mono text-zinc-500">• Level {bounty.minLevel ?? 1}</span>
+                              <span className="font-mono text-emerald-400 font-bold">✅ {bounty.title}</span>
+                              <span className="font-mono text-zinc-500">• Level {bounty.minLevel ?? 1}</span>
                             </div>
-                            <div className="text-xs font-serif text-zinc-300">Target Slain: {bounty.targetMonsterName} ({bounty.targetCount}x)</div>
+                            <div className="font-serif text-zinc-300">Target Slain: {bounty.targetMonsterName} ({bounty.targetCount}x)</div>
                           </div>
-                          <div className="text-right font-mono text-xs text-zinc-400">
+                          <div className="text-right font-mono text-zinc-400">
                             <span>Claimed: +{bounty.rewardExp} EXP | +{bounty.rewardCC} CC | 1x {bounty.rewardMemoryRarity} Memory</span>
                           </div>
                         </div>

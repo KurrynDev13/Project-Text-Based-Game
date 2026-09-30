@@ -2,69 +2,69 @@
 // Epic narrative story cutscenes for each of the 8 Acts (Philippine Mythology & Pre-Colonial Folklore)
 
 export const ACT_EPIC_STORIES: Record<string, string> = {
-  loc_act_1: `Beyond the sanctuary bluffs of Poblacion lies the ancient Balete forest, a realm where colossal strangler figs choke out the sunlight. Moss-draped boughs sway without wind, humming with the soft, mournful voices of ancient spirits trapped between the mortal world and the beyond.
+    loc_act_1: `Beyond the sanctuary bluffs of Poblacion lies the primeval Balete forest—a suffocating expanse where colossal strangler figs entwine like petrified serpents, choking the sky into perpetual dusk. Veils of Spanish moss sway in the windless gloom, whispering with the grievances of anito and forgotten dead trapped between the soil and the stars.
 
-Villagers speak of sinister omens creeping through the tangled thickets. Deceitful Tiyanak mimic the cries of lost infants to lure unsuspecting travelers into thorned brambles, while Nuno mound-dwellers strike down trespassers with festering curses.
+Ominous portents fester along the tangled deer-paths. Deceitful Tiyanak weep from the briars, mimicking the cries of forsaken babes to coax the merciful into thorned jaws, while vengeful Nuno mound-dwellers curdle the blood of any who fail to ask passage. 
 
-High above in the black canopy, thick smoke billows from an eternal smoking ember. The Ancient Kapre—titan guardian of the woodland—watches your every movement with glowing crimson eyes. Once a benevolent protector of sacred groves, its ancient heart has turned black with corruption.
+Yet the true dread hangs far above in the sunless bower. Drifting down through the leaves comes the bitter-sweet stench of charred cigars and ancient, burning embers. High in the elder canopy, two smoldering crimson orbs pierce the mist—the once-revered guardian of these groves, now bloated with a foul, spreading rot that poisons every root it once nurtured. 
 
-Armed with your heritage blade and the Babaylan's ancestral blessing, you step beneath the shadowed canopy. To save the archipelago, you must purge the corruption of the woods and fell the giant of the Balete.`,
+Armed with your ancestral blade and the Babaylan’s fragrant smoke-blessing, you must step beneath the strangling boughs, unravel the rot at the grove’s heart, and confront whatever corrupted majesty broods within the heights.`,
 
-  loc_act_2: `Emerging from the shadow of the Balete forest, the scent of sea salt and rotting kelp hangs heavy in the air. The Lagoon of the Sunken Sirens glistens with ethereal cyan bioluminescence under the midnight moon, masking bottomless abyssal drop-offs that swallow ships whole.
+    loc_act_2: `Breaking through the forest perimeter, the scent of crushed copra yields to stagnant brine and decaying kelp. Before you lies the Lagoon of the Sunken Sirens, its waters glowing with a ghostly cyan bioluminescence that masks jagged coral spines and abyssal trenches deep enough to swallow whole armadas.
 
-Scaled Syokoy raiders haul themselves onto the jagged coral bluffs, wielding trident spears forged from sunken iron. Flesh-eating Berbalang haunt the shoreline at low tide, while Sigbin shadow-beasts prowl the bloodied sand in search of mortal hearts.
+Scaled Syokoy raiders drag themselves onto the barnacle-crusted bluffs, brandishing tridents forged from rusted galleon ballast. At low tide, carrion-feeding Berbalang pick through washed-up wreckage, while shadow-born Sigbin prowl the wet sand, hunting for the quickened heartbeat of living prey.
 
-Far off across the misty shallows echoes a hypnotic, otherworldly melody—the siren song of Magindara, Matriarch of the Deep. Her song lulls sailors into watery graves, turning their bodies into shell-encrusted thralls beneath the waves.
+Across the glowing shallows, carried on the damp offshore wind, drifts a melody of devastating, unnatural sorrow. It is a song that unravels the wills of seasoned helmsmen, coaxing them to cast themselves into the foaming depths to become shell-encrusted thralls in drowned halls. The tides themselves answer this mournful cadence, rising with an unnatural, vengeful fury.
 
-The tides surge with unholy wrath. You must navigate the glowing coral reefs, break the siren's enchantment, and slay the Matriarch before her tides submerge the sanctuary bluffs forever.`,
+To save the coastline from drowning, you must chart the treacherous reefs, steel your mind against the hypnotic lament, and drag the abyss’s weeping sovereign from her throne of coral.`,
 
-  loc_act_3: `Deep beneath the mountain roots lie subterranean grottos and ancient limestone burial vaults. Carved wooden sarcophagi hang suspended from stalactites over bottomless subterranean chasms, preserved by the sacred warding rites of ancient Datus.
+    loc_act_3: `Deep beneath the mountain roots, the world narrows into dripping limestone caverns and subterranean burial crypts. Carved wooden sarcophagi hang suspended from stalactites over bottomless chasms, bound by centuries of rotted rattan and the faded seal-paint of ancient Datus.
 
-The sacred wards have shattered. Skeletal sentries clad in corroded brass chainmail walk the catacombs once more. Amomongo ape-beasts tear through burial chambers with obsidian claws, while suffocating Batibat nightmares haunt the shadows.
+The sacred protective rites have crumbled. Skeletal sentries draped in corroded brass chainmail patrol the stone causeways, their rusted kampilan blades seeking warmth. Amomongo ape-beasts scour the catacombs with flint-hard claws, while suffocating Batibat drift like waking sleep paralysis through the dark.
 
-Deep within the central sun-chamber stands a corrupted manifestation of the ancient Sun God—Shadow Apolaki. Consumed by subterranean dark magic, his radiant spear blazes with void fire, threatening to eclipse all celestial light.
+From the deepest sun-vault—where sacred solar ceremonies once echoed through the rock—radiates a chilling, unnatural glare. The tomb hums with the desecrated essence of an ancient patron of war and daylight; its once-radiant spear now blazes with a suffocating, black-violet flame that swallows the shadows it creates.
 
-Steel your heart against the wails of the dead. You must descend into the deepest catacombs, cleanse the ancestral sarcophagi, and destroy the dark avatar before the undead army marches into the mortal sun.`,
+Steel your spirit against the shrieks echoing up the shafts. Descend into the forgotten sepulchers, honor the disturbed resting places of your ancestors, and extinguish the eclipsed divinity before its dark light leads an army of the dead into the waking world.`,
 
-  loc_act_4: `High atop Mount Kanlaon, the earth splits into molten chasms and sulfuric canyons. Plumes of black ash swallow the sky, raining glowing embers down upon scorched obsidian ridges where only fire-born horrors survive.
+    loc_act_4: `Scaling the jagged volcanic heights of Mount Kanlaon, the earth gives way to yawning fissures of liquid rock and suffocating sulfur vents. Billowing plumes of basalt ash choke out the sun, showering the obsidian ridges in a relentless drizzle of red-hot cinder where only primordial terrors can endure.
 
-Floating Santelmo fireballs dance across rivers of liquid magma, incinerating any who draw near. One-eyed Bungisngis giants unleash terrifying laughter as they hurl boulders of volcanic slag, while headless Pugot terrors stalk the sulfuric fog.
+Flickering Santelmo fireballs dance across boiling slag pools, hungry to immolate any living flesh that nears their circuit. Boisterous, one-eyed Bungisngis giants heave boulders of cooling magma with earth-shattering guffaws, while headless Pugot drift through the caustic steam like formless nightmares of burnt pitch.
 
-At the center of the molten crater thumps a colossal core of magma and ancient malice—the Heart of Mount Kanlaon. Awakening from a thousand-year slumber, its eruptions threaten to bury the entire archipelago under a sea of fire.
+Yet the mountain’s true terror is not its roaming beasts, but the feverish pulse shivering through the volcanic rock. Deep within the central caldera beats an ancient, molten core—a primeval malice slumbering since the dawn of the islands, now awakening with a fury that threatens to drown the surrounding provinces in a sea of liquid fire.
 
-Facing blistering heat and suffocating fumes, you must forge upward through the sulfuric canyons. Endure the volcanic gauntlet, strike down the magma beasts, and extinguish the raging Heart of Kanlaon!`,
+You must brace against blistering winds, cut through the volcanic menaces of the slopes, and delve straight into the smoldering caldera to quiet the awakening earth before it ruptures the skies.`,
 
-  loc_act_5: `Along the desolate crags and midnight mangrove bluffs of the Blood Coast, the sky bleeds a sinister crimson glow. The air hangs heavy with the stench of copper and dark magic—the undisputed domain of the night covens.
+    loc_act_5: `Along the desolate crags and weeping mangrove mazes of the Blood Coast, the horizon stains with the hue of spilled claret. The evening wind carries the sharp, metallic tang of slaughter—the undisputed dominion of the archipelago’s darkest nightmares.
 
-Winged Manananggal sever their torsos at dusk, soaring through the moonlight to prey on mortal settlements. Cackling Wakwak and screeching Tiktik harbingers circle overhead, while bone-marrow scavenging Balbal desecrate every fallen grave.
+As the daylight dies, predatory Manananggal tear free from their lower torsos to ride the twilight air on leathery wings. Screeching Wakwak and clicking Tiktik scout the settlements ahead of their mistresses, while grave-robbing Balbal crawl among the tombstones, trading rotting carrion for living flesh.
 
-Ruling over the midnight bluffs is the Primordial Aswang Warlord—a monstrous warlord of ancient myth who commands the night covens. Armed with blood-forged blades, he seeks to devour the souls of the living and plunge the realm into endless night.
+Every creature of the night pays homage to an ancestral horror enthroned upon the highest sea-cliff—the first hunter to partake of the forbidden flesh when the islands were young. Adorned in blood-stained regalia, this ancient progenitor marshals the splintered covens under one banner, aiming to turn the islands into an eternal abattoir.
 
-The night covens gather for their blood ritual. Armed with silvered blades and holy amulets, you must hunt through the mangrove bluffs, survive the visceral horrors of the dark, and vanquish the Aswang Warlord!`,
+Arm yourself with scorched sea-salt, purified silver, and anitos' warding amulets. You must track the predators through the red tide of the mangroves and sever the lineage of the night before the crimson dusk consumes all.`,
 
-  loc_act_6: `Beyond the coastal reefs lies the lightless Abyssal Trench—a sea floor where the sun never shines and immense ocean pressure crushes lesser mortals. Sunken galleons and ancient coral ruins lie preserved in frozen darkness.
+    loc_act_6: `Plunging beyond the tidal shelf, you enter the crushing, lightless expanse of the Abyssal Trench. In this frozen twilight where the sun has never touched the seabed, centuries of drowned galleons and forgotten megalithic temples lie crushed under the sheer weight of the ocean.
 
-Syokoy chieftains command legionnaires of trench leviathans and coral berbalangs. Spectral sunken corsairs sail phantom ships across maelstrom currents, while giant kelp leeches drain the life force of any who enter the ocean depths.
+Elite trench legions patrol the black currents alongside armored leviathans, while spectral corsairs steer rotting ghost-brigs across phantom maelstroms. Parasitic kelp horrors drift through the dark, waiting to drain the vital essence of anything warm that sinks into their reach.
 
-Resting in the deepest abyssal rift is Tambanokano, the mythical moon-crushing crab titan. Its gigantic claws create seismic tidal waves that shake the seabed, guarding the sacred Beastmaster Stables from all land-dwellers.
+From the seafloor’s lowest chasm echoes a tectonic grinding that rattles the continental plate. Local petroglyphs whisper of an armored titan that once challenged the heavens themselves for dominion over the tides—a colossus of prehistoric shell and shearing claws whose slumber cradles the mythical Beastmaster Vaults.
 
-Plunge into the lightless abyss with the Babaylan’s underwater protection. Defeat the sea leviathans, shatter the shell of Tambanokano, and unlock the legendary Beastmaster Stables to tame the mythical mounts of the archipelago!`,
+Wrapped in the Babaylan’s sacred pearl wards, you must brave the lightless depths, break the trench vanguard, and confront the armored colossus of the deep to unlock the legendary mounts of antiquity.`,
 
-  loc_act_7: `Soaring above the highest peaks of Mount Arayat rest the gilded towers of the Sky-Citadel. Cloud-bridges span between floating islands of ivory stone, bathed in eternal sunlight and humming with sacred celestial energy.
+    loc_act_7: `High above the summit of Mount Arayat, mortal ground gives way to the blinding splendor of the Sky-Citadel. Bridges of solid cloud link floating sanctuaries of pale marble, bathed in perpetual noon and vibrating with pure, unyielding celestial power.
 
-Giant Minokawa raptors sweep through the sky, their wings blotting out the clouds. Sarimanok wardens channel radiant divine bolts, while Diwata sentinels and storm dancers summon howling Kidlat elementals and Anito colossi to defend the sacred citadel.
+Golden-winged Minokawa sweep between ivory towers, their feathers humming with solar fire. Sacred Sarimanok wardens release blinding arcs of judgment, while stern Diwata sentinels summon living Kidlat thunderbolts and towering stone Anito colossi to cast down uninvited mortals.
 
-At the apex of the highest spire stands the Celestial Arbiter of Mount Arayat. An unyielding divine entity tasked with testing mortal worth, the Arbiter wields sun-forged armor and a blade of pure starlight.
+This sacred perfection holds no pity for human frailty. Poised at the highest sun-dais, draped in stellar armor and bearing a blade spun from radiant starlight, stands an impassive divine sentinel. Bound by sacred decree to weigh the purity and strength of all who dare seek the upper realms, this judge has cast countless champions down into the void below.
 
-Prove your strength to the gods of the upper realm. Scale the floating spires, brave the celestial storms, and earn the Arbiter’s blessing to face the ultimate cosmic threat threatening all creation!`,
+Endure the trials of the floating sanctuaries, brave the roaring thunder gates, and prove mortal grit against the relentless judgment of the gods.`,
 
-  loc_act_8: `At the absolute edge of creation lies the Maw of the Great Eclipse—a terrifying cosmic void where space and time collapse. Seven moons once lit the nocturnal sky, but now only shadow and cosmic dust remain in the wake of the world-eater.
+    loc_act_8: `At the ragged border where reality fractures into nothingness lies the Maw of the Great Eclipse. Here, the laws of space and time buckle under a vast cosmic void; where once seven radiant sisters illuminated the night sky, only broken celestial dust drifts across the abyss.
 
-Eclipse void drakes and cosmic Tikbalangs warp through nether rifts. Corrupted shaman liches channel dark void spells, while spectral sky devourers and Balete void horrors swarm the threshold between reality and nonexistence.
+Void-tainted Tikbalang distort the black ether, warping through spatial fissures to crush intruders. Corrupted Babaylan liches chant discordant hymns to the emptiness, while spectral horrors birthed between dying stars swarm the edges of broken reality.
 
-Coiled around the final remaining moon is Bakunawa, the primordial dragon serpent of Philippine legend. Scales forged from swallowed starlight and teeth that shatter mountains, Bakunawa prepares to swallow the final celestial light and plunge the cosmos into eternal void.
+Coiled around the frail, dwindling crescent of the final surviving moon lies an impossible terror. A creature of endless scale, with scales forged from devoured starlight and a yawning gullet that has swallowed moon after moon across the eons, coils tight for its final feast. Should that last crescent fall down its throat, the universe will sink into an irrevocable, silent dark.
 
-The fate of the archipelago and all mortal realms rests upon your blade. Channel the power of every conquered Act, unleash your ultimate skills, and strike down the Great Serpent to restore the moons to the sky and save creation!`,
+Every blessing, every scarred trial, and every ancestral spark you carry has led to this threshold. Step into the dying star-sea, defy the infinite dark, and slay the world-eater before the last light of creation is devoured forever.`
 };
 
 export function getActStory(actId: string, fallbackDescription?: string): string {

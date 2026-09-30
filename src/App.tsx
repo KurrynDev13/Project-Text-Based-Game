@@ -26,6 +26,7 @@ import CharacterCreationModal from './components/CharacterCreationModal';
 import OpeningStoryModal from './components/OpeningStoryModal';
 import InteractiveOnboardingTutorial from './components/InteractiveOnboardingTutorial';
 import { ToastBanner, ToastMessage } from './components/ToastBanner';
+import { bgmManager } from './utils/musicManager';
 // SkillTreeView is used inside CharacterSheet now
 
 const LOCAL_STORAGE_KEY = 'maharlika_player_save_v1';
@@ -246,6 +247,19 @@ export function App() {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
   }, [player]);
 
+  // Context-Aware Ambient Background Music Controller
+  useEffect(() => {
+    if (showOpeningStory || !player.hasCreatedCharacter) {
+      bgmManager.playTrack('LORE');
+    } else if (showRaidView || (battle.inCombat && battle.enemy?.isBoss)) {
+      bgmManager.playTrack('BOSS');
+    } else if (battle.inCombat) {
+      bgmManager.playTrack('BATTLE');
+    } else {
+      bgmManager.playTrack('MAIN');
+    }
+  }, [showOpeningStory, player.hasCreatedCharacter, showRaidView, battle.inCombat, battle.enemy?.isBoss]);
+
   /**
    * Called by CharacterCreationModal on completion.
    * Builds the fully-initialized player state for the chosen class and name.
@@ -398,7 +412,7 @@ export function App() {
       )}
 
       {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS */}
-      <main className="flex-1 max-w-7xl w-full mx-auto overflow-y-auto pt-[108px] md:pt-[60px] pb-28 flex flex-col">
+      <main className="flex-1 max-w-7xl w-full mx-auto overflow-y-auto pt-[96px] sm:pt-[100px] md:pt-[64px] pb-16 md:pb-28 flex flex-col">
         {showRaidView ? (
           <TitanRaidView
             player={player}

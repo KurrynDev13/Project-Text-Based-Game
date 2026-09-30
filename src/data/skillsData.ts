@@ -1,9 +1,10 @@
-import { HeroClass, Skill } from '../types/game';
+import { HeroClass, PlayerCharacter, Skill } from '../types/game';
 
 // =============================================================================
 // MAHARLIKA: LEGENDS OF THE ARCHIPELAGO — SKILLS DATA
 // 32 Skills Total: 8 per Hero Class (1 Basic Attack, 7 Unlockable via Mutya Shards)
 // Mutya Costs: Tier 1 = 1 Mutya, Tier 2 = 2 Mutya, Tier 3 = 3 Mutya, Tier 4 = 5 Mutya
+// Level Requirements: Tier 1 = Lv 1, Tier 2 = Lv 8, Tier 3 = Lv 16, Tier 4 = Lv 25
 // =============================================================================
 
 export const ALL_SKILLS: Skill[] = [
@@ -17,6 +18,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🗡️',
     classReq: 'Mandirigma',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 0,
     description: 'A straightforward strike with the Kampilan blade, dealing standard weapon damage.',
     flavorText: 'Every warrior begins with a single strike.',
@@ -33,6 +35,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '⚔️',
     classReq: 'Mandirigma',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 1,
     description: 'A powerful overhead blow with the Kampilan longsword that crashes through defenses.',
     flavorText: "A warrior's blade is the extension of his oath.",
@@ -47,6 +50,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '📣',
     classReq: 'Mandirigma',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Release a thunderous roar that empowers your next attack with 50% bonus damage.',
     flavorText: 'Let your battle cry shake the heavens and shatter the enemy spirit.',
@@ -62,6 +66,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌀',
     classReq: 'Mandirigma',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Spin with the massive Panabas cleaver, delivering a sweeping blow that causes Bleed.',
     flavorText: 'The cleave of the Panabas spares none who stand before it.',
@@ -77,6 +82,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🛡️',
     classReq: 'Mandirigma',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Adopt the iron stance of the Rajah, generating a shield equal to 25% of maximum HP.',
     flavorText: "A Rajah's guard is his people's last wall.",
@@ -93,6 +99,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🩸',
     classReq: 'Mandirigma',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'A brutal rending strike that tears armor and inflicts heavy escalating Bleed damage.',
     flavorText: 'Those who draw the blade accept its cost in blood.',
@@ -108,6 +115,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '☀️',
     classReq: 'Mandirigma',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: "Channel the Sun God's fury into your blade and unleash a scorching fiery sword eruption.",
     flavorText: 'Strike with the blazing fury of Apolaki himself.',
@@ -123,6 +131,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌟',
     classReq: 'Mandirigma',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'Draw upon the chieftain\'s resolve — restore 25% HP and deliver a crushing strike.',
     flavorText: 'Against foreign steel, Lapu-Lapu stood unbroken.',
@@ -142,6 +151,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🔪',
     classReq: 'Bagani',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 0,
     description: 'A rapid flick of the Balisong butterfly knife, dealing standard weapon damage.',
     flavorText: 'Swifter than the eye can follow.',
@@ -158,6 +168,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌬️',
     classReq: 'Bagani',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 1,
     description: 'A rapid fan of Balisong slashes that deal high-agility physical damage with Bleed.',
     flavorText: 'Swift as the monsoon wind, deadly as its lightning.',
@@ -173,6 +184,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '👤',
     classReq: 'Bagani',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Vanish into shadow, gaining Haste and generating a damage-absorbing shadow barrier.',
     flavorText: 'The Bagani moves unseen before the killing blow.',
@@ -189,6 +201,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🐍',
     classReq: 'Bagani',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Strike with the wavy Kris blade coated in Dahong Palay venom, inflicting Poison.',
     flavorText: 'The Dahong Palay vine yields the deadliest venom.',
@@ -204,6 +217,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌙',
     classReq: 'Bagani',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Strike from darkness for massive critical damage against envenomed or bleeding targets.',
     flavorText: "Darkness is the Bagani's deadliest ally.",
@@ -218,6 +232,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '💨',
     classReq: 'Bagani',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Deploy a dense smoke bomb, granting Haste and dramatically boosting dodge speed.',
     flavorText: 'Let them strike your shadow while you sever their throat.',
@@ -233,6 +248,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '⚡',
     classReq: 'Bagani',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'Drive dual Kris blades simultaneously into vital organs, dealing massive physical damage.',
     flavorText: 'Two blades, one heartbeat — the enemy falls silent.',
@@ -247,6 +263,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '💀',
     classReq: 'Bagani',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'A void-empowered strike that deals immense Shadow damage and afflicts Exhaustion.',
     flavorText: 'There is no mercy in the void between heartbeats.',
@@ -266,6 +283,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🏹',
     classReq: 'Mangangaso',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 0,
     description: 'A clean bowshot with a fire-hardened bamboo arrow, dealing standard weapon damage.',
     flavorText: 'A quiet string releases a silent death.',
@@ -282,6 +300,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🎯',
     classReq: 'Mangangaso',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 1,
     description: 'Fire a toxic dart from a hardwood Sumpit blowgun, dealing ranged damage and Poison.',
     flavorText: 'Silent as breath, fatal as cobra venom.',
@@ -297,6 +316,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🦅',
     classReq: 'Mangangaso',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Focus your vision like the Philippine Eagle, empowering your next shot with 50% extra power.',
     flavorText: 'No target escapes the eagle eye of the hunter.',
@@ -312,6 +332,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌿',
     classReq: 'Mangangaso',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Unleash a volley of rattan arrows into the sky, raining physical damage on the target.',
     flavorText: 'The sky darkens with rattan arrow shafts.',
@@ -326,6 +347,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🛖',
     classReq: 'Mangangaso',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Lure the enemy into a hidden spike pit, dealing Frost damage and inflicting Exhaustion.',
     flavorText: 'The wilderness itself obeys the master hunter.',
@@ -341,6 +363,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🐗',
     classReq: 'Mangangaso',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Summon the spirit of the Wild Tamaraw, granting a 20% HP shield and Fortified defense.',
     flavorText: 'The wild beasts of the archipelago answer the call.',
@@ -357,6 +380,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🎯',
     classReq: 'Mangangaso',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'Draw the mythical Pinaka Warbow to full tension, firing a devastating armor-piercing shot.',
     flavorText: 'The bow of the gods pierces dragon scale.',
@@ -371,6 +395,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🔥',
     classReq: 'Mangangaso',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'Imbue an arrow with the sacred flame of the Sarimanok, dealing heavy Fire damage and Burn.',
     flavorText: 'A streak of divine fire blazes through the canopy.',
@@ -390,6 +415,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '✨',
     classReq: 'Babaylan',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 0,
     description: 'Release a bolt of raw spiritual energy from your staff, dealing Magic damage.',
     flavorText: 'The ancestors speak through the shaman wood.',
@@ -406,6 +432,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '❇️',
     classReq: 'Babaylan',
     tier: 1,
+    minLevel: 1,
     mutyaCost: 1,
     description: 'Chant an ancient restoration prayer, restoring 25% of maximum HP.',
     flavorText: 'The breath of life flows from ancestral spirits.',
@@ -421,6 +448,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🛡️',
     classReq: 'Babaylan',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Weave an ethereal protective shroud around yourself, absorbing damage equal to 22% Max HP.',
     flavorText: 'Anointed by sacred oil and spirit chants.',
@@ -437,6 +465,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '⚡',
     classReq: 'Babaylan',
     tier: 2,
+    minLevel: 8,
     mutyaCost: 2,
     description: 'Call down a bolt of silver moon lightning from Mayari, dealing heavy Lightning damage.',
     flavorText: 'Mayari’s silver moon beam strikes down the wicked.',
@@ -451,6 +480,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🔮',
     classReq: 'Babaylan',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Curse the enemy with a ancient Diwata hex, dealing Shadow damage and inflicting Exhaustion.',
     flavorText: 'The ancient guardians turn their wrath upon the unworthy.',
@@ -466,6 +496,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌀',
     classReq: 'Babaylan',
     tier: 3,
+    minLevel: 16,
     mutyaCost: 3,
     description: 'Commune with spirit realms to empower your spells, granting Empowered status and regenerating HP.',
     flavorText: 'Spiritual power floods through the shaman’s veins.',
@@ -482,6 +513,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '🌌',
     classReq: 'Babaylan',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: 'Invoke the forbidden eclipse ritual, dealing massive Shadow damage and burning enemy MP.',
     flavorText: 'In the eclipse, both sun and moon weep blood.',
@@ -497,6 +529,7 @@ export const ALL_SKILLS: Skill[] = [
     icon: '☀️',
     classReq: 'Babaylan',
     tier: 4,
+    minLevel: 25,
     mutyaCost: 5,
     description: "Channel supreme divine illumination, restoring 35% HP and striking the enemy with Radiant damage.",
     flavorText: "The Supreme Being's grace washes away all darkness.",
@@ -525,4 +558,49 @@ export const getDefaultSkillIds = (heroClass: HeroClass): string[] => {
 /** Returns the ID of the basic attack skill for a given hero class */
 export const getBasicAttackId = (heroClass: HeroClass): string =>
   ALL_SKILLS.find(s => s.classReq === heroClass && s.isBasicAttack)?.id ?? '';
+
+/** Gets the current Rank (1 to 5) for a given skill ID */
+export const getSkillRank = (player: PlayerCharacter, skillId: string): number => {
+  return player.skillRanks?.[skillId] ?? 1;
+};
+
+/**
+ * Returns Mutya cost required to upgrade skill to next Rank.
+ * Rank 1 -> 2: 2 Mutya
+ * Rank 2 -> 3: 3 Mutya
+ * Rank 3 -> 4: 5 Mutya
+ * Rank 4 -> 5: 8 Mutya
+ * Returns 0 if already at Max Rank (5).
+ */
+export const getSkillUpgradeCost = (currentRank: number): number => {
+  if (currentRank >= 5) return 0;
+  switch (currentRank) {
+    case 1: return 2;
+    case 2: return 3;
+    case 3: return 5;
+    case 4: return 8;
+    default: return 0;
+  }
+};
+
+/** Returns damage multiplier scaled by skill rank (+15% per rank above 1) */
+export const getScaledSkillDamageMult = (skill: Skill, rank: number): number => {
+  if (skill.baseDamageMultiplier === 0) return 0;
+  const bonusFactor = 1 + (rank - 1) * 0.15;
+  return Number((skill.baseDamageMultiplier * bonusFactor).toFixed(2));
+};
+
+/** Returns heal percentage scaled by skill rank (+15% per rank above 1) */
+export const getScaledSkillHeal = (skill: Skill, rank: number): number => {
+  if (!skill.healsPercent) return 0;
+  const bonusFactor = 1 + (rank - 1) * 0.15;
+  return Number((skill.healsPercent * bonusFactor).toFixed(3));
+};
+
+/** Returns shield percentage scaled by skill rank (+15% per rank above 1) */
+export const getScaledSkillShield = (skill: Skill, rank: number): number => {
+  if (!skill.shieldPercent) return 0;
+  const bonusFactor = 1 + (rank - 1) * 0.15;
+  return Number((skill.shieldPercent * bonusFactor).toFixed(3));
+};
 

@@ -5,12 +5,13 @@ export function calcExpRequired(level: number): number {
   return Math.floor(120 * Math.pow(1.28, level - 1) + 80 * level);
 }
 
-// Process EXP Gain: After leveling up, EXP resets to zero. Optionally enforces maxLevelCap prior to boss defeat.
+// Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.
 export function processExpGain(
   currentLevel: number,
   currentExp: number,
   expGained: number,
-  maxLevelCap?: number
+  maxLevelCap?: number,
+  freezePercent: number = 0.65
 ): { newLevel: number; newExp: number; levelsGained: number; apGained: number } {
   let level = currentLevel;
   let exp = currentExp + expGained;
@@ -20,14 +21,16 @@ export function processExpGain(
   while (true) {
     if (maxLevelCap && level >= maxLevelCap) {
       const required = calcExpRequired(maxLevelCap);
-      exp = Math.min(exp, required - 1);
+      const frozenCap = Math.floor(required * freezePercent);
+      exp = Math.min(exp, frozenCap);
       break;
     }
     const required = calcExpRequired(level);
     if (exp >= required) {
-      if (maxLevelCap && level + 1 > maxLevelCap) {
+      if (maxLevelCap && level + 1 >= maxLevelCap) {
         level = maxLevelCap;
-        exp = required - 1;
+        const requiredCap = calcExpRequired(maxLevelCap);
+        exp = Math.floor(requiredCap * freezePercent);
         break;
       }
       level += 1;

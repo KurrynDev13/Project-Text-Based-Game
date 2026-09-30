@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation } from '../data/monstersData';
-import { calcDerivedStats, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts } from '../utils/gameFormulas';
-import { ALL_SKILLS, getDefaultSkillIds } from '../data/skillsData';
-import { getScaledForgeCatalog, calcCostInCowries } from '../utils/equipmentGenerator';
+import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts } from '../utils/gameFormulas';
+import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
+import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
+import { bgmManager } from '../utils/musicManager';
 import ActStoryOverlayModal from './ActStoryOverlayModal';
 import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
@@ -17,6 +18,8 @@ export interface InteractiveEncounter {
   description: string;
   traderItem?: EquipmentItem;
   traderCostCC?: number;
+  originalCostCC?: number;
+  discountPercent?: number;
   chestHpCost?: number;
   chestMpCost?: number;
   chestRewardCC?: number;
@@ -79,9 +82,16 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [activeInteractiveEncounter, setActiveInteractiveEncounter] = useState<InteractiveEncounter | null>(null);
   const [activeBossVictoryReward, setActiveBossVictoryReward] = useState<BossVictoryRewardData | null>(null);
 
+  // Play Lore theme when Act Story or Boss Discovery modal is active
+  useEffect(() => {
+    if (showActStoryModal || showBossDiscoveryModal) {
+      bgmManager.playTrack('LORE');
+    }
+  }, [showActStoryModal, showBossDiscoveryModal]);
+
   // Resolution handlers for Wandering Trader and Cursed Spirit Chest choices
   const handleBuyTraderItem = () => {
-    if (!activeInteractiveEncounter?.traderItem || !activeInteractiveEncounter.traderCostCC) return;
+    if (!activeInteractiveEncounter?.traderItem || activeInteractiveEncounter.traderCostCC === undefined) return;
     const costCC = activeInteractiveEncounter.traderCostCC;
     const playerTotalCC = totalCowriesFromWallet(player.wallet);
     if (playerTotalCC < costCC) {
@@ -125,24 +135,81 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       sacrificeDesc = `-${mpCost} MP`;
     }
 
-    const rewardCC = activeInteractiveEncounter.chestRewardCC || 200;
-    const rewardMutya = activeInteractiveEncounter.chestRewardMutya || 1;
+    const isBlessed = Math.random() < 0.65; // 65% Blessed Treasure, 35% Cursed Backfire
 
-    const totalCC = totalCowriesFromWallet(player.wallet) + rewardCC;
-    const updatedWallet = cowriesToWallet(totalCC, (player.wallet.mutyaShards || 0) + rewardMutya);
+    if (isBlessed) {
+      const rewardCC = activeInteractiveEncounter.chestRewardCC || (200 + player.level * 30);
+      const rewardMutya = activeInteractiveEncounter.chestRewardMutya || 1;
 
-    const updatedNarratorLogs = [
-      `🔮 UNSEALED CURSED CHEST: Sacrificed (${sacrificeDesc}) to unlock the spirit chest! Received +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`,
-      ...(player.narratorLogs || [])
-    ].slice(0, 15);
+      // 35% chance for a bonus equipment drop
+      let bonusItem: EquipmentItem | null = null;
+      if (Math.random() < 0.35) {
+        bonusItem = getWanderingMerchantOffer(player.level, (player.heroClass || 'Mandirigma') as HeroClass, player.equipment).item;
+      }
 
-    onUpdatePlayer({
-      ...player,
-      currentHp: newHp,
-      currentMp: newMp,
-      wallet: updatedWallet,
-      narratorLogs: updatedNarratorLogs,
-    });
+      const totalCC = totalCowriesFromWallet(player.wallet) + rewardCC;
+      const updatedWallet = cowriesToWallet(totalCC, (player.wallet.mutyaShards || 0) + rewardMutya);
+      const updatedInventory = bonusItem ? [...player.inventory, bonusItem] : player.inventory;
+
+      const logText = bonusItem
+        ? `🔮 BLESSED SPIRIT CHEST: Sacrificed (${sacrificeDesc}). The blood-red runes dissolve into golden embers! An ancient Diwata spirit grants +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya Shard & [${bonusItem.name}]!`
+        : `🔮 BLESSED SPIRIT CHEST: Sacrificed (${sacrificeDesc}). The obsidian runes dissolve into glowing light! An ancient ancestral spirit grants +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`;
+
+      const updatedNarratorLogs = [logText, ...(player.narratorLogs || [])].slice(0, 15);
+
+      notify(
+        bonusItem
+          ? `✨ Blessed Spirit Unsealed! Gained +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya & [${bonusItem.name}]!`
+          : `✨ Blessed Spirit Unsealed! Gained +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`,
+        'success',
+        '🔮'
+      );
+
+      onUpdatePlayer({
+        ...player,
+        currentHp: newHp,
+        currentMp: newMp,
+        wallet: updatedWallet,
+        inventory: updatedInventory,
+        narratorLogs: updatedNarratorLogs,
+      });
+    } else {
+      // 35% CURSED BACKFIRE OUTCOME
+      const cursePool = [
+        { type: 'POISON' as const, name: 'Aswang Venom Curse', desc: 'toxic spirit essence seeps into your veins', turns: 4, mag: 15 + player.level * 2 },
+        { type: 'BLEED' as const, name: 'Sigbin Laceration', desc: 'phantom claws tear through your vitality', turns: 3, mag: 18 + player.level * 3 },
+        { type: 'BURN' as const, name: 'Kanlaon Inferno Flame', desc: 'sulfuric hellfire consumes your spiritual aura', turns: 4, mag: 12 + player.level * 2 },
+        { type: 'EXHAUSTION' as const, name: 'Abyssal Soul Drain', desc: 'an ancient shade drains your stamina and focus', turns: 5, mag: 25 },
+      ];
+
+      const chosenCurse = cursePool[Math.floor(Math.random() * cursePool.length)];
+
+      const newEffect = {
+        type: chosenCurse.type,
+        name: chosenCurse.name,
+        isBuff: false,
+        durationTurnsLeft: chosenCurse.turns,
+        magnitude: chosenCurse.mag,
+        stackCount: 1,
+      };
+
+      const updatedActiveEffects = [...(player.activeEffects || []).filter((e) => e.type !== chosenCurse.type), newEffect];
+
+      const logText = `☠️ CURSED SPIRIT BACKFIRE! Sacrificed (${sacrificeDesc}). The blood-red runes explode in obsidian flames! A vengeful spirit strikes back as ${chosenCurse.desc}, inflicting [${chosenCurse.name}] (${chosenCurse.type} for ${chosenCurse.turns} turns)!`;
+
+      const updatedNarratorLogs = [logText, ...(player.narratorLogs || [])].slice(0, 15);
+
+      notify(`☠️ Cursed Backfire! Sacrificed (${sacrificeDesc}) but the chest lashed out with [${chosenCurse.name}]!`, 'error', '☠️');
+
+      onUpdatePlayer({
+        ...player,
+        currentHp: newHp,
+        currentMp: newMp,
+        activeEffects: updatedActiveEffects,
+        narratorLogs: updatedNarratorLogs,
+      });
+    }
+
     setActiveInteractiveEncounter(null);
   };
 
@@ -220,7 +287,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const hasUncompleted = actQuestsCompleted < actQuests.length;
   const isBossDefeated = (player.completedBossIds || []).includes(selectedLocation.bossId || '');
   const bossLevelReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
-  const isBossLevelLocked = player.level < bossLevelReq;
+  const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
+  const isBossQualified = isBossDefeated || player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
+  const isBossLevelLocked = !isBossQualified;
 
   const addLog = (
     currentLogs: BattleLogEntry[],
@@ -378,7 +447,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     if (isBossLevelLocked) {
-      notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to confront ${selectedLocation.name}'s Guardian. (Your Level: ${player.level})`, 'warning', '🔒');
+      notify("An overwhelming primordial spirit barrier shrouds the inner sanctum. The realm's guardian does not acknowledge your presence yet. Purge more malevolent spirits from this sector to awaken the guardian...", 'warning', '🌑');
       return;
     }
 
@@ -485,22 +554,23 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         const isTrader = Math.random() < 0.5 && catalog.length > 0;
 
         if (isTrader) {
-          const randomItem = catalog[Math.floor(Math.random() * catalog.length)];
-          const cost = Math.max(50, Math.floor(calcCostInCowries(randomItem.levelReq, randomItem.rarity) * 0.85));
+          const offer = getWanderingMerchantOffer(player.level, (player.heroClass || 'Mandirigma') as HeroClass, player.equipment);
           const encounter: InteractiveEncounter = {
             id: `trader_${Date.now()}`,
             type: 'TRADER',
-            title: '🛒 Wandering Maharlika Merchant',
-            description: `A traveling artisan offers a discounted high-tier artifact: [${randomItem.name}]!`,
-            traderItem: randomItem,
-            traderCostCC: cost,
+            title: '🛍️ Wandering Artisan Merchant',
+            description: `A traveling artisan offers a high-grade ${offer.item.rarity} [${offer.item.name}] at a ${offer.discountPercent}% discount!`,
+            traderItem: offer.item,
+            traderCostCC: offer.costCC,
+            originalCostCC: offer.originalCostCC,
+            discountPercent: offer.discountPercent,
           };
           setActiveInteractiveEncounter(encounter);
           soundFX.playCoinSound();
           onUpdatePlayer({
             ...player,
             stamina: newStamina,
-            narratorLogs: addNarratorLog(`🛍️ WANDERING MERCHANT: Met a traveling artisan offering [${randomItem.name}] for ${formatCostInCowries(cost)}!`),
+            narratorLogs: addNarratorLog(`🛍️ WANDERING MERCHANT: Met a traveling artisan offering [${offer.item.name}] for ${formatCostInCowries(offer.costCC)}!`),
           });
           return;
         } else {
@@ -607,7 +677,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   };
 
-  // EXPLORATION ACTION 2: Search Area (High risk)
+  // EXPLORATION ACTION 2: Search Area — Redefined Tactical Scouting & Discovery System
   const handleSearchArea = () => {
     if (player.level < selectedLocation.minLevel) {
       notify(`🔒 Act Locked! Reach Level ${selectedLocation.minLevel} to search ${selectedLocation.name}.`, 'warning', '🔒');
@@ -627,44 +697,157 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return [logText, ...existing].slice(0, 15);
     };
 
-    // Search Area guarantees an Elite Enemy or Rare Chest, prioritizing active bounty contract target
-    const activeTargetId = player.bounties.find(
-      (b) => b.isAccepted !== false && !b.isCompleted && selectedLocation.monsters.includes(b.targetMonsterId)
-    )?.targetMonsterId;
+    // Roll weighted 100-point table for Search Area outcomes
+    const roll = Math.floor(Math.random() * 100) + 1; // 1 to 100
 
-    const monsterToSpawn = (activeTargetId && Math.random() < 0.85) ? activeTargetId : undefined;
-    const monster = generateMonsterForLocation(selectedLocation.minLevel + 3, monsterToSpawn, selectedLocation.monsters);
-    monster.maxHp = Math.floor(monster.maxHp * 1.5);
-    monster.currentHp = monster.maxHp;
-    if (!monster.name.startsWith('Elite')) {
-      monster.name = `Elite ${monster.name}`;
+    // OUTCOME A (30% chance, roll 1–30): Rare Treasure & Artifact Cache
+    if (roll <= 30) {
+      soundFX.playCoinSound();
+      const rewardCC = 180 + player.level * 30 + Math.floor(Math.random() * 150);
+      const rewardMutya = Math.random() < 0.6 ? 1 : 2;
+      const totalCC = totalCowriesFromWallet(player.wallet) + rewardCC;
+      const updatedWallet = cowriesToWallet(totalCC, (player.wallet.mutyaShards || 0) + rewardMutya);
+
+      const logText = `🎁 SEARCH DISCOVERY: Uncovered a buried pre-colonial pottery jar! Secured +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`;
+
+      onUpdatePlayer({
+        ...player,
+        stamina: newStamina,
+        wallet: updatedWallet,
+        narratorLogs: addNarratorLog(logText),
+      });
+      notify(`🎁 Uncovered Ancient Artifact Cache! (+${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya)`, 'success', '🎁');
+      return;
     }
 
-    const logText = `💀 HIGH RISK SEARCH: Confronting ruthless ${monster.name}! Increased Mutya Shard drop rate.`;
-    soundFX.playCritSound();
+    // OUTCOME B (25% chance, roll 31–55): Ancestral Diwata Shrine / Blessing
+    if (roll <= 55) {
+      soundFX.playSpellSound();
+      const subRoll = Math.random();
+      let shrineMsg = '';
+      let newHp = player.currentHp;
+      let newMp = player.currentMp;
+      let staminaBonus = 0;
+      let isEmpowered = player.isEmpoweredNextTurn;
 
-    onUpdatePlayer({
-      ...player,
-      stamina: newStamina,
-      narratorLogs: addNarratorLog(logText),
-    });
-    onUpdateBattle({
-      inCombat: true,
-      turnNumber: 1,
-      playerActionGauge: 100,
-      enemyActionGauge: 80,
-      enemy: monster,
-      logs: [
-        {
-          id: `init_search_${Date.now()}`,
-          turn: 1,
-          actor: 'SYSTEM',
-          text: `[HIGH RISK SEARCH] Elite ${monster.name} detected! Increased Mutya Shard drop chance.`,
-          type: 'INFO',
-        },
-      ],
-      winner: null,
-    });
+      if (subRoll < 0.4) {
+        const healHp = Math.floor(derived.maxHp * 0.35);
+        const healMp = Math.floor(derived.maxMp * 0.35);
+        newHp = Math.min(derived.maxHp, player.currentHp + healHp);
+        newMp = Math.min(derived.maxMp, player.currentMp + healMp);
+        shrineMsg = `✨ ANCESTRAL DIWATA SHRINE: Offered incense at a sacred spirit shrine. Restored +${healHp} HP and +${healMp} MP!`;
+      } else if (subRoll < 0.7) {
+        staminaBonus = 4;
+        shrineMsg = `✨ SPIRIT REFRESHMENT: Drank from a sacred mineral spring. Recovered +4 Stamina!`;
+      } else {
+        isEmpowered = true;
+        shrineMsg = `🔥 EMPOWERED SPIRIT AURA: Communed with ancestral spirits. Gained Empowered aura (+50% bonus strike DMG for next battle)!`;
+      }
+
+      onUpdatePlayer({
+        ...player,
+        stamina: Math.min(maxStamina, newStamina + staminaBonus),
+        currentHp: newHp,
+        currentMp: newMp,
+        isEmpoweredNextTurn: isEmpowered,
+        narratorLogs: addNarratorLog(shrineMsg),
+      });
+      notify(shrineMsg, 'success', '✨');
+      return;
+    }
+
+    // OUTCOME C (30% chance, roll 56–85): Targeted Bounty Tracking & Surprise Ambush
+    if (roll <= 85) {
+      // Prioritize active accepted bounty monster for current sector
+      const activeTargetId = player.bounties.find(
+        (b) => b.isAccepted !== false && !b.isCompleted && selectedLocation.monsters.includes(b.targetMonsterId)
+      )?.targetMonsterId;
+
+      const monsterToSpawn = activeTargetId || undefined;
+      const monster = generateMonsterForLocation(selectedLocation.minLevel + 2, monsterToSpawn, selectedLocation.monsters);
+      if (!monster.name.startsWith('Elite')) {
+        monster.name = `Elite ${monster.name}`;
+      }
+      monster.maxHp = Math.floor(monster.maxHp * 1.4);
+      monster.currentHp = monster.maxHp;
+
+      const logText = `⚔️ SURPRISE AMBUSH: Successfully tracked down ${monster.name}! Caught the enemy unaware — you strike first!`;
+      soundFX.playCritSound();
+
+      onUpdatePlayer({
+        ...player,
+        stamina: newStamina,
+        narratorLogs: addNarratorLog(logText),
+      });
+
+      // Surprise Ambush: PlayerActionGauge = 100, EnemyActionGauge = 0!
+      onUpdateBattle({
+        inCombat: true,
+        turnNumber: 1,
+        playerActionGauge: 100,
+        enemyActionGauge: 0,
+        enemy: monster,
+        logs: [
+          {
+            id: `init_ambush_${Date.now()}`,
+            turn: 1,
+            actor: 'SYSTEM',
+            text: `⚡ [SURPRISE AMBUSH] Tracked & ambushed ${monster.name}! You gain the first initiative turn!`,
+            type: 'CRIT',
+          },
+        ],
+        winner: null,
+      });
+      return;
+    }
+
+    // OUTCOME D (15% chance, roll 86–100): Interactive Special Encounter
+    if (Math.random() < 0.5) {
+      // Wandering Merchant
+      const offer = getWanderingMerchantOffer(player.level, (player.heroClass || 'Mandirigma') as HeroClass, player.equipment);
+
+      const encounter: InteractiveEncounter = {
+        id: `trader_${Date.now()}`,
+        type: 'TRADER',
+        title: '🛍️ Wandering Artisan Merchant',
+        description: `A traveling artisan offers a high-grade ${offer.item.rarity} [${offer.item.name}] at a ${offer.discountPercent}% discount!`,
+        traderItem: offer.item,
+        traderCostCC: offer.costCC,
+        originalCostCC: offer.originalCostCC,
+        discountPercent: offer.discountPercent,
+      };
+      setActiveInteractiveEncounter(encounter);
+      soundFX.playCoinSound();
+
+      onUpdatePlayer({
+        ...player,
+        stamina: newStamina,
+        narratorLogs: addNarratorLog(`🛍️ WANDERING MERCHANT: Discovered a traveling artisan offering [${offer.item.name}] for ${formatCostInCowries(offer.costCC)}!`),
+      });
+    } else {
+      // Cursed Chest
+      const hpCost = Math.max(10, Math.floor(derived.maxHp * 0.2));
+      const mpCost = Math.max(15, Math.floor(derived.maxMp * 0.3));
+      const rewardCC = 220 + player.level * 30;
+      const encounter: InteractiveEncounter = {
+        id: `chest_${Date.now()}`,
+        type: 'CURSED_CHEST',
+        title: '🔮 Ancient Cursed Spirit Chest',
+        description: 'You come across an obsidian chest wrapped in blood-red runes. It demands a sacrifice of Vitality or Mana to unseal its treasure.',
+        chestHpCost: hpCost,
+        chestMpCost: mpCost,
+        chestRewardCC: rewardCC,
+        chestRewardMutya: 1,
+      };
+      setActiveInteractiveEncounter(encounter);
+      soundFX.playPotionSound();
+
+      onUpdatePlayer({
+        ...player,
+        stamina: newStamina,
+        narratorLogs: addNarratorLog(`🔮 CURSED CHEST: Discovered an ancient obsidian chest pulsating with dark spirit magic!`),
+      });
+    }
   };
 
   // COMBAT ACTION 1: Basic Attack (Restores +5 MP on hit!)
@@ -725,12 +908,16 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     let updatedPlayer = { ...player, currentMp: player.currentMp - skill.mpCost };
 
+    const skillRank = getSkillRank(player, skill.id);
+    const rankLabel = skillRank > 1 ? ` [Rank ${skillRank}]` : '';
+
     // --- HEAL SKILLS ---
     if (skill.damageType === 'HEAL') {
       soundFX.playSpellSound();
-      const healHp = Math.floor(derived.maxHp * (skill.healsPercent ?? 0.25));
+      const scaledHeal = getScaledSkillHeal(skill, skillRank) || (skill.healsPercent ?? 0.25);
+      const healHp = Math.floor(derived.maxHp * scaledHeal);
       updatedPlayer.currentHp = Math.min(derived.maxHp, player.currentHp + healHp);
-      logs = addLog(logs, `${skill.icon} Used [${skill.name}]! Restored +${healHp} HP!`, 'BUFF', 'PLAYER');
+      logs = addLog(logs, `${skill.icon} Used [${skill.name}]${rankLabel}! Restored +${healHp} HP!`, 'BUFF', 'PLAYER');
 
       if (skill.effectType) {
         logs = addLog(logs, `✨ ${skill.effectType} status activated!`, 'BUFF', 'PLAYER');
@@ -759,7 +946,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       derivedBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
     }
 
-    let baseDmg = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * (skill.baseDamageMultiplier || 1.0));
+    const scaledMult = getScaledSkillDamageMult(skill, skillRank) || skill.baseDamageMultiplier || 1.0;
+    let baseDmg = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * scaledMult);
 
     if (player.isEmpoweredNextTurn) {
       baseDmg = Math.floor(baseDmg * 1.5);
@@ -772,9 +960,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (isCrit) {
       baseDmg = Math.floor(baseDmg * 1.6);
       soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}] dealt ${baseDmg} damage to ${enemy.name}!`, 'CRIT', 'PLAYER');
+      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} dealt ${baseDmg} damage to ${enemy.name}!`, 'CRIT', 'PLAYER');
     } else {
-      logs = addLog(logs, `${skill.icon} Executed [${skill.name}] for ${baseDmg} damage on ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      logs = addLog(logs, `${skill.icon} Executed [${skill.name}]${rankLabel} for ${baseDmg} damage on ${enemy.name}!`, 'DAMAGE', 'PLAYER');
     }
 
     const enemyDR = skill.damageType === 'PHYSICAL' ? enemy.armor / (enemy.armor + 150) : enemy.armor / (enemy.armor + 300);
@@ -866,12 +1054,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
   };
 
-  // COMBAT ACTION 5: Flee
+  // COMBAT ACTION 5: Flee (Max 2 attempts per battle; 2nd attempt has significantly higher fail chance)
   const handleFlee = () => {
     if (!battle.inCombat) return;
 
-    // Agility check to flee
-    const fleeChance = Math.min(90, 50 + player.attributes.agi * 1.5);
+    const attempts = battle.fleeAttempts ?? 0;
+    if (attempts >= 2) {
+      notify('❌ Escape Route Completely Blocked! Flee is disabled for the remainder of this battle.', 'warning', '🔒');
+      return;
+    }
+
+    // 1st attempt: standard flee chance (50 + AGI * 1.5)%
+    // 2nd attempt: heavy penalty flee chance (15 + AGI * 0.5)% -> much higher fail chance!
+    const baseChance = Math.min(90, 50 + player.attributes.agi * 1.5);
+    const fleeChance = attempts === 0 ? baseChance : Math.max(10, Math.floor(15 + player.attributes.agi * 0.5));
     const roll = Math.random() * 100;
 
     if (roll <= fleeChance) {
@@ -886,14 +1082,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         enemy: null,
         logs: [],
         winner: null,
+        fleeAttempts: 0,
       });
     } else {
+      const nextAttempts = attempts + 1;
       let logs = battle.logs;
-      logs = addLog(logs, `❌ Flee Failed! The enemy blocked your escape route!`, 'DEBUFF', 'PLAYER');
+
+      if (nextAttempts >= 2) {
+        logs = addLog(logs, `❌ Flee Failed! The enemy cut off your retreat path! (Flee option is now EXHAUSTED)`, 'DEBUFF', 'PLAYER');
+        notify('❌ Flee Failed! Escape route completely cut off — Flee is now disabled!', 'error', '🔒');
+      } else {
+        logs = addLog(logs, `❌ Flee Failed! The enemy blocked your escape route! (1 Flee attempt remaining)`, 'DEBUFF', 'PLAYER');
+      }
+
       const enemy = { ...battle.enemy! };
       const enemyTurnResult = executeEnemyTurn(enemy, logs);
       if (enemyTurnResult.isDefeated) return;
-      onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+      onUpdateBattle({
+        ...battle,
+        turnNumber: battle.turnNumber + 1,
+        enemy,
+        logs: enemyTurnResult.logs,
+        fleeAttempts: nextAttempts,
+      });
     }
   };
 
@@ -950,12 +1161,33 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     if (newPlayerHp <= 0) {
-      logs = addLog(logs, `💀 You were defeated in battle! Transported back to Haven's Rest.`, 'DEBUFF', 'SYSTEM');
-      notify('💀 Slain in Battle! Transporting back to Haven\'s Rest.', 'error', '💀');
+      const lostCowries = Math.floor((p.wallet.cowrieShells || 0) * 0.25);
+      const lostSilver = Math.floor((p.wallet.silverPieces || 0) * 0.25);
+      const newCowries = Math.max(0, (p.wallet.cowrieShells || 0) - lostCowries);
+      const newSilver = Math.max(0, (p.wallet.silverPieces || 0) - lostSilver);
+
+      const updatedWallet = {
+        ...p.wallet,
+        cowrieShells: newCowries,
+        silverPieces: newSilver,
+        copperCoins: newCowries,
+        silverShillings: newSilver,
+      };
+
+      const resHp = Math.max(1, Math.floor(derived.maxHp * 0.01));
+      const resMp = Math.max(1, Math.floor(derived.maxMp * 0.01));
+      const resStamina = Math.max(1, Math.floor(calcMaxStamina(p.level) * 0.01));
+
+      const defeatLog = `💀 SPIRIT SEVERANCE: Banished to Poblacion Sanctuary! Resurrected at 1% HP (${resHp}), 1% MP (${resMp}), 1% ST (${resStamina}) & lost ${lostCowries} Cowries, ${lostSilver} Silver.`;
+      logs = addLog(logs, defeatLog, 'DEBUFF', 'SYSTEM');
+      notify(`💀 Slain in Battle! Resurrected at 1% HP/MP/ST. Lost ${lostCowries} Cowries & ${lostSilver} Silver.`, 'error', '💀');
 
       onUpdatePlayer({
         ...p,
-        currentHp: Math.floor(derived.maxHp * 0.5),
+        currentHp: resHp,
+        currentMp: resMp,
+        stamina: resStamina,
+        wallet: updatedWallet,
         isCoveredNextTurn: false,
       });
 
@@ -1061,21 +1293,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       (player.wallet.mutyaShards || 0) + (isBoss ? bossMutyaReward : (shardDropped ? 1 : 0))
     );
 
-    const expGained = isBoss ? 450 : enemy.expReward;
-    const expResult = processExpGain(player.level, player.exp, expGained, isBoss ? undefined : actClimaxCap);
-    const newLevel = expResult.newLevel;
-    const newExp = expResult.newExp;
-    const newAP = player.availableAP + expResult.apGained;
+    let newLevel = player.level;
+    let newExp = player.exp;
+    let newAP = player.availableAP;
 
-    if (!isBoss && actClimaxCap && player.level >= actClimaxCap && expResult.levelsGained === 0) {
-      logs = addLog(logs, `⚠️ [ACT CLIMAX LEVEL CAP] Regular mob EXP is held at Level ${actClimaxCap} Cap! Defeat ${selectedLocation.name}'s Guardian to break the level cap!`, 'DEBUFF', 'SYSTEM');
-    }
-
-    if (expResult.levelsGained > 0) {
-      logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
-    }
-
-    // Act Guardian Defeat Check
     let updatedCompletedBossIds = player.completedBossIds || [];
     let act6Done = player.act6Completed;
     let mountUnlocked = player.mountUnlocked;
@@ -1084,86 +1305,131 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let updatedInventory = [...player.inventory];
     let updatedMemories = [...(player.encryptedMemories || [])];
 
-    if (isBoss) {
-      if (!updatedCompletedBossIds.includes(enemy.id)) {
-        updatedCompletedBossIds = [...updatedCompletedBossIds, enemy.id];
-      }
-      logs = addLog(logs, `👑 ACT GUARDIAN SLAIN: ${enemy.name} has fallen! The way forward opens!`, 'CRIT', 'SYSTEM');
+    if (!isBoss) {
+      const expGained = enemy.expReward;
+      const expResult = processExpGain(player.level, player.exp, expGained, actClimaxCap);
+      newLevel = expResult.newLevel;
+      newExp = expResult.newExp;
+      newAP = player.availableAP + expResult.apGained;
 
-      // 1. Generate Legendary Boss Equipment Artifact Drop
-      const catalog = getScaledForgeCatalog(player.level + 1, (player.heroClass || 'Mandirigma') as HeroClass);
-      let bossItem: EquipmentItem | undefined = undefined;
-      if (catalog.length > 0) {
-        const template = catalog[Math.floor(Math.random() * catalog.length)];
-        bossItem = {
-          ...template,
-          id: `boss_artifact_${Date.now()}`,
-          name: `Legendary ${template.name}`,
-          rarity: 'LEGENDARY',
-          baseDamageMin: template.baseDamageMin ? Math.floor(template.baseDamageMin * 1.25) : undefined,
-          baseDamageMax: template.baseDamageMax ? Math.floor(template.baseDamageMax * 1.25) : undefined,
-          baseDefense: template.baseDefense ? Math.floor(template.baseDefense * 1.25) : undefined,
-        };
+      if (actClimaxCap && player.level >= actClimaxCap && expResult.levelsGained === 0) {
+        logs = addLog(logs, `🌑 [PRIMORDIAL SPIRIT BARRIER] Battle spirit is capped at 65% of Level ${actClimaxCap}! Awaken and challenge the Guardian of ${selectedLocation.name} to transcend to the next realm!`, 'DEBUFF', 'SYSTEM');
+      }
+
+      if (expResult.levelsGained > 0) {
+        logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
+      }
+    } else {
+      const isFirstWin = !isBossDefeated;
+
+      if (isFirstWin) {
+        if (!updatedCompletedBossIds.includes(enemy.id)) {
+          updatedCompletedBossIds = [...updatedCompletedBossIds, enemy.id];
+        }
+        logs = addLog(logs, `👑 ACT GUARDIAN SLAIN: ${enemy.name} has fallen! The way forward opens!`, 'CRIT', 'SYSTEM');
+
+        // 1. Award remaining 35% EXP -> Guaranteed Level-Up into next Act
+        const expForClimax = calcExpRequired(bossLevelReq);
+        const missing35Exp = Math.max(0, expForClimax - player.exp);
+        const firstWinExpResult = processExpGain(player.level, player.exp, missing35Exp);
+        newLevel = firstWinExpResult.newLevel;
+        newExp = firstWinExpResult.newExp;
+        newAP = player.availableAP + firstWinExpResult.apGained;
+
+        if (firstWinExpResult.levelsGained > 0) {
+          logs = addLog(logs, `🌟 BOUNDLESS BREAKTHROUGH! Reached Level ${newLevel}! Earned +${firstWinExpResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
+        }
+
+        // 2. Generate Guaranteed Superior Legendary Boss Equipment Artifact
+        const bossItem = generateBossLootArtifact({
+          bossId: enemy.id,
+          bossLevelReq,
+          playerLevel: player.level,
+          heroClass: (player.heroClass || 'Mandirigma') as HeroClass,
+          isFirstWin: true,
+          playerEquipment: player.equipment,
+        });
         updatedInventory = [...updatedInventory, bossItem];
-        logs = addLog(logs, `🗡️ LEGENDARY BOSS ARTIFACT DROPPED: [${bossItem.name}]!`, 'CRIT', 'SYSTEM');
-      }
+        logs = addLog(logs, `🗡️ GUARDIAN LEGENDARY ARTIFACT DROPPED: [${bossItem.name}]!`, 'CRIT', 'SYSTEM');
 
-      // 2. Generate High-Rarity Encrypted Memory Drop (PURPLE or RED)
-      const memRarity: MemoryRarity = Math.random() < 0.5 ? 'PURPLE' : 'RED';
-      const bossMemory: EncryptedMemory = {
-        id: `mem_boss_${Date.now()}`,
-        name: `Encrypted Boss Memory (${memRarity})`,
-        rarity: memRarity,
-        minLevel: selectedLocation.minLevel,
-        acquiredAtLocation: selectedLocation.id,
-      };
-      updatedMemories = [...updatedMemories, bossMemory];
-      logs = addLog(logs, `💎 HIGH-RARITY MEMORY DROPPED: [${bossMemory.name}] added to vault!`, 'BUFF', 'SYSTEM');
+        // 3. Generate High-Rarity Encrypted Memory Drop (PURPLE or RED)
+        const memRarity: MemoryRarity = Math.random() < 0.5 ? 'PURPLE' : 'RED';
+        const bossMemory: EncryptedMemory = {
+          id: `mem_boss_${Date.now()}`,
+          name: `Encrypted Boss Memory (${memRarity})`,
+          rarity: memRarity,
+          minLevel: selectedLocation.minLevel,
+          acquiredAtLocation: selectedLocation.id,
+        };
+        updatedMemories = [...updatedMemories, bossMemory];
+        logs = addLog(logs, `💎 HIGH-RARITY MEMORY DROPPED: [${bossMemory.name}] added to vault!`, 'BUFF', 'SYSTEM');
 
-      // 3. Unlock Next Realm Location
-      let nextActName: string | undefined = undefined;
-      const currentLocIdx = GAME_LOCATIONS.findIndex((l) => l.id === selectedLocation.id);
-      if (currentLocIdx !== -1 && currentLocIdx + 1 < GAME_LOCATIONS.length) {
-        const nextLoc = GAME_LOCATIONS[currentLocIdx + 1];
-        if (!updatedUnlockedLocs.includes(nextLoc.id)) {
-          updatedUnlockedLocs = [...updatedUnlockedLocs, nextLoc.id];
-          logs = addLog(logs, `🗺️ NEW REALM UNLOCKED: ${nextLoc.name} is now accessible!`, 'BUFF', 'SYSTEM');
-        }
-        nextActName = nextLoc.name;
-      }
-
-      if (enemy.id === 'boss_act_6') {
-        act6Done = true;
-        mountUnlocked = true;
-
-        const firstMount = MOUNTS[0];
-        const alreadyHasMount = updatedEquipment.mount || updatedInventory.some((i) => i.id === firstMount.id);
-        if (!alreadyHasMount) {
-          if (!updatedEquipment.mount && !updatedEquipment.bike) {
-            updatedEquipment.mount = firstMount;
-            updatedEquipment.bike = firstMount;
-            logs = addLog(logs, `🐃 FIRST MYTHICAL MOUNT AWARDED: You have tamed the legendary [${firstMount.name}] (Tier 6 Warbeast)! Automatically equipped to your Mount slot.`, 'CRIT', 'SYSTEM');
-          } else {
-            updatedInventory = [...updatedInventory, firstMount];
-            logs = addLog(logs, `🐃 FIRST MYTHICAL MOUNT AWARDED: The legendary [${firstMount.name}] (Tier 6 Warbeast) has been added to your Bag!`, 'CRIT', 'SYSTEM');
+        // 4. Unlock Next Realm Location
+        let nextActName: string | undefined = undefined;
+        const currentLocIdx = GAME_LOCATIONS.findIndex((l) => l.id === selectedLocation.id);
+        if (currentLocIdx !== -1 && currentLocIdx + 1 < GAME_LOCATIONS.length) {
+          const nextLoc = GAME_LOCATIONS[currentLocIdx + 1];
+          if (!updatedUnlockedLocs.includes(nextLoc.id)) {
+            updatedUnlockedLocs = [...updatedUnlockedLocs, nextLoc.id];
+            logs = addLog(logs, `🗺️ NEW REALM UNLOCKED: ${nextLoc.name} is now accessible!`, 'BUFF', 'SYSTEM');
           }
+          nextActName = nextLoc.name;
         }
 
-        logs = addLog(logs, `🏆 BEASTMASTER STABLES UNLOCKED! Slaying Tambanokano has granted access to Mythical Mounts!`, 'BUFF', 'SYSTEM');
-      }
+        if (enemy.id === 'boss_act_6') {
+          act6Done = true;
+          mountUnlocked = true;
+          const firstMount = MOUNTS[0];
+          const alreadyHasMount = updatedEquipment.mount || updatedInventory.some((i) => i.id === firstMount.id);
+          if (!alreadyHasMount) {
+            if (!updatedEquipment.mount && !updatedEquipment.bike) {
+              updatedEquipment.mount = firstMount;
+              updatedEquipment.bike = firstMount;
+              logs = addLog(logs, `🐃 FIRST MYTHICAL MOUNT AWARDED: You have tamed the legendary [${firstMount.name}] (Tier 6 Warbeast)! Automatically equipped.`, 'CRIT', 'SYSTEM');
+            } else {
+              updatedInventory = [...updatedInventory, firstMount];
+              logs = addLog(logs, `🐃 FIRST MYTHICAL MOUNT AWARDED: The legendary [${firstMount.name}] (Tier 6 Warbeast) added to bag!`, 'CRIT', 'SYSTEM');
+            }
+          }
+          logs = addLog(logs, `🏆 BEASTMASTER STABLES UNLOCKED! Slaying Tambanokano has granted access to Mythical Mounts!`, 'BUFF', 'SYSTEM');
+        }
 
-      // Trigger Climax Boss Victory Modal only on initial Act Guardian defeat
-      if (!isBossDefeated) {
         setActiveBossVictoryReward({
           bossName: enemy.name,
           bossTitle: enemy.title,
           nextActName,
-          expEarned: 450,
+          expEarned: missing35Exp,
           cowriesEarned: bossCowrieReward,
           mutyaShardsEarned: bossMutyaReward,
           droppedItem: bossItem,
           droppedMemory: bossMemory,
         });
+      } else {
+        // Re-attempt Boss Victory
+        logs = addLog(logs, `👑 ACT GUARDIAN CONQUERED: Defeated ${enemy.name} in combat!`, 'CRIT', 'SYSTEM');
+
+        // 1. Fair scaled EXP reward for re-attempt (25% of level requirement)
+        const reattemptExp = Math.floor(calcExpRequired(player.level) * 0.25);
+        const reattemptExpResult = processExpGain(player.level, player.exp, reattemptExp);
+        newLevel = reattemptExpResult.newLevel;
+        newExp = reattemptExpResult.newExp;
+        newAP = player.availableAP + reattemptExpResult.apGained;
+
+        if (reattemptExpResult.levelsGained > 0) {
+          logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${reattemptExpResult.apGained} Attribute Points.`, 'CRIT', 'SYSTEM');
+        }
+
+        // 2. Generate Equivalent / Better Boss Loot Artifact
+        const bossItem = generateBossLootArtifact({
+          bossId: enemy.id,
+          bossLevelReq,
+          playerLevel: player.level,
+          heroClass: (player.heroClass || 'Mandirigma') as HeroClass,
+          isFirstWin: false,
+          playerEquipment: player.equipment,
+        });
+        updatedInventory = [...updatedInventory, bossItem];
+        logs = addLog(logs, `🗡️ GUARDIAN ARTIFACT REWARD: [${bossItem.name}] added to bag!`, 'BUFF', 'SYSTEM');
       }
     }
 
@@ -1212,24 +1478,24 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-1.5 md:p-6 space-y-1.5 md:space-y-4 overflow-y-auto">
       {/* Sector Header & Location Selector */}
       {!battle.inCombat && (
-        <div className="bg-zinc-900/90 border border-amber-900/50 rounded-xl p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-          <div>
-            <div className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">ACTIVE EXPEDITION ZONE</div>
-            <h2 className="text-2xl font-bold font-serif text-amber-200">{selectedLocation.name}</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">{selectedLocation.description}</p>
+        <div className="bg-zinc-900/90 border border-amber-900/50 rounded-lg md:rounded-xl p-2 md:p-4 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 md:gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-[8px] md:text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">ACTIVE EXPEDITION ZONE</div>
+            <h2 className="text-base md:text-2xl font-bold font-serif text-amber-200 truncate">{selectedLocation.name}</h2>
+            <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 line-clamp-1 md:line-clamp-none hidden sm:block">{selectedLocation.description}</p>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 w-full sm:w-auto shrink-0">
             <select
               value={selectedLocation.id}
               onChange={(e) => {
                 const loc = GAME_LOCATIONS.find((l) => l.id === e.target.value);
                 if (loc) handleSelectLocation(loc);
               }}
-              className="bg-zinc-950 border border-amber-500/40 text-amber-200 rounded px-3 py-1.5 text-xs font-mono font-bold cursor-pointer"
+              className="w-full sm:w-auto bg-zinc-950 border border-amber-500/40 text-amber-200 rounded px-2 py-1 md:px-3 md:py-1.5 text-[10px] md:text-xs font-mono font-bold cursor-pointer truncate"
             >
               {GAME_LOCATIONS.map((loc, idx) => {
                 const isLevelLocked = player.level < loc.minLevel;
@@ -1239,9 +1505,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx] || `${idx + 1}`;
                 let lockLabel = '';
                 if (isLocked) {
-                  lockLabel = `🔒 Act ${actRoman}: ??? Unknown Territory (${isBossLocked ? `Defeat Act ${idx} Guardian` : `Req: Lv ${loc.minLevel}`})`;
+                  lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `Lv ${loc.minLevel}`})`;
                 } else {
-                  lockLabel = `✅ ${loc.name} (Req: Lv ${loc.minLevel})`;
+                  lockLabel = `✅ ${loc.name} (Lv ${loc.minLevel})`;
                 }
 
                 return (
@@ -1257,32 +1523,32 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* Act Boss & Regional Quests Status Bar (When NOT in combat) */}
       {!battle.inCombat && (
-        <div className="bg-zinc-950/80 border border-zinc-800 p-3 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 text-xs font-mono">
-          <div className="flex items-center space-x-2">
-            <span className="text-red-400 font-bold">👑 Act Guardian:</span>
-            <span className="text-zinc-200">
+        <div className="bg-zinc-950/80 border border-zinc-800 p-1.5 md:p-3 rounded-lg md:rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 md:gap-2 text-[9px] md:text-xs font-mono">
+          <div className="flex items-center space-x-1.5 md:space-x-2 flex-wrap gap-y-0.5">
+            <span className="text-red-400 font-bold">👑 Guardian:</span>
+            <span className="text-zinc-200 truncate">
               {isBossDefeated || !isBossLevelLocked || (player.discoveredBossIds || []).includes(selectedLocation.bossId || '')
                 ? (selectedLocation.name.split(':')[1]?.trim() || 'Act Guardian')
-                : '??? Undiscovered Act Guardian'}
+                : '??? Undiscovered'}
             </span>
-            <span className="text-[10px] text-amber-400 font-semibold">(Climax Gate: Lv {bossLevelReq})</span>
+            <span className="text-[8px] md:text-[10px] text-amber-400 font-semibold">(Lv {bossLevelReq})</span>
             {isBossDefeated ? (
-              <span className="bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
+              <span className="bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase">
                 Conquered ✓
               </span>
             ) : isBossLevelLocked ? (
-              <span className="bg-zinc-900 text-zinc-400 border border-zinc-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
-                Locked (Lv {bossLevelReq})
+              <span className="bg-zinc-900 text-zinc-400 border border-zinc-700 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase">
+                Locked
               </span>
             ) : (
-              <span className="bg-red-950 text-red-300 border border-red-500/60 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase animate-pulse">
-                Ready to Challenge
+              <span className="bg-red-950 text-red-300 border border-red-500/60 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase animate-pulse">
+                Ready
               </span>
             )}
           </div>
           <div className="flex items-center space-x-2">
             <span className="text-zinc-400">
-              Regional Quests: <strong className={actQuestsCompleted >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{actQuestsCompleted}/3 Completed</strong> ({actQuestsDiscovered}/3 Discovered)
+              Quests: <strong className={actQuestsCompleted >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{actQuestsCompleted}/3 Done</strong> ({actQuestsDiscovered}/3 Discovered)
             </span>
           </div>
         </div>
@@ -1293,7 +1559,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         <button
           onClick={handleInitiateBossChallenge}
           disabled={isBossLevelLocked}
-          className={`w-full p-3.5 border font-bold font-mono text-xs uppercase tracking-wider rounded-xl shadow-xl transition-all active:scale-[0.99] flex items-center justify-center space-x-2 ${
+          className={`w-full py-1.5 px-2 md:p-3.5 border font-bold font-mono text-[10px] md:text-xs uppercase tracking-wider rounded-lg md:rounded-xl shadow-xl transition-all active:scale-[0.99] flex items-center justify-center space-x-1.5 md:space-x-2 min-h-[32px] md:min-h-[44px] ${
             isBossLevelLocked
               ? 'bg-zinc-950/90 border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
               : isBossDefeated
@@ -1301,111 +1567,167 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               : 'bg-gradient-to-r from-red-950 via-red-900 to-red-950 hover:from-red-900 hover:to-red-850 border-2 border-red-500 text-red-100 ring-2 ring-red-500/30 animate-pulse'
           }`}
         >
-          <span className="text-base">{isBossLevelLocked ? '🔒' : '👑'}</span>
-          <span>
+          <span className="text-xs md:text-base">{isBossLevelLocked ? '🔒' : '👑'}</span>
+          <span className="truncate">
             {isBossLevelLocked
-              ? `[ Act Guardian Locked — Requires Character Level ${bossLevelReq} ]`
+              ? `[ Act Guardian Locked — Req Lv ${bossLevelReq} ]`
               : isBossDefeated
               ? `[ Re-challenge ${selectedLocation.name.split(':')[1]?.trim() || 'Act Guardian'} ]`
-              : `[ CONFRONT ACT GUARDIAN — ${selectedLocation.name.split(':')[1]?.trim() || 'Act Boss'} ] (${bossCost} Stamina)`}
+              : `[ CONFRONT ACT GUARDIAN ] (${bossCost} Stamina)`}
           </span>
         </button>
       )}
 
       {/* Exploration Event Feed (When NOT in combat) */}
       {!battle.inCombat && (
-        <div className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between shadow-xl min-h-[220px]">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3.5 flex flex-col justify-between shadow-xl min-h-[105px] md:min-h-[220px]">
           <div>
-            <div className="text-xs font-mono uppercase text-amber-500 font-bold mb-2 flex justify-between items-center border-b border-zinc-800/80 pb-1">
+            <div className="text-[10px] md:text-xs font-mono uppercase text-amber-500 font-bold mb-1 flex justify-between items-center border-b border-zinc-800/80 pb-0.5">
               <span>SECTOR NARRATIVE FEED</span>
-              <span className="text-[10px] text-zinc-500 font-normal">PERSISTED LORE LOG</span>
+              <span className="text-[9px] md:text-[10px] text-zinc-500 font-normal">PERSISTED LORE LOG</span>
             </div>
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1 md:space-y-2 max-h-28 md:max-h-48 overflow-y-auto pr-1">
               {(player.narratorLogs && player.narratorLogs.length > 0) ? (
                 player.narratorLogs.map((log, idx) => (
-                  <p key={idx} className={`text-xs font-mono leading-relaxed ${idx === 0 ? 'text-amber-200 font-bold border-l-2 border-amber-500 pl-2 bg-amber-950/20 py-1 rounded-r' : 'text-zinc-400 pl-2 opacity-80'}`}>
+                  <p key={idx} className={`text-[10px] md:text-xs font-mono leading-snug md:leading-relaxed ${idx === 0 ? 'text-amber-200 font-bold border-l-2 border-amber-500 pl-2 bg-amber-950/20 py-0.5 rounded-r' : 'text-zinc-400 pl-2 opacity-85'}`}>
                     {log}
                   </p>
                 ))
               ) : (
-                <p className="text-xs font-mono text-amber-200/90 leading-relaxed border-l-2 border-amber-500 pl-2 py-1 bg-amber-950/20 rounded-r">
-                  {`You are treading carefully through ${selectedLocation.name}. Ambient Aether hums in the stone. Venture forward to scout the sector or search for hidden chests.`}
+                <p className="text-[10px] md:text-xs font-mono text-amber-200/90 leading-snug md:leading-relaxed border-l-2 border-amber-500 pl-2 py-0.5 bg-amber-950/20 rounded-r">
+                  {`You are treading carefully through ${selectedLocation.name}. Ambient Aether hums in the stone. Venture forward to scout the sector.`}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="text-xs font-mono text-zinc-400 border-t border-zinc-800 pt-2.5 mt-2 flex justify-between">
-            <span>Danger Rating: <strong className="text-amber-300">Level {selectedLocation.minLevel}+</strong></span>
-            <span>Energy / Stamina: <strong className="text-emerald-400">{player.stamina ?? maxStamina}/{maxStamina}</strong></span>
+          <div className="text-[9.5px] md:text-xs font-mono text-zinc-400 border-t border-zinc-800 pt-1 mt-1 flex justify-between">
+            <span>Danger: <strong className="text-amber-300">Level {selectedLocation.minLevel}+</strong></span>
+            <span>Stamina: <strong className="text-emerald-400">{player.stamina ?? maxStamina}/{maxStamina}</strong></span>
           </div>
         </div>
       )}
 
       {/* INTERACTIVE SECTOR ENCOUNTER CARD */}
       {!battle.inCombat && activeInteractiveEncounter && (
-        <div className="bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 border-2 border-amber-500/70 rounded-xl p-4 shadow-2xl space-y-3 animate-fade-in">
-          <div className="flex justify-between items-start border-b border-amber-500/30 pb-2">
+        <div className="bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 border-2 border-amber-500/70 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-2xl space-y-2 md:space-y-3 animate-fade-in">
+          <div className="flex justify-between items-start border-b border-amber-500/30 pb-1.5 md:pb-2">
             <div>
-              <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">SPECIAL SECTOR ENCOUNTER</span>
-              <h3 className="text-lg font-bold font-serif text-amber-200">{activeInteractiveEncounter.title}</h3>
+              <span className="text-[9px] md:text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">SPECIAL SECTOR ENCOUNTER</span>
+              <h3 className="text-base md:text-lg font-bold font-serif text-amber-200">{activeInteractiveEncounter.title}</h3>
             </div>
-            <button onClick={handlePassEncounter} className="text-xs text-zinc-400 hover:text-white font-mono px-2 py-1 bg-zinc-900 rounded border border-zinc-700">✕ Dismiss</button>
+            <button onClick={handlePassEncounter} className="text-[10px] md:text-xs text-zinc-400 hover:text-white font-mono px-2 py-0.5 md:py-1 bg-zinc-900 rounded border border-zinc-700">✕ Dismiss</button>
           </div>
 
-          <p className="text-xs text-zinc-300 font-mono leading-relaxed">
+          <p className="text-[10px] md:text-xs text-zinc-300 font-mono leading-snug md:leading-relaxed">
             {activeInteractiveEncounter.description}
           </p>
 
           {activeInteractiveEncounter.type === 'TRADER' && activeInteractiveEncounter.traderItem && (
-            <div className="bg-zinc-950/90 border border-amber-500/40 p-3 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-              <div className="flex items-center space-x-3">
-                <span className="text-3xl">{activeInteractiveEncounter.traderItem.icon}</span>
-                <div>
-                  <div className="text-xs font-bold text-amber-300 font-serif">{activeInteractiveEncounter.traderItem.name}</div>
-                  <div className="text-[10px] font-mono text-zinc-400">
-                    {activeInteractiveEncounter.traderItem.category} • Req Lv {activeInteractiveEncounter.traderItem.levelReq}
-                    {activeInteractiveEncounter.traderItem.baseDamageMax ? ` • Dmg ${activeInteractiveEncounter.traderItem.baseDamageMin}-${activeInteractiveEncounter.traderItem.baseDamageMax}` : ''}
-                    {activeInteractiveEncounter.traderItem.baseDefense ? ` • Def +${activeInteractiveEncounter.traderItem.baseDefense}` : ''}
+            <div className="bg-zinc-950/90 border border-amber-500/40 p-2.5 md:p-3.5 rounded-lg flex flex-col space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-2.5 md:space-x-3">
+                  <span className="text-2xl md:text-3xl">{activeInteractiveEncounter.traderItem.icon || '⚔️'}</span>
+                  <div>
+                    <div className="text-xs md:text-sm font-bold text-amber-300 font-serif flex items-center gap-1.5 flex-wrap">
+                      <span>{activeInteractiveEncounter.traderItem.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold border ${
+                        activeInteractiveEncounter.traderItem.rarity === 'COMMON' ? 'bg-zinc-800 text-zinc-300 border-zinc-600' :
+                        activeInteractiveEncounter.traderItem.rarity === 'UNCOMMON' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' :
+                        activeInteractiveEncounter.traderItem.rarity === 'RARE' ? 'bg-blue-950 text-blue-300 border-blue-700' :
+                        activeInteractiveEncounter.traderItem.rarity === 'EPIC' ? 'bg-purple-950 text-purple-300 border-purple-700' :
+                        activeInteractiveEncounter.traderItem.rarity === 'LEGENDARY' ? 'bg-amber-950 text-amber-300 border-amber-600' :
+                        'bg-red-950 text-red-300 border-red-600'
+                      }`}>
+                        {activeInteractiveEncounter.traderItem.rarity}
+                      </span>
+                    </div>
+                    <div className="text-[9px] md:text-[10px] font-mono text-zinc-400 mt-0.5">
+                      {activeInteractiveEncounter.traderItem.category} • Req Lv {activeInteractiveEncounter.traderItem.levelReq}
+                      {activeInteractiveEncounter.traderItem.baseDamageMax ? ` • Dmg ${activeInteractiveEncounter.traderItem.baseDamageMin}-${activeInteractiveEncounter.traderItem.baseDamageMax}` : ''}
+                      {activeInteractiveEncounter.traderItem.baseDefense !== undefined ? ` • Def +${activeInteractiveEncounter.traderItem.baseDefense}` : ''}
+                    </div>
                   </div>
                 </div>
+                {activeInteractiveEncounter.discountPercent && (
+                  <span className="text-[9px] md:text-[10px] font-bold font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-600/60 px-2 py-0.5 rounded-full shrink-0">
+                    {activeInteractiveEncounter.discountPercent}% OFF
+                  </span>
+                )}
               </div>
-              <div className="flex items-center space-x-2 w-full md:w-auto">
-                <button
-                  onClick={handleBuyTraderItem}
-                  className="flex-1 md:flex-none bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-4 py-2 rounded text-xs uppercase font-mono shadow-md active:scale-95"
-                >
-                  Buy ({formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)})
-                </button>
-                <button
-                  onClick={handlePassEncounter}
-                  className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold px-3 py-2 rounded text-xs uppercase font-mono border border-zinc-700"
-                >
-                  Pass
-                </button>
+
+              {/* Affixes if present */}
+              {activeInteractiveEncounter.traderItem.affixes && activeInteractiveEncounter.traderItem.affixes.length > 0 && (
+                <div className="flex flex-wrap gap-1 text-[9px] font-mono pt-1 border-t border-zinc-800">
+                  {activeInteractiveEncounter.traderItem.affixes.map((affix, idx) => {
+                    let detailText = '';
+                    if (affix.statusInfliction) {
+                      detailText = `🩸 ${affix.statusInfliction.type} (${affix.statusInfliction.chancePercent}%)`;
+                    } else if (affix.statusMitigation) {
+                      detailText = affix.statusMitigation.isImmune
+                        ? `🛡️ ${affix.statusMitigation.type} IMMUNE`
+                        : `🛡️ ${affix.statusMitigation.resistancePercent}% ${affix.statusMitigation.type} RESIST`;
+                    }
+                    return (
+                      <span key={idx} className="bg-amber-950/60 border border-amber-600/40 text-amber-200 px-1.5 py-0.5 rounded">
+                        ✨ {affix.name} {detailText ? `• ${detailText}` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Price & Action Row */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-1 border-t border-amber-500/20">
+                <div className="text-[10px] md:text-xs font-mono text-zinc-300 flex items-center space-x-2 w-full sm:w-auto">
+                  <span>Price:</span>
+                  <strong className="text-amber-400 font-bold">
+                    {formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)}
+                  </strong>
+                  {activeInteractiveEncounter.originalCostCC && (
+                    <span className="text-zinc-500 line-through text-[9px]">
+                      {formatCostInCowries(activeInteractiveEncounter.originalCostCC)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                  <button
+                    onClick={handleBuyTraderItem}
+                    className="flex-1 sm:flex-none bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-4 py-1.5 md:py-2 rounded text-[10px] md:text-xs uppercase font-mono shadow-md active:scale-95 transition-all"
+                  >
+                    Buy ({formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)})
+                  </button>
+                  <button
+                    onClick={handlePassEncounter}
+                    className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold px-3 py-1.5 md:py-2 rounded text-[10px] md:text-xs uppercase font-mono border border-zinc-700"
+                  >
+                    Pass
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {activeInteractiveEncounter.type === 'CURSED_CHEST' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[10px] md:text-xs">
               <button
                 onClick={() => handleOpenCursedChest('HP')}
-                className="bg-red-950/90 hover:bg-red-900 border border-red-500/60 text-red-200 p-2.5 rounded-lg text-center space-y-1 transition-all active:scale-95"
+                className="bg-red-950/90 hover:bg-red-900 border border-red-500/60 text-red-200 p-2 md:p-2.5 rounded-lg text-center space-y-0.5 transition-all active:scale-95"
               >
                 <div className="font-bold text-red-400">🩸 Sacrifice Health</div>
-                <div className="text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestHpCost} HP</div>
+                <div className="text-[9px] md:text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestHpCost} HP</div>
               </button>
               <button
                 onClick={() => handleOpenCursedChest('MP')}
-                className="bg-purple-950/90 hover:bg-purple-900 border border-purple-500/60 text-purple-200 p-2.5 rounded-lg text-center space-y-1 transition-all active:scale-95"
+                className="bg-purple-950/90 hover:bg-purple-900 border border-purple-500/60 text-purple-200 p-2 md:p-2.5 rounded-lg text-center space-y-0.5 transition-all active:scale-95"
               >
                 <div className="font-bold text-purple-300">✨ Sacrifice Mana</div>
-                <div className="text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestMpCost} MP</div>
+                <div className="text-[9px] md:text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestMpCost} MP</div>
               </button>
               <button
                 onClick={handlePassEncounter}
-                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 p-2.5 rounded-lg text-center flex items-center justify-center font-bold"
+                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 p-2 md:p-2.5 rounded-lg text-center flex items-center justify-center font-bold"
               >
                 🚶 Leave Chest Alone
               </button>
@@ -1416,29 +1738,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* IN-LINE COMBAT VIEWPORT (When in combat) */}
       {battle.inCombat && battle.enemy && (
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-2 md:space-y-3 pt-1 md:pt-2">
           {/* Target Enemy Display Card */}
-          <div className="bg-zinc-900/90 border border-red-900/60 rounded-xl p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-zinc-950 border border-amber-500/40 rounded-xl flex items-center justify-center text-4xl shadow-inner shrink-0">
+          <div className="bg-zinc-900/90 border border-red-900/60 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
+            <div className="flex items-center space-x-3 md:space-x-4">
+              <div className="w-11 h-11 md:w-16 md:h-16 bg-zinc-950 border border-amber-500/40 rounded-lg md:rounded-xl flex items-center justify-center text-2xl md:text-4xl shadow-inner shrink-0">
                 {battle.winner === 'PLAYER' ? '💀' : battle.enemy.spriteIcon}
               </div>
               <div>
-                <div className="text-[10px] font-mono text-amber-500 uppercase tracking-widest font-bold">
+                <div className="text-[9px] md:text-[10px] font-mono text-amber-500 uppercase tracking-widest font-bold">
                   {battle.winner === 'PLAYER' ? 'TARGET DEFEATED' : `BATTLE TARGET • LEVEL ${battle.enemy.level}`}
                 </div>
-                <h3 className="text-xl md:text-2xl font-bold font-serif text-amber-200">{battle.enemy.name}</h3>
-                <p className="text-xs text-zinc-400 font-mono mt-0.5">{battle.enemy.title}</p>
+                <h3 className="text-base md:text-2xl font-bold font-serif text-amber-200">{battle.enemy.name}</h3>
+                <p className="text-[10px] md:text-xs text-zinc-400 font-mono mt-0.5">{battle.enemy.title}</p>
               </div>
             </div>
 
             {/* Enemy HP Meter */}
             <div className="w-full md:w-64 space-y-1">
-              <div className="flex justify-between text-xs font-mono font-bold">
+              <div className="flex justify-between text-[10px] md:text-xs font-mono font-bold">
                 <span className="text-red-400">HP</span>
                 <span>{battle.enemy.currentHp} / {battle.enemy.maxHp}</span>
               </div>
-              <div className="w-full h-3 bg-zinc-950 rounded-full border border-red-900/50 overflow-hidden">
+              <div className="w-full h-2 md:h-3 bg-zinc-950 rounded-full border border-red-900/50 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-red-600 to-amber-500 transition-all duration-300"
                   style={{ width: `${Math.max(0, Math.min(100, (battle.enemy.currentHp / battle.enemy.maxHp) * 100))}%` }}
@@ -1449,16 +1771,28 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
           {/* VICTORY & LOOT REWARD CARD (When Winner === 'PLAYER') */}
           {battle.winner === 'PLAYER' && (
-            <div className="bg-gradient-to-r from-amber-950 via-zinc-900 to-amber-950 border-2 border-amber-500/80 rounded-2xl p-5 shadow-2xl text-center space-y-3 animate-fade-in">
-              <div className="text-3xl">🎉</div>
-              <h3 className="text-2xl font-bold font-serif text-amber-200">VICTORY & LOOT SECURED!</h3>
-              <p className="text-xs font-mono text-zinc-300">
+            <div className="bg-gradient-to-r from-amber-950 via-zinc-900 to-amber-950 border-2 border-amber-500/80 rounded-xl md:rounded-2xl p-3 md:p-5 shadow-2xl text-center space-y-2 md:space-y-3 animate-fade-in">
+              <div className="text-2xl md:text-3xl">🎉</div>
+              <h3 className="text-lg md:text-2xl font-bold font-serif text-amber-200">VICTORY & LOOT SECURED!</h3>
+              <p className="text-[10px] md:text-xs font-mono text-zinc-300">
                 Defeated <strong>{battle.enemy.name}</strong>! Earned <strong className="text-emerald-400">+{battle.enemy.expReward} EXP</strong> and <strong className="text-yellow-400">+{battle.enemy.copperReward} Cowrie Shells</strong>.
               </p>
 
-              {/* Live Active Contract Progress Badge */}
-              {player.bounties.filter((b) => b.isAccepted && !b.isClaimed).map((b) => (
-                <div key={b.id} className="bg-purple-950/80 border border-purple-500/60 p-2 rounded-lg text-xs font-mono text-purple-200 flex justify-between items-center max-w-md mx-auto">
+              {/* Live Active Contract Progress Badge (Shows ONLY bounties updated in this battle or completed) */}
+              {player.bounties.filter((b) => {
+                if (!b.isAccepted || b.isClaimed) return false;
+                if (b.isCompleted) return true;
+                const cleanEnemyName = (battle.enemy?.name || '').replace(/^Elite\s+/, '').trim().toLowerCase();
+                const cleanEnemyId = (battle.enemy?.id || '').toLowerCase();
+                const cleanTargetName = b.targetMonsterName.toLowerCase();
+                const cleanTargetId = b.targetMonsterId.toLowerCase();
+                const isMatch =
+                  cleanEnemyName.includes(cleanTargetName) ||
+                  cleanTargetName.includes(cleanEnemyName) ||
+                  cleanEnemyId.includes(cleanTargetId);
+                return isMatch;
+              }).map((b) => (
+                <div key={b.id} className="bg-purple-950/80 border border-purple-500/60 p-1.5 md:p-2 rounded-lg text-[10px] md:text-xs font-mono text-purple-200 flex justify-between items-center max-w-md mx-auto">
                   <span>🎯 Contract Progress: <strong>{b.title}</strong> ({b.targetMonsterName})</span>
                   <span className={`font-bold ${b.isCompleted ? 'text-emerald-400' : 'text-amber-300'}`}>
                     {b.isCompleted ? '✅ COMPLETED!' : `${b.currentCount} / ${b.targetCount}`}
@@ -1468,7 +1802,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
               <button
                 onClick={handleClaimRewardsAndExit}
-                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-xs uppercase px-8 py-2.5 rounded-xl shadow-lg transition-all active:scale-95"
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-[10px] md:text-xs uppercase px-5 py-2 md:px-8 md:py-2.5 rounded-lg md:rounded-xl shadow-lg transition-all active:scale-95"
               >
                 [ Claim Rewards & Continue Expedition ]
               </button>
@@ -1476,15 +1810,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           )}
 
           {/* Real-time Battle Combat Terminal Feed */}
-          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 h-44 overflow-y-auto font-mono text-xs space-y-1 shadow-inner">
-            <div className="text-[10px] text-zinc-500 uppercase border-b border-zinc-800 pb-1 mb-1 flex justify-between">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3 h-28 md:h-44 overflow-y-auto font-mono text-[10px] md:text-xs space-y-0.5 md:space-y-1 shadow-inner">
+            <div className="text-[9px] md:text-[10px] text-zinc-500 uppercase border-b border-zinc-800 pb-1 mb-1 flex justify-between">
               <span>REAL-TIME COMBAT FEED</span>
               <span>TURN #{battle.turnNumber}</span>
             </div>
             {battle.logs.map((log) => (
               <div
                 key={log.id}
-                className={`p-1 rounded ${
+                className={`p-0.5 md:p-1 rounded ${
                   log.type === 'CRIT'
                     ? 'bg-amber-950/60 text-amber-300 font-bold border-l-2 border-amber-500'
                     : log.type === 'DAMAGE'
@@ -1607,17 +1941,17 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       )}
 
       {/* [BOTTOM] CONTEXTUAL ACTION PAD (EXPLORATION VS COMBAT) */}
-      <div className="bg-zinc-950 border border-amber-900/60 p-2 md:p-3 rounded-xl shadow-2xl">
-        <div className="text-[10px] font-mono text-amber-500 uppercase font-semibold mb-1.5 text-center md:text-left">
+      <div className="bg-zinc-950 border border-amber-900/60 p-1 md:p-3 rounded-lg md:rounded-xl shadow-2xl">
+        <div className="text-[8px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-0.5 md:mb-1.5 text-center md:text-left">
           {battle.inCombat ? 'COMBAT FAST-TAP ACTION PAD' : 'SECTOR EXPLORATION ACTION PAD'}
         </div>
 
         {/* Exploration Action Pad */}
         {!battle.inCombat ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-2">
             <button
               onClick={handleVentureForward}
-              className="p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold font-mono text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
+              className="p-1.5 md:p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px]"
             >
               <span>🧭</span>
               <span>[ Venture Forward ] ({ventureCost} Stamina)</span>
@@ -1625,7 +1959,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
             <button
               onClick={handleSearchArea}
-              className="p-3 bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 font-bold font-mono text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-2"
+              className="p-1.5 md:p-3 bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px]"
             >
               <span>🔍</span>
               <span>[ Search Area ] ({searchCost} Stamina)</span>
@@ -1633,51 +1967,63 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           </div>
         ) : (
           /* Combat Action Pad */
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 font-mono text-xs font-bold">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5 md:gap-2 font-mono text-[10px] md:text-xs font-bold">
             <button
               onClick={handleAttack}
               disabled={battle.winner !== null}
-              className="p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40"
+              className="p-1.5 md:p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
             >
               <span>1. Attack</span>
-              <span className="text-[9px] font-normal opacity-80">{player.equipment.primaryWeapon?.name || 'Primary Strike'}</span>
+              <span className="text-[8px] md:text-[9px] font-normal opacity-80">{player.equipment.primaryWeapon?.name || 'Primary Strike'}</span>
             </button>
 
             <button
               onClick={() => setShowSpellPicker(true)}
               disabled={battle.winner !== null}
-              className="p-3 bg-sky-900 hover:bg-sky-800 border border-sky-500/50 text-sky-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40"
+              className="p-1.5 md:p-3 bg-sky-900 hover:bg-sky-800 border border-sky-500/50 text-sky-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
             >
               <span>2. Skill / Spell</span>
-              <span className="text-[9px] font-normal opacity-80">Select Ability</span>
+              <span className="text-[8px] md:text-[9px] font-normal opacity-80">Select Ability</span>
             </button>
 
             <button
               onClick={() => setShowItemPicker(true)}
               disabled={battle.winner !== null}
-              className="p-3 bg-emerald-900 hover:bg-emerald-800 border border-emerald-500/50 text-emerald-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40"
+              className="p-1.5 md:p-3 bg-emerald-900 hover:bg-emerald-800 border border-emerald-500/50 text-emerald-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
             >
               <span>3. Use Item</span>
-              <span className="text-[9px] font-normal opacity-80">Select Consumable</span>
+              <span className="text-[8px] md:text-[9px] font-normal opacity-80">Select Consumable</span>
             </button>
 
             <button
               onClick={handleGuard}
               disabled={battle.winner !== null}
-              className="p-3 bg-indigo-900 hover:bg-indigo-800 border border-indigo-500/50 text-indigo-100 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40"
+              className="p-1.5 md:p-3 bg-indigo-900 hover:bg-indigo-800 border border-indigo-500/50 text-indigo-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
             >
               <span>4. Guard / Parry</span>
-              <span className="text-[9px] font-normal opacity-80">-40% DR & Riposte</span>
+              <span className="text-[8px] md:text-[9px] font-normal opacity-80">-40% DR & Riposte</span>
             </button>
 
-            <button
-              onClick={handleFlee}
-              disabled={battle.winner !== null}
-              className="col-span-2 md:col-span-1 p-3 bg-red-950 hover:bg-red-900 border border-red-600/50 text-red-200 rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40"
-            >
-              <span>5. Flee</span>
-              <span className="text-[9px] font-normal opacity-80">Agility Escape</span>
-            </button>
+            {(() => {
+              const attempts = battle.fleeAttempts ?? 0;
+              const isExhausted = attempts >= 2;
+              return (
+                <button
+                  onClick={handleFlee}
+                  disabled={battle.winner !== null || isExhausted}
+                  className={`col-span-2 md:col-span-1 p-1.5 md:p-3 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[44px] ${
+                    isExhausted
+                      ? 'bg-zinc-950 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                      : 'bg-red-950 hover:bg-red-900 border border-red-600/50 text-red-200 disabled:opacity-40'
+                  }`}
+                >
+                  <span>{isExhausted ? '5. Flee (Exhausted)' : `5. Flee ${attempts === 1 ? '(1 Left)' : ''}`}</span>
+                  <span className="text-[8px] md:text-[9px] font-normal opacity-80">
+                    {isExhausted ? 'Escape Blocked' : attempts === 1 ? 'High Fail Risk' : 'Agility Escape'}
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         )}
       </div>

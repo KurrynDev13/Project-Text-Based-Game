@@ -216,6 +216,7 @@ export interface Skill {
   icon: string; // emoji
   classReq: HeroClass;
   tier: number; // 1-4 (tier 1 = basic, tier 4 = ultimate)
+  minLevel?: number; // Minimum character level required to unlock (Lv 1, 8, 16, 25)
   mutyaCost: number; // 0 for basic attack, 1-3 for others
   description: string;
   flavorText: string; // pre-colonial lore quote
@@ -262,6 +263,7 @@ export interface PlayerCharacter {
   hasCreatedCharacter?: boolean; // True after character creation flow is complete
   unlockedSkillIds?: string[]; // IDs of purchased Mutya skills
   equippedSkillIds?: string[]; // Max 3 active skill IDs in combat
+  skillRanks?: Record<string, number>; // Map of skillId -> Rank (1 to 5)
   tutorialsSeen?: string[]; // Tutorial IDs that have been shown
   unlockedActStoryIds?: string[]; // Act story overlays already shown
   discoveredBossIds?: string[]; // Boss IDs where warning card was shown
@@ -299,6 +301,7 @@ export interface BattleState {
   enemy: EnemyMonster | null;
   logs: BattleLogEntry[];
   winner: 'PLAYER' | 'ENEMY' | null;
+  fleeAttempts?: number;
 }
 
 export interface BattleLogEntry {

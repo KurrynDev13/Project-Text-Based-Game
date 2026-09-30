@@ -155,6 +155,21 @@ const STEPS: OnboardingStep[] = [
   },
 ];
 
+const getScrollParent = (node: HTMLElement | null): HTMLElement | Window => {
+  if (!node) return window;
+  let parent = node.parentElement;
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    const overflowY = style.overflowY;
+    const isScrollableStyle = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+    if (isScrollableStyle && parent.scrollHeight > parent.clientHeight + 2) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return window;
+};
+
 export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutorialProps> = ({
   onComplete,
   onSkip,
@@ -168,39 +183,60 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === STEPS.length - 1;
 
-  // Measure target DOM element bounding box
+  // Measure target DOM element bounding box (filters for visible element when duplicate targets exist)
   const updateTargetRect = useCallback(() => {
     if (!currentStep.targetId) {
       setTargetRect(null);
       return;
     }
 
-    const element = document.querySelector(`[data-tutorial-target="${currentStep.targetId}"]`);
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      if (rect.width > 20 && rect.height > 20) {
-        setTargetRect(rect);
-      } else {
-        setTargetRect(null);
-      }
+    const elements = Array.from(document.querySelectorAll(`[data-tutorial-target="${currentStep.targetId}"]`));
+    const visibleElement = elements.find((el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.width > 10 && rect.height > 10;
+    });
+
+    if (visibleElement) {
+      const rect = visibleElement.getBoundingClientRect();
+      setTargetRect(rect);
     } else {
       setTargetRect(null);
     }
   }, [currentStep.targetId]);
 
   useLayoutEffect(() => {
+    const scrollToTarget = () => {
+      if (!currentStep.targetId) return;
+      const elements = Array.from(document.querySelectorAll(`[data-tutorial-target="${currentStep.targetId}"]`));
+      const targetEl = (elements.find((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 10 && rect.height > 10;
+      }) || elements[0]) as HTMLElement | undefined;
+
+      if (targetEl) {
+        const isMobile = window.innerWidth < 768;
+        if (isMobile && currentStep.id === 'inn') {
+          // Precise 1-step smooth scroll for Step 3 on mobile: positions target top at 255px without screen spasms
+          const rect = targetEl.getBoundingClientRect();
+          const desiredTop = 255;
+          const parent = getScrollParent(targetEl);
+          if (parent === window) {
+            window.scrollTo({ top: window.scrollY + (rect.top - desiredTop), behavior: 'smooth' });
+          } else {
+            const pEl = parent as HTMLElement;
+            pEl.scrollTo({ top: pEl.scrollTop + (rect.top - desiredTop), behavior: 'smooth' });
+          }
+        } else {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      }
+    };
+
+    scrollToTarget();
     updateTargetRect();
 
-    // Scroll target element into view if available
-    if (currentStep.targetId) {
-      const element = document.querySelector(`[data-tutorial-target="${currentStep.targetId}"]`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }
-
-    // Schedule re-checks to account for district switching and React DOM mounting delays
-    const t1 = setTimeout(updateTargetRect, 50);
+    // Re-check target bounding box as smooth scroll animation finishes
+    const t1 = setTimeout(updateTargetRect, 60);
     const t2 = setTimeout(updateTargetRect, 180);
     const t3 = setTimeout(updateTargetRect, 400);
 
@@ -264,7 +300,9 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
 
   // Compute position for the popover tooltip card relative to target Rect
   const getPopoverStyle = (): React.CSSProperties => {
-    const isValid = Boolean(targetRect && targetRect.width > 20 && targetRect.height > 20);
+    const isValid = Boolean(targetRect && targetRect.width > 10 && targetRect.height > 10);
+    const isMobile = window.innerWidth < 768;
+    const popoverWidth = Math.min(window.innerWidth - (isMobile ? 20 : 32), isMobile ? 340 : 440);
 
     if (!isValid || !targetRect) {
       return {
@@ -272,44 +310,64 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
         left: '50%',
         transform: 'translate(-50%, -50%)',
         position: 'fixed',
-        width: `${Math.min(window.innerWidth - 32, 440)}px`,
+        width: `${popoverWidth}px`,
       };
     }
 
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
-    const spaceBelow = windowHeight - targetRect.bottom;
-    const spaceAbove = targetRect.top;
+    const estCardHeight = isMobile ? 140 : 220;
+    const bottomReserve = isMobile ? 65 : 80;
 
+    let isPlacingAbove = false;
     let topPosition: number;
-    // If target is in lower portion of screen (e.g. bottom navbar, tabs, or district cards), position popover card near top (24px)
-    // so bottom target & navbar remain 100% visible and completely unobscured.
-    if (targetRect.top > windowHeight / 2 || targetRect.bottom > windowHeight - 160) {
-      topPosition = 24;
-    } else if (spaceBelow >= 300) {
-      topPosition = targetRect.bottom + 16;
+
+    if (isMobile) {
+      // On mobile: targets in top zone (HUD/Banner top < 120) get popover placed below. All other targets get popover at top: 8px.
+      if (targetRect.top < 120) {
+        isPlacingAbove = false;
+        topPosition = targetRect.bottom + 10;
+      } else {
+        isPlacingAbove = true;
+        topPosition = 8;
+      }
     } else {
-      topPosition = Math.max(24, targetRect.top - 360);
+      // On desktop:
+      const fitsBelow = targetRect.bottom + estCardHeight + 10 <= windowHeight - bottomReserve;
+      const isTargetNearTop = targetRect.top < 120;
+      if (isTargetNearTop || fitsBelow) {
+        isPlacingAbove = false;
+        topPosition = targetRect.bottom + 10;
+      } else {
+        isPlacingAbove = true;
+        topPosition = 20;
+      }
     }
 
-    // Ensure popover top position stays strictly inside visible bounds
-    topPosition = Math.max(16, topPosition);
+    const spotlightTop = targetRect.top - 6;
+    const safeGap = isMobile ? 10 : 16;
+
+    const maxCardHeight = isPlacingAbove
+      ? Math.max(110, spotlightTop - safeGap - topPosition)
+      : Math.max(140, windowHeight - topPosition - bottomReserve - 8);
+
+    // Clamp top position safely inside visible bounds
+    topPosition = Math.max(8, Math.min(topPosition, windowHeight - 120));
 
     const targetCenterX = targetRect.left + targetRect.width / 2;
-    const popoverWidth = Math.min(windowWidth - 32, 440);
     let leftPosition = targetCenterX - popoverWidth / 2;
-
-    leftPosition = Math.max(16, Math.min(leftPosition, windowWidth - popoverWidth - 16));
+    leftPosition = Math.max(8, Math.min(leftPosition, windowWidth - popoverWidth - 8));
 
     return {
       top: `${topPosition}px`,
       left: `${leftPosition}px`,
       width: `${popoverWidth}px`,
+      maxHeight: `${maxCardHeight}px`,
       position: 'fixed',
     };
   };
 
-  const hasValidSpotlight = Boolean(targetRect && targetRect.width > 20 && targetRect.height > 20);
+  const hasValidSpotlight = Boolean(targetRect && targetRect.width > 10 && targetRect.height > 10);
 
   return (
     <div className="fixed inset-0 z-[100] overflow-hidden select-none pointer-events-none">
@@ -333,7 +391,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
         >
           {/* Label badge for forced action targets */}
           {currentStep.isForcedAction && (
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-amber-500 text-zinc-950 text-[11px] font-mono font-bold px-3 py-1 rounded-full shadow-lg whitespace-nowrap">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-amber-500 text-zinc-950 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shadow-lg whitespace-nowrap">
               👉 {currentStep.forcedActionLabel || 'Tap Here'}
             </div>
           )}
@@ -343,12 +401,12 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       {/* ── Popover Tooltip Card ── */}
       <div
         style={getPopoverStyle()}
-        className="pointer-events-auto z-[102] bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-600/70 rounded-2xl p-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto animate-fade-in"
+        className="pointer-events-auto z-[102] bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-600/70 rounded-xl md:rounded-2xl p-2 md:p-5 shadow-2xl space-y-1 md:space-y-3 overflow-y-auto animate-fade-in flex flex-col justify-between"
       >
         {/* Header Row */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-amber-500 font-mono text-xs font-bold uppercase tracking-wider">
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-1 md:pb-3">
+          <div className="flex items-center space-x-1.5 md:space-x-2">
+            <span className="text-amber-500 font-mono text-[8px] md:text-xs font-bold uppercase tracking-wider">
               INSTRUCTIVE ONBOARDING · STEP {currentStepIndex + 1} OF {STEPS.length}
             </span>
           </div>
@@ -356,14 +414,14 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
           <button
             type="button"
             onClick={onSkip}
-            className="text-xs font-mono text-zinc-400 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700 min-h-[36px]"
+            className="text-[9px] md:text-xs font-mono text-zinc-400 hover:text-amber-300 px-1.5 py-0.5 md:px-2.5 md:py-1 rounded-md md:rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700 min-h-[24px] md:min-h-[36px]"
           >
-            Skip Tutorial ✕
+            Skip ✕
           </button>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+        <div className="w-full bg-zinc-800 h-1 md:h-1.5 rounded-full overflow-hidden shrink-0">
           <div
             className="bg-amber-500 h-full transition-all duration-300 rounded-full"
             style={{ width: `${((currentStepIndex + 1) / STEPS.length) * 100}%` }}
@@ -371,33 +429,33 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
         </div>
 
         {/* Content Box */}
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <span className="text-3xl drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]">{currentStep.icon}</span>
-            <h3 className="font-serif text-lg font-bold text-amber-200 leading-tight">
+        <div className="space-y-1 md:space-y-3">
+          <div className="flex items-center space-x-1.5 md:space-x-3">
+            <span className="text-base md:text-3xl drop-shadow-[0_0_10px_rgba(251,191,36,0.4)] shrink-0">{currentStep.icon}</span>
+            <h3 className="font-serif text-xs md:text-lg font-bold text-amber-200 leading-tight">
               {currentStep.title}
             </h3>
           </div>
 
-          <p className="text-zinc-300 text-xs leading-relaxed font-sans">
+          <p className="text-zinc-300 text-[10px] md:text-xs leading-tight md:leading-relaxed font-sans">
             {currentStep.description}
           </p>
 
           {currentStep.tip && (
-            <div className="flex gap-2.5 px-3 py-2.5 bg-amber-950/60 border border-amber-700/50 rounded-xl">
-              <span className="text-amber-400 text-sm shrink-0">💡</span>
-              <p className="text-amber-200 text-[11px] leading-snug font-sans">{currentStep.tip}</p>
+            <div className="flex gap-1.5 px-2 py-1 md:px-3 md:py-2.5 bg-amber-950/60 border border-amber-700/50 rounded-lg md:rounded-xl">
+              <span className="text-amber-400 text-xs md:text-sm shrink-0">💡</span>
+              <p className="text-amber-200 text-[9px] md:text-[11px] leading-tight font-sans">{currentStep.tip}</p>
             </div>
           )}
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
+        <div className="flex items-center justify-between gap-1.5 md:gap-3 pt-1 md:pt-2 border-t border-zinc-800/80 shrink-0">
           <button
             type="button"
             onClick={handlePrev}
             disabled={isFirstStep}
-            className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-mono font-bold text-zinc-400 hover:text-amber-200 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed border border-zinc-700 transition-all"
+            className="min-h-[32px] md:min-h-[44px] px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl text-[10px] md:text-xs font-mono font-bold text-zinc-400 hover:text-amber-200 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed border border-zinc-700 transition-all"
           >
             ← Back
           </button>
@@ -405,7 +463,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
           <button
             type="button"
             onClick={handleNext}
-            className={`flex-1 min-h-[44px] px-5 py-2.5 rounded-xl font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center space-x-2 ${
+            className={`flex-1 min-h-[32px] md:min-h-[44px] px-3 md:px-5 py-1 md:py-2.5 rounded-lg md:rounded-xl font-mono font-bold text-[10px] md:text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center space-x-1.5 md:space-x-2 ${
               currentStep.isForcedAction
                 ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 ring-2 ring-amber-300 animate-pulse'
                 : 'bg-amber-600 hover:bg-amber-500 text-zinc-950 shadow-amber-900/30'
