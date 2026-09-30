@@ -134,21 +134,28 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     const weaponMax = activeWeapon?.baseDamageMax ?? 14;
     const weaponRoll = Math.floor(weaponMin + Math.random() * (weaponMax - weaponMin + 1));
 
-    // Pick the relevant derived damage stat based on skill's damage type
+    // Pick the relevant derived damage stat based on skill's damage type or hero class/weapon for basic attack
     let derivedBonus = derived.meleeDamage;
-    if (skill.damageType === 'MAGIC' || skill.damageType === 'LIGHTNING' || skill.damageType === 'SHADOW' || skill.damageType === 'RADIANT') {
+    if (skill.isBasicAttack) {
+      const wCat = activeWeapon?.category;
+      if (wCat === 'BOW' || wCat === 'DAGGER' || player.heroClass === 'Mangangaso' || player.heroClass === 'Bagani') {
+        derivedBonus = derived.rangedDamage;
+      } else if (wCat === 'STAFF' || player.heroClass === 'Babaylan') {
+        derivedBonus = derived.magicDamage;
+      }
+    } else if (skill.damageType === 'MAGIC' || skill.damageType === 'LIGHTNING' || skill.damageType === 'SHADOW' || skill.damageType === 'RADIANT') {
       derivedBonus = derived.magicDamage;
     } else if (skill.damageType === 'FIRE' || skill.damageType === 'FROST') {
       derivedBonus = derived.magicDamage * 0.8 + derived.rangedDamage * 0.2;
-    } else if (!skill.isBasicAttack) {
+    } else {
       // Non-basic physical: blend melee and ranged
       derivedBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
     }
 
     let baseDamage: number;
     if (skill.isBasicAttack) {
-      // Basic attack: raw weapon roll + 40% of relevant derived stat
-      baseDamage = weaponRoll + Math.floor(derivedBonus * 0.4);
+      // Basic attack: raw weapon roll + 50% of relevant derived stat
+      baseDamage = weaponRoll + Math.floor(derivedBonus * 0.5);
     } else {
       // Skill attack: weapon roll × multiplier + derived bonus
       baseDamage = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * skill.baseDamageMultiplier);

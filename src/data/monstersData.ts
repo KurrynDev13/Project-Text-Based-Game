@@ -823,3 +823,4 @@ export function generateMonsterForLocation(
 export function generateMonsterForFloor(floorLevel: number): EnemyMonster {
   return generateMonsterForLocation(floorLevel);
 }
+

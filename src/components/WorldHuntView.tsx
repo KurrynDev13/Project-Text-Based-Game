@@ -858,10 +858,21 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let logs = battle.logs;
     const enemy = { ...battle.enemy };
 
-    const primary = player.equipment.primaryWeapon;
-    const minDmg = primary?.baseDamageMin || 8;
-    const maxDmg = primary?.baseDamageMax || 14;
-    let baseDmg = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1)) + Math.floor(derived.meleeDamage * 0.4);
+    const activeWeapon = player.equipment.weapon || player.equipment.primaryWeapon;
+    const minDmg = activeWeapon?.baseDamageMin || 10;
+    const maxDmg = activeWeapon?.baseDamageMax || 18;
+    const weaponCategory = activeWeapon?.category;
+
+    // Pick class/weapon attribute damage scaling
+    let statBonus = derived.meleeDamage * 0.5;
+    if (weaponCategory === 'BOW' || weaponCategory === 'DAGGER' || player.heroClass === 'Mangangaso' || player.heroClass === 'Bagani') {
+      statBonus = derived.rangedDamage * 0.5;
+    } else if (weaponCategory === 'STAFF' || player.heroClass === 'Babaylan') {
+      statBonus = derived.magicDamage * 0.5;
+    }
+
+    const weaponRoll = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1));
+    let baseDmg = weaponRoll + Math.floor(statBonus);
 
     // Basic Attack restores +5 MP per strike
     const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
@@ -872,7 +883,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       soundFX.playCritSound();
       logs = addLog(logs, `⚡ CRITICAL STRIKE! Dealt ${baseDmg} physical damage to ${enemy.name}! (+5 MP restored)`, 'CRIT', 'PLAYER');
     } else {
-      logs = addLog(logs, `⚔️ You struck ${enemy.name} with ${primary?.name || 'Weapon'} for ${baseDmg} damage! (+5 MP restored)`, 'DAMAGE', 'PLAYER');
+      logs = addLog(logs, `⚔️ You struck ${enemy.name} with ${activeWeapon?.name || 'Weapon'} for ${baseDmg} damage! (+5 MP restored)`, 'DAMAGE', 'PLAYER');
     }
 
     const enemyDR = enemy.armor / (enemy.armor + 150);
