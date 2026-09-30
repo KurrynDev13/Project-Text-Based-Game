@@ -763,7 +763,8 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 export function generateMonsterForLocation(
   locationMinLevel: number,
   specificMonsterId?: string,
-  allowedMonsterIds?: string[]
+  allowedMonsterIds?: string[],
+  ngPlusLevel: number = 0
 ): EnemyMonster {
   let template = MONSTER_TEMPLATES.find((m) => m.id === specificMonsterId);
 
@@ -792,16 +793,27 @@ export function generateMonsterForLocation(
   const levelOffset = Math.max(0, locationMinLevel - actStartLevel);
   const statScale = 1.0 + levelOffset * 0.04;
 
-  const maxHp = Math.floor(template.baseHp * statScale);
-  const armor = Math.floor(template.baseArmor * statScale);
-  const attackMin = Math.floor(template.baseMinDmg * statScale);
-  const attackMax = Math.floor(template.baseMaxDmg * statScale);
+  let maxHp = Math.floor(template.baseHp * statScale);
+  let armor = Math.floor(template.baseArmor * statScale);
+  let attackMin = Math.floor(template.baseMinDmg * statScale);
+  let attackMax = Math.floor(template.baseMaxDmg * statScale);
+
+  if (ngPlusLevel > 0) {
+    const ngMult = 1.0 + ngPlusLevel * 1.5;
+    maxHp = Math.floor(maxHp * ngMult);
+    attackMin = Math.floor(attackMin * ngMult);
+    attackMax = Math.floor(attackMax * ngMult);
+    armor = Math.floor(armor * (1.0 + ngPlusLevel * 0.5));
+  }
+
   const expReward = Math.max(12, Math.floor(18 * levelScale * template.expMult));
   const copperReward = Math.floor(30 * (1 + (locationMinLevel - 1) * 0.35) * template.copperMult);
 
+  const monsterName = ngPlusLevel > 0 ? `[NG+${ngPlusLevel}] ${template.name}` : template.name;
+
   return {
     id: template.id,
-    name: template.name,
+    name: monsterName,
     title: template.title,
     level: locationMinLevel,
     maxHp,

@@ -67,6 +67,16 @@ Coiled around the frail, dwindling crescent of the final surviving moon lies an 
 Every blessing, every scarred trial, and every ancestral spark you carry has led to this threshold. Step into the dying star-sea, defy the infinite dark, and slay the world-eater before the last light of creation is devoured forever.`
 };
 
+export const ACT8_VICTORY_STORY = `As your final strike shatters Bakunawa's cosmic scales, an ethereal shockwave of pure radiant starlight erupts across the Maw of the Great Eclipse! The Moon-Devouring Serpent lets out a roaring death shriek that resonates through the void before dissolving into a shower of brilliant prismatic dust.
+
+One by one, the devoured moons burst free from the abyss, illuminating the night sky over the archipelago once more with seven glowing celestial spheres! The ancient curse plaguing the islands is broken.
+
+From the highest clouds of Bathala's domain, ancestral anito spirits sing your praises. You have proven yourself as the supreme Maharlika Champion of the archipelago!
+
+With your triumph, the realm unlocks:
+🌌 The Celestial Ether of Bathala (Infinite Survival Mode with Prismatic Memory Drops & Boss Waves)
+☯️ Anito Cycle Rebirth (Start New Game+ with scaled +150% enemy stats, carrying over all gear, skills, and stats!)`;
+
 export function getActStory(actId: string, fallbackDescription?: string): string {
   return ACT_EPIC_STORIES[actId] || fallbackDescription || 'An ancient uncharted realm awaiting exploration.';
 }

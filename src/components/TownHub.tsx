@@ -111,6 +111,26 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
 
   // Alchemist Apothecary State
   const [alchemistCategory, setAlchemistCategory] = useState<'ALL' | 'VITALITY' | 'ELIXIR' | 'PANACEA'>('ALL');
+  const [showNgPlusConfirm, setShowNgPlusConfirm] = useState<boolean>(false);
+
+  const handleConfirmRebirth = () => {
+    soundFX.playLevelUpSound();
+    const nextNgLevel = (player.ngPlusLevel || 0) + 1;
+
+    onUpdatePlayer({
+      ...player,
+      ngPlusLevel: nextNgLevel,
+      currentLocationId: 'loc_act_1',
+      unlockedLocationIds: ['loc_act_1'],
+      sideQuests: [],
+      forfeitedQuestIds: [],
+      completedBossIds: [],
+      wallet: cowriesToWallet(100, 0),
+    });
+
+    setShowNgPlusConfirm(false);
+    notify(`🌟 ANITO CYCLE REBIRTH COMPLETE! Advanced to New Game+ ${nextNgLevel}! All Acts reset with scaled monster power. Your stats and gear remain!`, 'success', '🌟');
+  };
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
@@ -1769,6 +1789,12 @@ const REST_OPTIONS: RestOption[] = [
             {/* Consumables Catalog Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {CONSUMABLES.filter((potion) => {
+                const unlockedLocationIds = player.unlockedLocationIds || ['loc_act_1'];
+                const targetLoc = GAME_LOCATIONS.find((l) => l.id === potion.actId);
+                const minLvl = targetLoc?.minLevel ?? (potion.actReq ? potion.actReq * 6 - 5 : 1);
+                const isUnlocked = unlockedLocationIds.includes(potion.actId || '') || player.level >= minLvl;
+                if (!isUnlocked) return false;
+
                 if (alchemistCategory === 'VITALITY') return potion.category === 'VITALITY' || potion.category === 'POTION';
                 if (alchemistCategory === 'ELIXIR') return potion.category === 'ELIXIR' || potion.category === 'TINCTURE';
                 if (alchemistCategory === 'PANACEA') return potion.category === 'PANACEA';
@@ -1778,7 +1804,7 @@ const REST_OPTIONS: RestOption[] = [
                 const unlockedLocationIds = player.unlockedLocationIds || ['loc_act_1'];
                 const targetLoc = GAME_LOCATIONS.find((l) => l.id === potion.actId);
                 const minLvl = targetLoc?.minLevel ?? (potion.actReq ? potion.actReq * 6 - 5 : 1);
-                const isUnlocked = unlockedLocationIds.includes(potion.actId || '') || player.level >= minLvl;
+                const isUnlocked = true;
 
                 return (
                   <div
@@ -1890,6 +1916,36 @@ const REST_OPTIONS: RestOption[] = [
                 Ancient ward-portal connecting Poblacion Sanctuary to unlocked expedition realms and the Bakunawa Moon Serpent Raid.
               </p>
             </div>
+
+            {/* ANITO CYCLE REBIRTH SHRINE CARD (UNLOCKED AFTER ACT VIII DEFEAT) */}
+            {(player.act8Completed || (player.completedBossIds || []).includes('boss_act_8')) && (
+              <div className="bg-gradient-to-r from-purple-950 via-zinc-950 to-purple-950 border-2 border-amber-400 p-4 md:p-5 rounded-2xl space-y-3 shadow-2xl animate-fade-in text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2 justify-center sm:justify-start">
+                    <span className="text-xl">🌟</span>
+                    <span className="text-xs font-mono font-bold uppercase text-amber-300 tracking-wider">
+                      ANITO CYCLE REBIRTH SHRINE (NG+ SYSTEM)
+                    </span>
+                    <span className="bg-amber-950 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-bold px-2 py-0.5 rounded">
+                      NG+ Tier {player.ngPlusLevel || 0}
+                    </span>
+                  </div>
+                  <h4 className="text-base md:text-lg font-bold font-serif text-amber-100">
+                    Initiate Anito Rebirth Cycle (NG+ {(player.ngPlusLevel || 0) + 1})
+                  </h4>
+                  <p className="text-xs font-mono text-zinc-300 max-w-xl">
+                    Transcend into the next cosmic rebirth cycle. Monster HP and Damage across Acts I-VIII scale up (+150% per NG+ tier), while your Character Level, AP, Attributes, Gear, Mutya Skills, Mounts, and Vault Stash remain intact!
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowNgPlusConfirm(true)}
+                  className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold px-5 py-2.5 rounded-xl uppercase font-mono text-xs shadow-xl transition-all active:scale-95 shrink-0"
+                >
+                  ⚡ Start NG+ {(player.ngPlusLevel || 0) + 1} Rebirth
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3">
               <h4 className="text-xs font-mono uppercase text-cyan-400 font-bold flex items-center space-x-1">
@@ -2219,6 +2275,19 @@ const REST_OPTIONS: RestOption[] = [
           type="danger"
           onConfirm={executeMutyaBlessing}
           onCancel={() => setConfirmBlessingData(null)}
+        />
+      )}
+
+      {/* Anito Cycle Rebirth (NG+) Confirmation Modal */}
+      {showNgPlusConfirm && (
+        <ConfirmModal
+          title={`🌟 INITIATE ANITO CYCLE REBIRTH (NG+ ${(player.ngPlusLevel || 0) + 1})`}
+          message={`Are you ready to initiate the Anito Rebirth Ritual?\n\n• World Cycle: New Game+ ${(player.ngPlusLevel || 0) + 1}\n• Carried Over: Level (${player.level}), AP, Attributes, Equipped Gear, Inventory, Vault Stash, Mounts, Skills & Highest Survival Record (${player.highestSurvivalWave || 0} Waves).\n• Resets: Currency (resets to 100 Cowrie Shells), Act World Progression (resets to Act I) & Side Quests.\n• Scaling: Monsters across all 8 Acts deal +150% increased damage and HP in NG+${(player.ngPlusLevel || 0) + 1}.\n\nDo you wish to begin the new cosmic cycle?`}
+          confirmText={`Initiate NG+ ${(player.ngPlusLevel || 0) + 1}`}
+          cancelText="Return to Sanctuary"
+          type="warning"
+          onConfirm={handleConfirmRebirth}
+          onCancel={() => setShowNgPlusConfirm(false)}
         />
       )}
     </div>

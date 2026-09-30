@@ -514,15 +514,44 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const roll = Math.random();
 
     if (roll < 0.65) {
-      // Enemy encounter! Prioritize active contract target monster if available in location
-      const activeTargetId = player.bounties.find(
-        (b) => b.isAccepted !== false && !b.isCompleted && selectedLocation.monsters.includes(b.targetMonsterId)
-      )?.targetMonsterId;
+      const isSurvivalRealm = selectedLocation.id === 'loc_act_infinite';
+      const curStreak = battle.survivalKillStreak ?? 0;
+      const bossThreshold = battle.survivalBossThreshold ?? (Math.floor(Math.random() * 4) + 7);
+      const waveTier = battle.survivalWaveTier ?? 1;
 
-      const monsterToSpawn = (activeTargetId && Math.random() < 0.85) ? activeTargetId : undefined;
-      const monster = generateMonsterForLocation(selectedLocation.minLevel, monsterToSpawn, selectedLocation.monsters);
+      let monster: EnemyMonster;
+      let isSurvivalBoss = false;
 
-      const logText = `⚠️ ENEMY AMBUSH: A level ${monster.level} ${monster.name} (${monster.title}) lunges from the shadow thicket!`;
+      if (isSurvivalRealm && curStreak >= bossThreshold) {
+        // Spawn Guaranteed Celestial Titan Boss
+        isSurvivalBoss = true;
+        const bossPool = ['boss_act_1', 'boss_act_2', 'boss_act_3', 'boss_act_4', 'boss_act_5', 'boss_act_6', 'boss_act_7', 'boss_act_8'];
+        const chosenBossId = bossPool[Math.floor(Math.random() * bossPool.length)];
+        monster = generateMonsterForLocation(47 + (waveTier - 1) * 3, chosenBossId);
+        monster.name = `Celestial Titan ${monster.name} (Wave ${waveTier})`;
+        monster.isBoss = true;
+        monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.15));
+        monster.currentHp = monster.maxHp;
+        monster.attackMin = Math.floor(monster.attackMin * (1 + waveTier * 0.1));
+        monster.attackMax = Math.floor(monster.attackMax * (1 + waveTier * 0.1));
+      } else {
+        // Standard Monster Spawn
+        const activeTargetId = player.bounties.find(
+          (b) => b.isAccepted !== false && !b.isCompleted && selectedLocation.monsters.includes(b.targetMonsterId)
+        )?.targetMonsterId;
+
+        const monsterToSpawn = (activeTargetId && Math.random() < 0.85) ? activeTargetId : undefined;
+        const spawnLvl = isSurvivalRealm ? 47 + (waveTier - 1) * 2 : selectedLocation.minLevel;
+        monster = generateMonsterForLocation(spawnLvl, monsterToSpawn, selectedLocation.monsters);
+        if (isSurvivalRealm) {
+          monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.08));
+          monster.currentHp = monster.maxHp;
+        }
+      }
+
+      const logText = isSurvivalBoss
+        ? `⚡ CELESTIAL TITAN APPROACHING! Wave Tier #${waveTier} Boss ${monster.name} emerges!`
+        : `⚠️ ENEMY AMBUSH: A level ${monster.level} ${monster.name} (${monster.title}) lunges from the shadow thicket!`;
       soundFX.playCritSound();
 
       onUpdatePlayer({
@@ -541,11 +570,16 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             id: `init_${Date.now()}`,
             turn: 1,
             actor: 'SYSTEM',
-            text: `[EXPLORATION] Ambushed by ${monster.name} (${monster.title}) in ${selectedLocation.name}!`,
-            type: 'INFO',
+            text: isSurvivalBoss
+              ? `⚡ [TITAN BOSS WAVE] Challenging Celestial Titan Boss ${monster.name}!`
+              : `[EXPLORATION] Ambushed by ${monster.name} (${monster.title}) in ${selectedLocation.name}!`,
+            type: isSurvivalBoss ? 'CRIT' : 'INFO',
           },
         ],
         winner: null,
+        survivalKillStreak: curStreak,
+        survivalBossThreshold: bossThreshold,
+        survivalWaveTier: waveTier,
       });
     } else if (roll < 0.85) {
       // 35% Chance to trigger an Interactive Sector Encounter (Wandering Trader or Cursed Spirit Chest)
@@ -1085,6 +1119,17 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       notify('🏃 Escape Successful! Retreating back to sector entrance.', 'info', '🏃');
       soundFX.playCoinSound();
 
+      if (selectedLocation.id === 'loc_act_infinite') {
+        const reachedWave = battle.survivalWaveTier ?? 1;
+        if (reachedWave > (player.highestSurvivalWave || 0)) {
+          notify(`🏆 NEW PERSONAL BEST RECORD! Logged highest wave reached: Tier #${reachedWave}!`, 'success', '🏆');
+          onUpdatePlayer({
+            ...player,
+            highestSurvivalWave: reachedWave,
+          });
+        }
+      }
+
       onUpdateBattle({
         inCombat: false,
         turnNumber: 0,
@@ -1193,12 +1238,22 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       logs = addLog(logs, defeatLog, 'DEBUFF', 'SYSTEM');
       notify(`💀 Slain in Battle! Resurrected at 1% HP/MP/ST. Lost ${lostCowries} Cowries & ${lostSilver} Silver.`, 'error', '💀');
 
+      let highestWave = p.highestSurvivalWave || 0;
+      if (selectedLocation.id === 'loc_act_infinite') {
+        const reachedWave = battle.survivalWaveTier ?? 1;
+        if (reachedWave > highestWave) {
+          highestWave = reachedWave;
+          notify(`🏆 NEW PERSONAL BEST RECORD! Logged highest wave reached: Tier #${reachedWave}!`, 'success', '🏆');
+        }
+      }
+
       onUpdatePlayer({
         ...p,
         currentHp: resHp,
         currentMp: resMp,
         stamina: resStamina,
         wallet: updatedWallet,
+        highestSurvivalWave: highestWave,
         isCoveredNextTurn: false,
       });
 
@@ -1310,11 +1365,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     let updatedCompletedBossIds = player.completedBossIds || [];
     let act6Done = player.act6Completed;
+    let act8Done = player.act8Completed;
     let mountUnlocked = player.mountUnlocked;
     let updatedUnlockedLocs = player.unlockedLocationIds || ['loc_act_1'];
     let updatedEquipment = { ...player.equipment };
     let updatedInventory = [...player.inventory];
     let updatedMemories = [...(player.encryptedMemories || [])];
+    let updatedHighestWave = player.highestSurvivalWave || 0;
+
+    const isSurvivalRealm = selectedLocation.id === 'loc_act_infinite';
 
     if (!isBoss) {
       const expGained = enemy.expReward;
@@ -1330,10 +1389,48 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       if (expResult.levelsGained > 0) {
         logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
       }
+
+      if (isSurvivalRealm) {
+        const curStreak = (battle.survivalKillStreak ?? 0) + 1;
+        onUpdateBattle({
+          ...battle,
+          survivalKillStreak: curStreak,
+        });
+        logs = addLog(logs, `⚔️ CELESTIAL SURVIVAL KILL: (${curStreak}/${battle.survivalBossThreshold || 7} kills until Boss Wave)`, 'INFO', 'SYSTEM');
+      }
     } else {
       const isFirstWin = !isBossDefeated;
 
-      if (isFirstWin) {
+      if (isSurvivalRealm) {
+        // Survival Realm Boss Slain!
+        const curWave = battle.survivalWaveTier ?? 1;
+        const nextWave = curWave + 1;
+        const nextThreshold = Math.floor(Math.random() * 4) + 7;
+
+        if (curWave > updatedHighestWave) {
+          updatedHighestWave = curWave;
+          notify(`🏆 NEW PERSONAL BEST RECORD! Reached Wave Tier #${curWave} in Bathala's Celestial Ether!`, 'success', '🏆');
+        }
+
+        // Guaranteed Triumphant Memory & Mutya Shards
+        const triumphantMemory: EncryptedMemory = {
+          id: `mem_survival_${Date.now()}`,
+          name: `Prismatic Celestial Memory (RED)`,
+          rarity: 'RED',
+          minLevel: player.level,
+          acquiredAtLocation: 'loc_act_infinite',
+        };
+        updatedMemories = [...updatedMemories, triumphantMemory];
+
+        logs = addLog(logs, `🏆 CELESTIAL TITAN SLAIN! Cleared Wave Tier #${curWave}! Granted +1x Prismatic Memory & +5 Mutya Shards! Next Boss Wave threshold: ${nextThreshold} kills.`, 'CRIT', 'SYSTEM');
+
+        onUpdateBattle({
+          ...battle,
+          survivalWaveTier: nextWave,
+          survivalKillStreak: 0,
+          survivalBossThreshold: nextThreshold,
+        });
+      } else if (isFirstWin) {
         if (!updatedCompletedBossIds.includes(enemy.id)) {
           updatedCompletedBossIds = [...updatedCompletedBossIds, enemy.id];
         }
@@ -1405,6 +1502,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           logs = addLog(logs, `🏆 BEASTMASTER STABLES UNLOCKED! Slaying Tambanokano has granted access to Mythical Mounts!`, 'BUFF', 'SYSTEM');
         }
 
+        if (enemy.id === 'boss_act_8') {
+          act8Done = true;
+          if (!updatedUnlockedLocs.includes('loc_act_infinite')) {
+            updatedUnlockedLocs = [...updatedUnlockedLocs, 'loc_act_infinite'];
+          }
+          logs = addLog(logs, `👑 SUPREME CAMPAIGN VICTORY! Bakunawa defeated! Unlocked Celestial Ether Survival Realm & Anito Rebirth!`, 'CRIT', 'SYSTEM');
+        }
+
         setActiveBossVictoryReward({
           bossName: enemy.name,
           bossTitle: enemy.title,
@@ -1459,6 +1564,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       completedBossIds: updatedCompletedBossIds,
       unlockedLocationIds: updatedUnlockedLocs,
       act6Completed: act6Done,
+      act8Completed: act8Done,
+      highestSurvivalWave: updatedHighestWave,
       mountUnlocked: mountUnlocked,
     });
 

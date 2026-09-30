@@ -1307,6 +1307,22 @@ export const GAME_LOCATIONS: GameLocation[] = [
       { rarity: 'RED', chance: 0.8 },
     ],
   },
+  {
+    id: 'loc_act_infinite',
+    name: 'Endgame Realm: Celestial Ether of Bathala',
+    subtitle: 'Infinite Survival Realm & Boss Waves',
+    minLevel: 47,
+    bossLevelReq: 47,
+    lpRequired: 2000,
+    description: 'An infinite realm beyond space and time where cosmic anito titans test your Maharlika spirit. Face escalating waves of monsters and random boss encounters (every 7-10 kills) to claim Triumphant Memories.',
+    bgGradient: 'from-amber-950 via-purple-950 to-black',
+    monsters: ['m_eclipse_void_drake', 'm_cosmic_tikbalang', 'm_abyssal_aswang_lord', 'm_corrupted_shaman_lich', 'm_balete_void_horror', 'm_tidal_nether_serpent', 'm_spectral_sky_devourer', 'm_bakunawa_spawn'],
+    bossId: 'boss_act_8',
+    memoryDropRates: [
+      { rarity: 'PURPLE', chance: 0.1 },
+      { rarity: 'RED', chance: 0.9 },
+    ],
+  },
 ];
 
 // Initial Bounties List (100 Master Progressive Bounties)

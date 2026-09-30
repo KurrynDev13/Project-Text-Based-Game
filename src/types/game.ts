@@ -261,6 +261,9 @@ export interface PlayerCharacter {
   forfeitedQuestIds?: string[];
   completedBossIds?: string[];
   act6Completed?: boolean;
+  act8Completed?: boolean;
+  ngPlusLevel?: number;
+  highestSurvivalWave?: number;
   mountUnlocked?: boolean;
   isEmpoweredNextTurn?: boolean;
   isCoveredNextTurn?: boolean;
@@ -306,6 +309,9 @@ export interface BattleState {
   logs: BattleLogEntry[];
   winner: 'PLAYER' | 'ENEMY' | null;
   fleeAttempts?: number;
+  survivalKillStreak?: number;
+  survivalBossThreshold?: number;
+  survivalWaveTier?: number;
 }
 
 export interface BattleLogEntry {

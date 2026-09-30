@@ -52,15 +52,25 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
           <p className="text-xs font-mono text-amber-400 mt-1 uppercase tracking-wider">{bossTitle}</p>
         </div>
 
-        {/* Next Act Unlock Banner */}
-        {nextActName && (
+        {/* Next Act Unlock Banner / Act 8 Campaign Victory */}
+        {bossName.includes('Bakunawa') ? (
+          <div className="bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 p-3.5 rounded-xl shadow-xl space-y-1">
+            <div className="text-[10px] font-mono uppercase text-amber-400 font-bold tracking-widest">👑 SUPREME CAMPAIGN CONQUEST!</div>
+            <div className="text-sm font-bold font-serif text-amber-200">
+              🌕 The Seven Moons Restored! Darkness Banished!
+            </div>
+            <div className="text-[11px] font-mono text-zinc-300 pt-1">
+              Unlocked: <strong className="text-purple-300">The Celestial Ether of Bathala</strong> (Infinite Survival Mode) &amp; <strong className="text-emerald-400">Anito Cycle Rebirth</strong> (New Game+)!
+            </div>
+          </div>
+        ) : nextActName ? (
           <div className="bg-gradient-to-r from-emerald-950 via-zinc-900 to-emerald-950 border border-emerald-500/60 p-3 rounded-xl shadow-lg">
             <div className="text-[10px] font-mono uppercase text-emerald-400 font-bold tracking-widest">MAP PROGRESSION UNLOCKED</div>
             <div className="text-sm font-bold font-serif text-emerald-200 mt-0.5">
               🗺️ {nextActName} is now accessible!
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Climax Boss Loot Chest Section */}
         <div className="bg-zinc-950/90 border border-amber-900/60 rounded-xl p-4 space-y-3 text-left">
