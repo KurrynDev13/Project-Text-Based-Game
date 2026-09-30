@@ -82,6 +82,12 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   };
 
   const handleOpenBountyBoard = () => {
+    const isNgPlus = (player.ngPlusLevel || 0) > 0;
+    const bountyUnlockLevel = isNgPlus ? ((player.ngPlusStartLevel || 0) + 3) : 3;
+    if (player.level < bountyUnlockLevel) {
+      notify(`🔒 Poblacion Bounty Board Locked! Reach Character Level ${bountyUnlockLevel} to accept monster contracts in this cycle.`, 'warning', '🔒');
+      return;
+    }
     setShowBountyBoard(true);
     if (!(player.tutorialsSeen ?? []).includes('tut_bounties')) {
       setActiveTutorial({
@@ -92,7 +98,7 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
             title: 'Monster Bounties System',
             icon: '📜',
             description: 'Accept contracts from the Poblacion Sanctuary Notice Board to slay specific monsters for Cowries, EXP, and Mutya Shards.',
-            tip: 'You can hold up to 3 active bounties concurrently. Level 3 character required.',
+            tip: `You can hold up to 3 active bounties concurrently. Level ${bountyUnlockLevel} character required.`,
           },
         ],
       });
@@ -146,6 +152,7 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
       wallet: cowriesToWallet(100, 0),
     });
 
+    setActiveDistrict('TAVERN');
     setShowNgPlusConfirm(false);
     setShowRebirthStoryModal(true);
     notify(`🌟 ANITO CYCLE REBIRTH COMPLETE! Advanced to New Game+ ${nextNgLevel}! All Acts reset with scaled monster power. Your stats and gear remain!`, 'success', '🌟');
@@ -293,8 +300,10 @@ const REST_OPTIONS: RestOption[] = [
   };
 
   const handleAcceptBounty = (bountyId: string) => {
-    if (player.level < 3) {
-      notify('🔒 Bounties Locked! Reach Character Level 3 to unlock the Bounty Notice Board.', 'warning', '🔒');
+    const isNgPlus = (player.ngPlusLevel || 0) > 0;
+    const bountyUnlockLevel = isNgPlus ? ((player.ngPlusStartLevel || 0) + 3) : 3;
+    if (player.level < bountyUnlockLevel) {
+      notify(`🔒 Bounties Locked! Reach Character Level ${bountyUnlockLevel} to unlock the Bounty Notice Board in this cycle.`, 'warning', '🔒');
       return;
     }
     const activeCount = (player.bounties || []).filter((b) => b.isAccepted && !b.isClaimed).length;
@@ -1936,8 +1945,8 @@ const REST_OPTIONS: RestOption[] = [
               </p>
             </div>
 
-            {/* ANITO CYCLE REBIRTH SHRINE CARD (UNLOCKED AFTER ACT VIII DEFEAT) */}
-            {(player.act8Completed || (player.completedBossIds || []).includes('boss_act_8')) && (
+            {/* ANITO CYCLE REBIRTH SHRINE CARD (UNLOCKED AFTER ACT VIII DEFEAT IN CURRENT CYCLE) */}
+            {((player.completedBossIds || []).includes('boss_act_8')) && (
               <div className="bg-gradient-to-r from-purple-950 via-zinc-950 to-purple-950 border-2 border-amber-400 p-4 md:p-5 rounded-2xl space-y-3 shadow-2xl animate-fade-in text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2 justify-center sm:justify-start">

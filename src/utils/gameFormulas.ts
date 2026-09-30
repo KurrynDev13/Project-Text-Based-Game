@@ -242,21 +242,41 @@ export function calcMaxStamina(playerLevel: number): number {
   return 20;                        // Act I (Balete Forest)
 }
 
-// Smart Stamina action costs per Act
-export function getActStaminaCosts(locationId: string): { ventureCost: number; searchCost: number; bossCost: number } {
+// Smart Stamina action costs per Act & NG+ Tier
+export function getActStaminaCosts(locationId: string, ngPlusLevel: number = 0): { ventureCost: number; searchCost: number; bossCost: number } {
+  let baseVenture = 1;
+  let baseSearch = 2;
+  let baseBoss = 2;
+
   switch (locationId) {
     case 'loc_act_1':
+      baseVenture = 1; baseSearch = 2; baseBoss = 2; break;
     case 'loc_act_2':
-      return { ventureCost: 1, searchCost: 2, bossCost: 2 };
+      baseVenture = 1; baseSearch = 3; baseBoss = 3; break;
     case 'loc_act_3':
+      baseVenture = 2; baseSearch = 4; baseBoss = 4; break;
     case 'loc_act_4':
-      return { ventureCost: 2, searchCost: 4, bossCost: 4 };
+      baseVenture = 2; baseSearch = 5; baseBoss = 5; break;
     case 'loc_act_5':
+      baseVenture = 3; baseSearch = 6; baseBoss = 6; break;
     case 'loc_act_6':
-      return { ventureCost: 3, searchCost: 6, bossCost: 6 };
+      baseVenture = 3; baseSearch = 7; baseBoss = 7; break;
     case 'loc_act_7':
+      baseVenture = 4; baseSearch = 8; baseBoss = 8; break;
     case 'loc_act_8':
+      baseVenture = 4; baseSearch = 9; baseBoss = 9; break;
+    case 'loc_act_infinite':
+      baseVenture = 5; baseSearch = 10; baseBoss = 10; break;
     default:
-      return { ventureCost: 4, searchCost: 8, bossCost: 8 };
+      baseVenture = 2; baseSearch = 4; baseBoss = 4; break;
   }
+
+  if (ngPlusLevel > 0) {
+    const ventureCost = baseVenture + 1 + ngPlusLevel;
+    const searchCost = baseSearch + 2 + (ngPlusLevel * 2);
+    const bossCost = baseBoss + 2 + (ngPlusLevel * 2);
+    return { ventureCost, searchCost, bossCost };
+  }
+
+  return { ventureCost: baseVenture, searchCost: baseSearch, bossCost: baseBoss };
 }

@@ -7,7 +7,7 @@ import React, { useEffect } from 'react';
 import { EquipmentItem, EncryptedMemory } from '../types/game';
 import { formatCostInCowries } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
-import { ACT8_VICTORY_STORY, NG_PLUS_BOSS_GLYPH_FRAGMENTS } from '../data/actStoryData';
+import { ACT8_VICTORY_STORY, ACT8_NG_PLUS_VICTORY_STORY, NG_PLUS_BOSS_GLYPH_FRAGMENTS } from '../data/actStoryData';
 
 interface BossVictoryModalProps {
   bossId?: string;
@@ -62,14 +62,18 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
         {/* Next Act Unlock Banner / Act 8 Campaign Victory */}
         {bossName.includes('Bakunawa') || bossId === 'boss_act_8' ? (
           <div className="bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 p-3.5 rounded-xl shadow-xl space-y-2 text-left">
-            <div className="text-[10px] font-mono uppercase text-amber-400 font-bold tracking-widest text-center">👑 SUPREME CAMPAIGN CONQUEST!</div>
+            <div className="text-[10px] font-mono uppercase text-amber-400 font-bold tracking-widest text-center">
+              {isNgPlus ? '🌟 TRUE COSMIC FINAL CONQUEST!' : '👑 SUPREME CAMPAIGN CONQUEST!'}
+            </div>
             <div className="text-sm font-bold font-serif text-amber-200 text-center">
-              🌕 The Seven Moons Restored! Darkness Banished!
+              {isNgPlus ? '🌟 True Cosmic Victory! Bakunawa\'s Sorrow Soothed!' : '🌕 The Seven Moons Restored! Darkness Banished!'}
             </div>
             
             {/* Act VIII Epic Victory Lore Cutscene Box */}
             <div className="bg-zinc-950/90 border border-amber-500/40 p-3 rounded-lg text-xs font-mono text-amber-100 max-h-44 overflow-y-auto leading-relaxed shadow-inner">
-              <p className="whitespace-pre-line text-zinc-200 leading-normal">{ACT8_VICTORY_STORY}</p>
+              <p className="whitespace-pre-line text-zinc-200 leading-normal">
+                {isNgPlus ? ACT8_NG_PLUS_VICTORY_STORY : ACT8_VICTORY_STORY}
+              </p>
             </div>
 
             <div className="text-[11px] font-mono text-zinc-300 pt-1 text-center">

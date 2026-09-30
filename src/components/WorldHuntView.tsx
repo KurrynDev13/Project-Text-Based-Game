@@ -287,7 +287,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const hasUndiscovered = actQuests.some((q) => !q.isDiscovered);
   const hasUncompleted = actQuestsCompleted < actQuests.length;
   const isBossDefeated = (player.completedBossIds || []).includes(selectedLocation.bossId || '');
-  const bossLevelReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
+  const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
+  const isNgPlus = (player.ngPlusLevel || 0) > 0;
+  const startLvl = player.ngPlusStartLevel || player.level;
+  const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
   const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
   const isBossQualified = isBossDefeated || player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
   const isBossLevelLocked = !isBossQualified;
@@ -377,7 +380,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     setPendingAdvanceLocation(null);
   };
 
-  const { ventureCost, searchCost, bossCost } = getActStaminaCosts(selectedLocation.id);
+  const { ventureCost, searchCost, bossCost } = getActStaminaCosts(selectedLocation.id, player.ngPlusLevel || 0);
   const maxStamina = calcMaxStamina(player.level);
 
   // Boss Battle Starter (with option to forfeit uncompleted side quests)
@@ -1348,7 +1351,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     const isBoss = enemy.id === selectedLocation.bossId;
     const isBossDefeated = (player.completedBossIds || []).includes(selectedLocation.bossId || '');
-    const actClimaxCap = !isBossDefeated ? (selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5)) : undefined;
+    const baseCap = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
+    const actClimaxCap = !isBossDefeated ? (isNgPlus ? startLvl + baseCap - 1 : baseCap) : undefined;
 
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const bossCowrieReward = 1500; // 15 Silver Pieces
