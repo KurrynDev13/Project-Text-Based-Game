@@ -77,7 +77,64 @@ With your triumph, the realm unlocks:
 🌌 The Celestial Ether of Bathala (Infinite Survival Mode with Prismatic Memory Drops & Boss Waves)
 ☯️ Anito Cycle Rebirth (Start New Game+ with scaled +150% enemy stats, carrying over all gear, skills, and stats!)`;
 
-export function getActStory(actId: string, fallbackDescription?: string): string {
+export const NG_PLUS_REBIRTH_STORY = `In its dying cosmic death-throes, Bakunawa's severed spirit thragged violently against the weave of reality. Rather than vanishing forever, the Moon-Devouring Serpent unleashed a cataclysmic temporal eclipse—rewinding the great cosmic clock of Bathala and resetting the ancient calamities across the archipelago!
+
+Once more, the strangling Balete rot festers in the Balete Forest, the Sirens mourn in the brine lagoons, and Mount Kanlaon boils with volcanic anger. 
+
+Yet you are no longer the naive warrior who first walked the coast. You carry the scars, the ancestral power, and the memories of your past life! The veil of mystery has been lifted: you now know the true identities of every guardian boss that guards the realms.
+
+Conquer the 8 Realms once more to assemble the 8 Fragmented Anito Glyphs—the ancient secrets required to slay Bakunawa permanently across all infinite cycles!`;
+
+export const NG_PLUS_BOSS_GLYPH_FRAGMENTS: Record<string, { title: string; text: string }> = {
+  boss_act_1: {
+    title: 'Fragmented Anito Glyph I: The Ember Core of Kapre',
+    text: "As The Ancient Kapre crumbles into ash, a burning ember glyph hovers above the roots. Bathala's ancient voice whispers: 'To pierce Bakunawa's indestructible eclipse scales, the champion must strike at the exact moment of solar dusk when the serpent opens its maw to swallow the second moon...'",
+  },
+  boss_act_2: {
+    title: 'Fragmented Anito Glyph II: The Cyan Siren Pearl',
+    text: "Magindara's shattered crown releases a glowing oceanic pearl glyph. The song of the sirens turns into a divine revelation: 'Bakunawa's heart is guarded by an abyssal tide shield. Only water purified by ancestral salt can dissolve its outer veil...'",
+  },
+  boss_act_3: {
+    title: "Fragmented Anito Glyph III: The Sun-God's Radiant Spear",
+    text: "Shadow Apolaki's sun-spear dissolves into golden light. An ancestral chant echoes through the catacombs: 'The serpent fears the radiant solar spark born of pure Mandirigma/Babaylan devotion...'",
+  },
+  boss_act_4: {
+    title: 'Fragmented Anito Glyph IV: The Kanlaon Inferno Core',
+    text: "The Heart of Mount Kanlaon cools into obsidian. The volcanic spirit reveals: 'When Bakunawa's eyes blaze with blood-red flame, it channels the magma of the deep earth...'",
+  },
+  boss_act_5: {
+    title: 'Fragmented Anito Glyph V: The Crimson Bloodline Seal',
+    text: "The Aswang Warlord's bloodline pact is broken. A crimson rune ignites: 'The creature's immortality is anchored to the ancestral blood pools. Purify the blood to break its soul tether...'",
+  },
+  boss_act_6: {
+    title: 'Fragmented Anito Glyph VI: The Tambanokano Tide-Cracker',
+    text: "Tambanokano's giant carapace shatters into abyssal dust: 'The shell that protects Bakunawa's underbelly can only be cracked by the combined fury of warbeasts tamed in the Beastmaster Stables...'",
+  },
+  boss_act_7: {
+    title: "Fragmented Anito Glyph VII: The Sky-Arbiter's Starlight Seal",
+    text: "The Celestial Arbiter bows as starlight rains from Mount Arayat: 'You hold 7 of the 8 Sacred Glyphs! Channel the starlight of Mount Arayat into your blade before stepping into the Maw of the Great Eclipse...'",
+  },
+  boss_act_8: {
+    title: 'Fragmented Anito Glyph VIII: The Complete Bakunawa Banishment Ritual',
+    text: 'All 8 Fragmented Anito Glyphs fuse into a blinding nova! Bakunawa is eradicated across all timelines, ensuring eternal peace for the archipelago!',
+  },
+};
+
+export const NG_PLUS_ACT_STORIES: Record<string, string> = {
+  loc_act_1: `Retaining the memories of your previous life, you step into the Whispering Balete Forest knowing full well what looms in the sunless bower—The Ancient Kapre, colossus of the strangler figs. Armed with your preserved ancestral gear, you walk through the briars to purge the grove's rot once again and claim the first Anito Glyph Fragment.`,
+  loc_act_2: `The cyan bioluminescence of the Lagoon of the Sunken Sirens greets you once more. You already recognize the hypnotic lament drifting across the brine—it is Magindara The Siren Matriarch summoning sea-thralls. Steel your mind to drag the weeping sovereign from her coral throne and seize the second Anito Glyph Fragment.`,
+  loc_act_3: `Plunging into the limestone sepulchers, you know the desecrated sun-vault houses Shadow Apolaki, Avatar of the Sun God. The dead march at his command, but your past experience guides your blade straight to his heart to claim the third Anito Glyph Fragment.`,
+  loc_act_4: `Mount Kanlaon boils with sulfur plumes and lava fissures. Deep inside the central caldera beats the Heart of Mount Kanlaon, molten core of primeval malice. Cool the inferno to secure the fourth Anito Glyph Fragment.`,
+  loc_act_5: `The Blood Coast bleeds under the crimson dusk. You know the ancestral progenitor—The Primordial Aswang Warlord—marshals the night covens atop the high sea-cliff. Track the predator to claim the fifth Anito Glyph Fragment.`,
+  loc_act_6: `Re-entering the Abyssal Trench, you dive toward the seafloor chasm where Tambanokano The Moon-Crusher slumbers. Conquer the tidal colossus to unlock the mythical mounts once more and claim the sixth Anito Glyph Fragment.`,
+  loc_act_7: `Mount Arayat's Sky-Citadel shines with noon splendor. The Celestial Arbiter of Mount Arayat awaits on the highest sun-dais to judge mortal strength. Prove your worth to claim the seventh Anito Glyph Fragment.`,
+  loc_act_8: `At the Maw of the Great Eclipse, Bakunawa coils around the final moon crescent. Armed with 7 Fragmented Glyphs, deliver the ultimate blow to complete the Banishment Ritual!`,
+};
+
+export function getActStory(actId: string, fallbackDescription?: string, isNgPlus?: boolean): string {
+  if (isNgPlus && NG_PLUS_ACT_STORIES[actId]) {
+    return NG_PLUS_ACT_STORIES[actId];
+  }
   return ACT_EPIC_STORIES[actId] || fallbackDescription || 'An ancient uncharted realm awaiting exploration.';
 }
 

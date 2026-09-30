@@ -7,8 +7,10 @@ import React, { useEffect } from 'react';
 import { EquipmentItem, EncryptedMemory } from '../types/game';
 import { formatCostInCowries } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { ACT8_VICTORY_STORY, NG_PLUS_BOSS_GLYPH_FRAGMENTS } from '../data/actStoryData';
 
 interface BossVictoryModalProps {
+  bossId?: string;
   bossName: string;
   bossTitle: string;
   nextActName?: string;
@@ -17,10 +19,12 @@ interface BossVictoryModalProps {
   mutyaShardsEarned: number;
   droppedItem?: EquipmentItem;
   droppedMemory?: EncryptedMemory;
+  isNgPlus?: boolean;
   onClaim: () => void;
 }
 
 export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
+  bossId,
   bossName,
   bossTitle,
   nextActName,
@@ -29,15 +33,18 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
   mutyaShardsEarned,
   droppedItem,
   droppedMemory,
+  isNgPlus,
   onClaim,
 }) => {
   useEffect(() => {
     soundFX.playLevelUpSound();
   }, []);
 
+  const glyphFragment = isNgPlus && bossId ? NG_PLUS_BOSS_GLYPH_FRAGMENTS[bossId] : null;
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-gradient-to-b from-amber-950/90 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-3.5 sm:p-6 space-y-3 sm:space-y-5 shadow-2xl shadow-amber-950/80 animate-fade-in text-center my-auto">
+      <div className="bg-gradient-to-b from-amber-950/90 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-3.5 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl shadow-amber-950/80 animate-fade-in text-center my-auto">
         {/* Victory Header Badge */}
         <div className="flex items-center justify-center space-x-2">
           <span className="text-2xl animate-bounce">👑</span>
@@ -53,13 +60,19 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
         </div>
 
         {/* Next Act Unlock Banner / Act 8 Campaign Victory */}
-        {bossName.includes('Bakunawa') ? (
-          <div className="bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 p-3.5 rounded-xl shadow-xl space-y-1">
-            <div className="text-[10px] font-mono uppercase text-amber-400 font-bold tracking-widest">👑 SUPREME CAMPAIGN CONQUEST!</div>
-            <div className="text-sm font-bold font-serif text-amber-200">
+        {bossName.includes('Bakunawa') || bossId === 'boss_act_8' ? (
+          <div className="bg-gradient-to-r from-purple-950 via-amber-950 to-purple-950 border-2 border-amber-400 p-3.5 rounded-xl shadow-xl space-y-2 text-left">
+            <div className="text-[10px] font-mono uppercase text-amber-400 font-bold tracking-widest text-center">👑 SUPREME CAMPAIGN CONQUEST!</div>
+            <div className="text-sm font-bold font-serif text-amber-200 text-center">
               🌕 The Seven Moons Restored! Darkness Banished!
             </div>
-            <div className="text-[11px] font-mono text-zinc-300 pt-1">
+            
+            {/* Act VIII Epic Victory Lore Cutscene Box */}
+            <div className="bg-zinc-950/90 border border-amber-500/40 p-3 rounded-lg text-xs font-mono text-amber-100 max-h-44 overflow-y-auto leading-relaxed shadow-inner">
+              <p className="whitespace-pre-line text-zinc-200 leading-normal">{ACT8_VICTORY_STORY}</p>
+            </div>
+
+            <div className="text-[11px] font-mono text-zinc-300 pt-1 text-center">
               Unlocked: <strong className="text-purple-300">The Celestial Ether of Bathala</strong> (Infinite Survival Mode) &amp; <strong className="text-emerald-400">Anito Cycle Rebirth</strong> (New Game+)!
             </div>
           </div>
@@ -71,6 +84,20 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
             </div>
           </div>
         ) : null}
+
+        {/* NG+ Fragmented Anito Glyph Lore Reveal */}
+        {glyphFragment && (
+          <div className="bg-gradient-to-r from-purple-950/90 via-zinc-900 to-purple-950/90 border-2 border-purple-500/70 p-3.5 rounded-xl text-left space-y-1.5 shadow-xl animate-fade-in">
+            <div className="text-[10px] font-mono font-bold uppercase text-purple-300 tracking-wider flex items-center justify-between border-b border-purple-500/30 pb-1">
+              <span>🔮 FRAGMENTED ANITO GLYPH REVEALED</span>
+              <span>NG+ COSMIC RITUAL</span>
+            </div>
+            <h4 className="text-xs font-bold font-serif text-amber-200">{glyphFragment.title}</h4>
+            <p className="text-[11px] font-mono text-purple-100 leading-relaxed italic bg-purple-950/40 p-2.5 rounded border border-purple-800/40">
+              "{glyphFragment.text}"
+            </p>
+          </div>
+        )}
 
         {/* Climax Boss Loot Chest Section */}
         <div className="bg-zinc-950/90 border border-amber-900/60 rounded-xl p-4 space-y-3 text-left">

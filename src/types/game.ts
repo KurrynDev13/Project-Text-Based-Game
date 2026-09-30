@@ -263,6 +263,7 @@ export interface PlayerCharacter {
   act6Completed?: boolean;
   act8Completed?: boolean;
   ngPlusLevel?: number;
+  ngPlusStartLevel?: number; // Starting level when current NG+ cycle was initiated
   highestSurvivalWave?: number;
   mountUnlocked?: boolean;
   isEmpoweredNextTurn?: boolean;

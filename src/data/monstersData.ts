@@ -764,7 +764,8 @@ export function generateMonsterForLocation(
   locationMinLevel: number,
   specificMonsterId?: string,
   allowedMonsterIds?: string[],
-  ngPlusLevel: number = 0
+  ngPlusLevel: number = 0,
+  ngPlusStartLevel: number = 0
 ): EnemyMonster {
   let template = MONSTER_TEMPLATES.find((m) => m.id === specificMonsterId);
 
@@ -775,6 +776,10 @@ export function generateMonsterForLocation(
     }
   }
 
+  const effectiveLevel = ngPlusStartLevel > 0
+    ? ngPlusStartLevel + (Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6))) - 1) * 6
+    : locationMinLevel;
+
   if (!template) {
     const candidateTemplates = MONSTER_TEMPLATES.filter(
       (m) => !m.isBoss && Math.abs(m.baseHp - locationMinLevel * 25) < 800
@@ -784,7 +789,7 @@ export function generateMonsterForLocation(
       : MONSTER_TEMPLATES[0];
   }
 
-  const levelScale = Math.pow(1.14, Math.max(0, locationMinLevel - 1));
+  const levelScale = Math.pow(1.14, Math.max(0, effectiveLevel - 1));
   
   // Regular monsters have per-Act balanced base stats in MONSTER_TEMPLATES.
   // Minor stat scaling (4% per floor level offset within the Act) for dynamic floor scaling.
@@ -799,7 +804,7 @@ export function generateMonsterForLocation(
   let attackMax = Math.floor(template.baseMaxDmg * statScale);
 
   if (ngPlusLevel > 0) {
-    const ngMult = 1.0 + ngPlusLevel * 1.5;
+    const ngMult = (1.0 + ngPlusLevel * 1.5) * (1.0 + (ngPlusStartLevel / 50) * 0.5);
     maxHp = Math.floor(maxHp * ngMult);
     attackMin = Math.floor(attackMin * ngMult);
     attackMax = Math.floor(attackMax * ngMult);
@@ -807,7 +812,7 @@ export function generateMonsterForLocation(
   }
 
   const expReward = Math.max(12, Math.floor(18 * levelScale * template.expMult));
-  const copperReward = Math.floor(30 * (1 + (locationMinLevel - 1) * 0.35) * template.copperMult);
+  const copperReward = Math.floor(30 * (1 + (effectiveLevel - 1) * 0.35) * template.copperMult);
 
   const monsterName = ngPlusLevel > 0 ? `[NG+${ngPlusLevel}] ${template.name}` : template.name;
 
@@ -815,7 +820,7 @@ export function generateMonsterForLocation(
     id: template.id,
     name: monsterName,
     title: template.title,
-    level: locationMinLevel,
+    level: effectiveLevel,
     maxHp,
     currentHp: maxHp,
     armor,

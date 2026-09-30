@@ -27,6 +27,7 @@ export interface InteractiveEncounter {
 }
 
 export interface BossVictoryRewardData {
+  bossId?: string;
   bossName: string;
   bossTitle: string;
   nextActName?: string;
@@ -401,7 +402,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const currentStamina = player.stamina ?? maxStamina;
     const newStamina = Math.max(0, currentStamina - bossCost);
 
-    const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId);
+    const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
 
     setExplorationEvent(`⚔️ CLIMAX GUARDIAN BATTLE! Challenging ${boss.name} (${boss.title})!`);
     soundFX.playCritSound();
@@ -527,7 +528,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         isSurvivalBoss = true;
         const bossPool = ['boss_act_1', 'boss_act_2', 'boss_act_3', 'boss_act_4', 'boss_act_5', 'boss_act_6', 'boss_act_7', 'boss_act_8'];
         const chosenBossId = bossPool[Math.floor(Math.random() * bossPool.length)];
-        monster = generateMonsterForLocation(47 + (waveTier - 1) * 3, chosenBossId);
+        monster = generateMonsterForLocation(47 + (waveTier - 1) * 3, chosenBossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
         monster.name = `Celestial Titan ${monster.name} (Wave ${waveTier})`;
         monster.isBoss = true;
         monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.15));
@@ -542,7 +543,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
         const monsterToSpawn = (activeTargetId && Math.random() < 0.85) ? activeTargetId : undefined;
         const spawnLvl = isSurvivalRealm ? 47 + (waveTier - 1) * 2 : selectedLocation.minLevel;
-        monster = generateMonsterForLocation(spawnLvl, monsterToSpawn, selectedLocation.monsters);
+        monster = generateMonsterForLocation(spawnLvl, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
         if (isSurvivalRealm) {
           monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.08));
           monster.currentHp = monster.maxHp;
@@ -798,7 +799,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       )?.targetMonsterId;
 
       const monsterToSpawn = activeTargetId || undefined;
-      const monster = generateMonsterForLocation(selectedLocation.minLevel + 2, monsterToSpawn, selectedLocation.monsters);
+      const monster = generateMonsterForLocation(selectedLocation.minLevel + 2, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
       if (!monster.name.startsWith('Elite')) {
         monster.name = `Elite ${monster.name}`;
       }
@@ -1396,7 +1397,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           ...battle,
           survivalKillStreak: curStreak,
         });
-        logs = addLog(logs, `⚔️ CELESTIAL SURVIVAL KILL: (${curStreak}/${battle.survivalBossThreshold || 7} kills until Boss Wave)`, 'INFO', 'SYSTEM');
+        logs = addLog(logs, `⚔️ CELESTIAL SURVIVAL KILL: Slain a titan spawn in Bathala's Celestial Ether.`, 'INFO', 'SYSTEM');
       }
     } else {
       const isFirstWin = !isBossDefeated;
@@ -1511,6 +1512,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         }
 
         setActiveBossVictoryReward({
+          bossId: enemy.id,
           bossName: enemy.name,
           bossTitle: enemy.title,
           nextActName,
@@ -2270,7 +2272,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* Boss Discovery Warning Card Modal (Phase 8.2) */}
       {showBossDiscoveryModal && selectedLocation.bossId && (() => {
-        const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId);
+        const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
         return (
           <BossDiscoveryModal
             bossId={selectedLocation.bossId}
@@ -2300,6 +2302,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       {/* Act Guardian Climax Victory Loot Modal */}
       {activeBossVictoryReward && (
         <BossVictoryModal
+          bossId={activeBossVictoryReward.bossId}
           bossName={activeBossVictoryReward.bossName}
           bossTitle={activeBossVictoryReward.bossTitle}
           nextActName={activeBossVictoryReward.nextActName}
@@ -2308,6 +2311,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           mutyaShardsEarned={activeBossVictoryReward.mutyaShardsEarned}
           droppedItem={activeBossVictoryReward.droppedItem}
           droppedMemory={activeBossVictoryReward.droppedMemory}
+          isNgPlus={(player.ngPlusLevel || 0) > 0}
           onClaim={() => {
             setActiveBossVictoryReward(null);
             handleClaimRewardsAndExit();

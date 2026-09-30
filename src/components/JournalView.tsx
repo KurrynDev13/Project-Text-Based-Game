@@ -25,8 +25,13 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   const sideQuests = player.sideQuests || [];
   const completedSideQuests = sideQuests.filter((q) => q.isClaimed);
 
+  // Filtered unlocked location IDs for display & tracking (respects NG+ rebirth reset)
+  const playerUnlockedLocationIds = (player.unlockedLocationIds && player.unlockedLocationIds.length > 0)
+    ? player.unlockedLocationIds
+    : ['loc_act_1'];
+
   // Latest Unlocked Act location for Main Campaign Objective header (stays at latest unlocked frontier)
-  const latestUnlockedLoc = [...GAME_LOCATIONS].reverse().find((l) => (player.unlockedLocationIds || []).includes(l.id) || player.level >= l.minLevel) || GAME_LOCATIONS[0];
+  const latestUnlockedLoc = [...GAME_LOCATIONS].reverse().find((l) => playerUnlockedLocationIds.includes(l.id)) || GAME_LOCATIONS[0];
   const latestActQuests = sideQuests.filter((q) => q.actId === latestUnlockedLoc.id);
   const latestActCompletedCount = latestActQuests.filter((q) => q.isCompleted || q.isClaimed).length;
   const latestActDiscoveredCount = latestActQuests.filter((q) => q.isDiscovered).length;
@@ -35,11 +40,9 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   const currentLoc = GAME_LOCATIONS.find((l) => l.id === player.currentLocationId) || GAME_LOCATIONS[0];
 
   // Filtered side quests for display (Anti-spoiler: Only show quests for unlocked Acts!)
-  const unlockedLocationIds = GAME_LOCATIONS.filter((l) => player.level >= l.minLevel).map((l) => l.id);
-
   const displayedSideQuests = sideQuests.filter((q) => {
     // Hide side quests belonging to locked Acts
-    if (!q.actId || !unlockedLocationIds.includes(q.actId)) return false;
+    if (!q.actId || !playerUnlockedLocationIds.includes(q.actId)) return false;
 
     if (actFilter === 'CURRENT') return q.actId === currentLoc.id;
     if (actFilter === 'ALL') return true;

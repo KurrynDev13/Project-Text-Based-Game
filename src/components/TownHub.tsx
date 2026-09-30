@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
-import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS } from '../data/equipmentData';
+import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS, INITIAL_SIDE_QUESTS, INITIAL_BOUNTIES } from '../data/equipmentData';
 import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina } from '../utils/gameFormulas';
 import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import FeatureTutorialModal, { TutorialStep } from './FeatureTutorialModal';
 import { ConfirmModal } from './ConfirmModal';
+import { NG_PLUS_REBIRTH_STORY } from '../data/actStoryData';
+import ActStoryOverlayModal from './ActStoryOverlayModal';
 
 type DistrictTab = 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH';
 type ForgeCategoryFilter = 'ALL' | 'WEAPONS' | 'ARMOR' | 'DAGGERS' | 'SWORDS' | 'BOWS' | 'STAVES' | 'UPPER' | 'LOWER';
@@ -112,23 +114,40 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   // Alchemist Apothecary State
   const [alchemistCategory, setAlchemistCategory] = useState<'ALL' | 'VITALITY' | 'ELIXIR' | 'PANACEA'>('ALL');
   const [showNgPlusConfirm, setShowNgPlusConfirm] = useState<boolean>(false);
+  const [showRebirthStoryModal, setShowRebirthStoryModal] = useState<boolean>(false);
 
   const handleConfirmRebirth = () => {
     soundFX.playLevelUpSound();
     const nextNgLevel = (player.ngPlusLevel || 0) + 1;
+    const updatedStash = [...(player.stash || []), ...player.inventory];
 
     onUpdatePlayer({
       ...player,
       ngPlusLevel: nextNgLevel,
+      ngPlusStartLevel: player.level,
       currentLocationId: 'loc_act_1',
       unlockedLocationIds: ['loc_act_1'],
-      sideQuests: [],
+      unlockedActStoryIds: ['loc_act_1'],
+      inventory: [],
+      stash: updatedStash,
+      sideQuests: INITIAL_SIDE_QUESTS,
       forfeitedQuestIds: [],
       completedBossIds: [],
+      discoveredBossIds: [],
+      bounties: INITIAL_BOUNTIES,
+      act6Completed: false,
+      act8Completed: false,
+      mountUnlocked: false,
+      equipment: {
+        ...player.equipment,
+        mount: null,
+        bike: null,
+      },
       wallet: cowriesToWallet(100, 0),
     });
 
     setShowNgPlusConfirm(false);
+    setShowRebirthStoryModal(true);
     notify(`🌟 ANITO CYCLE REBIRTH COMPLETE! Advanced to New Game+ ${nextNgLevel}! All Acts reset with scaled monster power. Your stats and gear remain!`, 'success', '🌟');
   };
 
@@ -1956,27 +1975,56 @@ const REST_OPTIONS: RestOption[] = [
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {GAME_LOCATIONS.map((loc, idx) => {
                   const isInfiniteRealm = loc.id === 'loc_act_infinite';
+                  const isNgPlus = (player.ngPlusLevel || 0) > 0;
+                  const prevBossId = idx > 0 ? `boss_act_${idx}` : null;
+
                   const isUnlocked = isInfiniteRealm
                     ? (player.act8Completed || (player.completedBossIds || []).includes('boss_act_8') || (player.unlockedLocationIds || []).includes('loc_act_infinite'))
-                    : (player.level >= loc.minLevel);
+                    : (idx === 0 || (player.unlockedLocationIds || []).includes(loc.id) || (prevBossId ? (player.completedBossIds || []).includes(prevBossId) : false));
+
                   const isCurrent = player.currentLocationId === loc.id;
                   const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
+                  const bossNames = [
+                    'The Ancient Kapre',
+                    'Magindara The Siren Matriarch',
+                    'Shadow Apolaki',
+                    'Heart of Mt. Kanlaon',
+                    'Aswang Warlord',
+                    'Tambanokano',
+                    'Celestial Arbiter',
+                    'Bakunawa'
+                  ];
+
+                  const guardianName = bossNames[idx] || 'Act Guardian';
+                  const prevGuardianName = idx > 0 ? bossNames[idx - 1] : '';
 
                   const headerSubtitle = isInfiniteRealm
                     ? (isUnlocked ? loc.subtitle : '🔒 ENDGAME SURVIVAL REALM')
-                    : (isUnlocked ? loc.subtitle : '??? UNDISCOVERED REGION');
+                    : (isUnlocked
+                        ? loc.subtitle
+                        : isNgPlus
+                        ? `Act ${actRoman} • Guardian: ${guardianName}`
+                        : '??? UNDISCOVERED REGION');
 
                   const cardTitle = isInfiniteRealm
                     ? (isUnlocked ? loc.name : 'The Celestial Ether of Bathala')
-                    : (isUnlocked ? loc.name : `Act ${actRoman}: ??? Unknown Territory`);
+                    : (isUnlocked
+                        ? loc.name
+                        : isNgPlus
+                        ? `Act ${actRoman}: ${loc.name} (Guardian: ${guardianName})`
+                        : `Act ${actRoman}: ??? Unknown Territory`);
 
                   const cardDesc = isInfiniteRealm
                     ? (isUnlocked ? loc.description : 'An infinite cosmic realm of Bathala where malevolent titan spirits continuously spawn. Requires defeating Act VIII Guardian (Bakunawa) to unlock.')
-                    : (isUnlocked ? loc.description : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`);
+                    : (isUnlocked
+                        ? loc.description
+                        : isNgPlus
+                        ? `${loc.description} (Requires defeating Act ${['I','II','III','IV','V','VI','VII'][idx - 1]} Guardian ${prevGuardianName} in this cycle).`
+                        : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`);
 
                   const reqText = isInfiniteRealm
                     ? (isUnlocked ? '✅ Unlocked' : '🔒 Req: Defeat Act VIII Guardian')
-                    : (isUnlocked ? '✅ Unlocked' : `🔒 Req: Lv ${loc.minLevel}`);
+                    : (isUnlocked ? '✅ Unlocked' : isNgPlus ? `🔒 Req: Slay ${prevGuardianName}` : `🔒 Req: Lv ${loc.minLevel}`);
 
                   return (
                     <div
@@ -2017,6 +2065,8 @@ const REST_OPTIONS: RestOption[] = [
                           if (!isUnlocked) {
                             if (isInfiniteRealm) {
                               notify(`🔒 Infinite Survival Realm Locked! Defeat Act VIII Guardian (Bakunawa) to access The Celestial Ether of Bathala.`, 'warning', '🔒');
+                            } else if (isNgPlus) {
+                              notify(`🔒 Act Locked! Slay Act Guardian ${prevGuardianName} to unlock ${loc.name}.`, 'warning', '🔒');
                             } else {
                               notify(`🔒 Act Locked! Reach Level ${loc.minLevel} to access Act ${actRoman}. (Your Level: ${player.level})`, 'warning', '🔒');
                             }
@@ -2032,7 +2082,7 @@ const REST_OPTIONS: RestOption[] = [
                             : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
                         }`}
                       >
-                        {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? (isInfiniteRealm ? 'Enter Survival Realm' : 'Step Through Portal') : (isInfiniteRealm ? '🔒 Locked (Defeat Act VIII Boss)' : `🔒 Locked (Level ${loc.minLevel})`)}
+                        {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? (isInfiniteRealm ? 'Enter Survival Realm' : 'Step Through Portal') : (isInfiniteRealm ? '🔒 Locked (Defeat Act VIII Boss)' : isNgPlus ? `🔒 Locked (Slay ${prevGuardianName})` : `🔒 Locked (Level ${loc.minLevel})`)}
                       </button>
                     </div>
                   );
@@ -2311,6 +2361,17 @@ const REST_OPTIONS: RestOption[] = [
           type="warning"
           onConfirm={handleConfirmRebirth}
           onCancel={() => setShowNgPlusConfirm(false)}
+        />
+      )}
+
+      {/* Anito Cycle Rebirth (NG+) Story Cutscene Modal */}
+      {showRebirthStoryModal && (
+        <ActStoryOverlayModal
+          actId="loc_act_1"
+          actName="Anito Cycle Rebirth"
+          actSubtitle={`New Game+ ${player.ngPlusLevel || 1}`}
+          actLore={NG_PLUS_REBIRTH_STORY}
+          onClose={() => setShowRebirthStoryModal(false)}
         />
       )}
     </div>
