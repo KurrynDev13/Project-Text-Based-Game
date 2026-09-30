@@ -10,6 +10,7 @@ import { bgmManager } from '../utils/musicManager';
 import ActStoryOverlayModal from './ActStoryOverlayModal';
 import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
+import { broadcastSystemAnnouncement } from '../utils/supabase';
 
 export interface InteractiveEncounter {
   id: string;
@@ -244,14 +245,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   // Mandatory Automatic Act Guardian Discovery Modal trigger when player reaches Climax Level
   useEffect(() => {
-    if (battle.inCombat) return;
+    if (battle.inCombat || showActStoryModal) return;
     const bossId = selectedLocation.bossId;
     if (!bossId) return;
 
-    const bossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
+    const isNgPlus = (player.ngPlusLevel || 0) > 0;
+    const startLvl = player.ngPlusStartLevel || 0;
+    const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
+    const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
+
     const isDiscovered = (player.discoveredBossIds ?? []).includes(bossId);
 
-    if (player.level >= bossReq && !isDiscovered) {
+    if (player.level >= bossLevelReq && !isDiscovered) {
       setShowBossDiscoveryModal(true);
       const discovered = Array.from(new Set([...(player.discoveredBossIds ?? []), bossId]));
       onUpdatePlayer({
@@ -259,7 +264,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         discoveredBossIds: discovered,
       });
     }
-  }, [selectedLocation.id, selectedLocation.bossId, selectedLocation.bossLevelReq, player.level, player.discoveredBossIds, battle.inCombat]);
+  }, [selectedLocation.id, selectedLocation.bossId, selectedLocation.bossLevelReq, player.level, player.ngPlusLevel, player.ngPlusStartLevel, player.discoveredBossIds, battle.inCombat, showActStoryModal]);
 
   const handleCloseActStory = () => {
     setShowActStoryModal(false);
@@ -311,9 +316,21 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     return [newEntry, ...currentLogs.slice(0, 49)];
   };
 
+  const syncCombatLogs = (newLogs: BattleLogEntry[], p: PlayerCharacter = player): PlayerCharacter => {
+    const existing = p.persistentCombatLogs || [];
+    const existingIds = new Set(existing.map((l) => l.id));
+    const fresh = newLogs.filter((l) => !existingIds.has(l.id));
+    if (fresh.length === 0) return p;
+    const merged = [...fresh, ...existing].slice(0, 100);
+    return { ...p, persistentCombatLogs: merged };
+  };
+
   // Select Location with Strict Level, Act Boss Gate, and Forfeit Gate Validation
   const handleSelectLocation = (loc: GameLocation) => {
     if (loc.id === selectedLocation.id) return;
+    if (activeInteractiveEncounter) {
+      setActiveInteractiveEncounter(null);
+    }
 
     if (player.level < loc.minLevel) {
       notify(`🔒 Act Locked! Character Level ${loc.minLevel} required to enter ${loc.name}. (Your Level: ${player.level})`, 'warning', '🔒');
@@ -439,6 +456,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   const handleInitiateBossChallenge = () => {
+    if (activeInteractiveEncounter) {
+      notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
+      return;
+    }
     const bossId = selectedLocation.bossId;
     if (bossId && !(player.discoveredBossIds ?? []).includes(bossId)) {
       setShowBossDiscoveryModal(true);
@@ -470,6 +491,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   // EXPLORATION ACTION 1: Venture Forward (Dynamic Stamina Cost per Act)
   const handleVentureForward = () => {
+    if (activeInteractiveEncounter) {
+      notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
+      return;
+    }
     if (player.level < selectedLocation.minLevel) {
       notify(`🔒 Act Locked! Reach Level ${selectedLocation.minLevel} to explore ${selectedLocation.name}.`, 'warning', '🔒');
       return;
@@ -717,6 +742,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   // EXPLORATION ACTION 2: Search Area — Redefined Tactical Scouting & Discovery System
   const handleSearchArea = () => {
+    if (activeInteractiveEncounter) {
+      notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
+      return;
+    }
     if (player.level < selectedLocation.minLevel) {
       notify(`🔒 Act Locked! Reach Level ${selectedLocation.minLevel} to search ${selectedLocation.name}.`, 'warning', '🔒');
       return;
@@ -1532,7 +1561,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         if (!updatedCompletedBossIds.includes(enemy.id)) {
           updatedCompletedBossIds = [...updatedCompletedBossIds, enemy.id];
         }
-        logs = addLog(logs, `👑 ACT GUARDIAN SLAIN: ${enemy.name} has fallen! The way forward opens!`, 'CRIT', 'SYSTEM');
+        // Anti-Spoiler GM Announcement: Mask boss name, announce Act Guardian vanquished with Lvl & Class!
+        const actNumStr = selectedLocation.id.replace('loc_act_', '').toUpperCase();
+        const playerTitle = `${player.name} [Lv. ${player.level} ${player.heroClass || 'Wayfarer'}]`;
+        broadcastSystemAnnouncement(`${playerTitle} has vanquished the Guardian of Act ${actNumStr}!`);
 
         // 1. Award remaining 35% EXP -> Guaranteed Level-Up into next Act
         const expForClimax = calcExpRequired(bossLevelReq);
@@ -1557,6 +1589,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         });
         updatedInventory = [...updatedInventory, bossItem];
         logs = addLog(logs, `🗡️ GUARDIAN LEGENDARY ARTIFACT DROPPED: [${bossItem.name}]!`, 'CRIT', 'SYSTEM');
+
+        // Broadcast High-Tier Gear Discovery
+        if (bossItem.rarity === 'MYTHIC' || bossItem.rarity === 'LUNAR' || bossItem.tier >= 9) {
+          broadcastSystemAnnouncement(`${playerTitle} discovered Legendary ${bossItem.rarity || 'Mythic'} equipment [${bossItem.name}]!`);
+        }
 
         // 3. Generate High-Rarity Encrypted Memory Drop (PURPLE or RED)
         const memRarity: MemoryRarity = Math.random() < 0.5 ? 'PURPLE' : 'RED';
@@ -1648,7 +1685,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
     }
 
-    onUpdatePlayer({
+    onUpdatePlayer(syncCombatLogs(logs, {
       ...player,
       level: newLevel,
       exp: newExp,
@@ -1666,7 +1703,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       act8Completed: act8Done,
       highestSurvivalWave: updatedHighestWave,
       mountUnlocked: mountUnlocked,
-    });
+    }));
 
     // KEEP inCombat: true so the Victory Card remains visible until the user clicks Claim Rewards!
     onUpdateBattle({
@@ -1787,9 +1824,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       {!battle.inCombat && (
         <button
           onClick={handleInitiateBossChallenge}
-          disabled={isBossLevelLocked}
-          className={`w-full py-1.5 px-2 md:p-3.5 border font-bold font-mono text-[10px] md:text-xs uppercase tracking-wider rounded-lg md:rounded-xl shadow-xl transition-all active:scale-[0.99] flex items-center justify-center space-x-1.5 md:space-x-2 min-h-[32px] md:min-h-[44px] ${
-            isBossLevelLocked
+          disabled={isBossLevelLocked || !!activeInteractiveEncounter}
+          className={`w-full py-1.5 px-2 md:p-3.5 border font-bold font-mono text-[10px] md:text-xs uppercase tracking-wider rounded-lg md:rounded-xl shadow-xl transition-all flex items-center justify-center space-x-1.5 md:space-x-2 min-h-[32px] md:min-h-[44px] ${
+            isBossLevelLocked || activeInteractiveEncounter
               ? 'bg-zinc-950/90 border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
               : isBossDefeated
               ? 'bg-zinc-900 border-amber-600/50 text-amber-300 hover:bg-zinc-850'
@@ -2171,8 +2208,13 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* [BOTTOM] CONTEXTUAL ACTION PAD (EXPLORATION VS COMBAT) */}
       <div className="bg-zinc-950 border border-amber-900/60 p-1 md:p-3 rounded-lg md:rounded-xl shadow-2xl">
-        <div className="text-[8px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-0.5 md:mb-1.5 text-center md:text-left">
-          {battle.inCombat ? 'COMBAT FAST-TAP ACTION PAD' : 'SECTOR EXPLORATION ACTION PAD'}
+        <div className="text-[8px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-0.5 md:mb-1.5 text-center md:text-left flex justify-between items-center">
+          <span>{battle.inCombat ? 'COMBAT FAST-TAP ACTION PAD' : 'SECTOR EXPLORATION ACTION PAD'}</span>
+          {!battle.inCombat && activeInteractiveEncounter && (
+            <span className="text-amber-400 font-bold text-[8px] md:text-[9.5px] animate-pulse">
+              [ ENCOUNTER ACTIVE — RESOLVE OR DISMISS FIRST ]
+            </span>
+          )}
         </div>
 
         {/* Exploration Action Pad */}
@@ -2180,7 +2222,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-2">
             <button
               onClick={handleVentureForward}
-              className="p-1.5 md:p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px]"
+              disabled={!!activeInteractiveEncounter}
+              className={`p-1.5 md:p-3 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px] ${
+                activeInteractiveEncounter
+                  ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                  : 'bg-amber-600 hover:bg-amber-500 text-zinc-950 active:scale-95'
+              }`}
             >
               <span>🧭</span>
               <span>[ Venture Forward ] ({ventureCost} Stamina)</span>
@@ -2188,7 +2235,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
             <button
               onClick={handleSearchArea}
-              className="p-1.5 md:p-3 bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all active:scale-95 flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px]"
+              disabled={!!activeInteractiveEncounter}
+              className={`p-1.5 md:p-3 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px] ${
+                activeInteractiveEncounter
+                  ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                  : 'bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 active:scale-95'
+              }`}
             >
               <span>🔍</span>
               <span>[ Search Area ] ({searchCost} Stamina)</span>
@@ -2363,6 +2415,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           actName={selectedLocation.name}
           actSubtitle={selectedLocation.subtitle}
           actLore={selectedLocation.description}
+          isNgPlus={(player.ngPlusLevel || 0) > 0}
           onClose={handleCloseActStory}
         />
       )}

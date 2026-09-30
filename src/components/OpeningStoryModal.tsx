@@ -51,7 +51,7 @@ function buildLore(heroName: string, heroClass: string): LoreParagraph[] {
 
 // ─── Auto-Scroll Hook ─────────────────────────────────────────────────────────
 
-/** Manages slow auto-scroll with spacebar pause toggle and bottom completion detection. */
+/** Manages slow auto-scroll with interaction pause toggle and bottom completion detection. */
 function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
   const [paused, setPaused] = useState(false);
   const [reachedBottom, setReachedBottom] = useState(false);
@@ -63,6 +63,12 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
     if (reachedBottomRef.current) return;
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
+  }, []);
+
+  const pause = useCallback(() => {
+    if (reachedBottomRef.current) return;
+    pausedRef.current = true;
+    setPaused(true);
   }, []);
 
   const stopScroll = useCallback(() => {
@@ -92,7 +98,7 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
     }, 40);
   }, [scrollRef, stopScroll]);
 
-  // Listen for Spacebar key to pause / resume
+  // Listen for keyboard and gesture/touch interactions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.key === ' ') {
@@ -101,9 +107,32 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
       }
     };
 
+    const el = scrollRef.current;
+
+    const handleWheel = () => pause();
+    const handleTouchStart = () => pause();
+    const handleTouchMove = () => pause();
+    const handleMouseDown = () => togglePause();
+
+    if (el) {
+      el.addEventListener('wheel', handleWheel, { passive: true });
+      el.addEventListener('touchstart', handleTouchStart, { passive: true });
+      el.addEventListener('touchmove', handleTouchMove, { passive: true });
+      el.addEventListener('mousedown', handleMouseDown);
+    }
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePause]);
+
+    return () => {
+      if (el) {
+        el.removeEventListener('wheel', handleWheel);
+        el.removeEventListener('touchstart', handleTouchStart);
+        el.removeEventListener('touchmove', handleTouchMove);
+        el.removeEventListener('mousedown', handleMouseDown);
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [scrollRef, togglePause, pause]);
 
   useEffect(() => {
     startScroll();
@@ -178,8 +207,8 @@ const OpeningStoryModal: React.FC<OpeningStoryModalProps> = ({
               {reachedBottom
                 ? '✓ END OF LORE'
                 : paused
-                ? '⏸ PAUSED (Press Spacebar)'
-                : '▶ AUTO-SCROLLING (Spacebar to Pause)'}
+                ? '⏸ PAUSED (Interact to Resume)'
+                : '▶ AUTO-SCROLLING (Interact to Pause)'}
             </span>
           </div>
         </div>

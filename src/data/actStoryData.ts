@@ -187,6 +187,9 @@ Ahead, coiled tightly around the frail, trembling crescent of the seventh and fi
 };
 
 export function getActStory(actId: string, fallbackDescription?: string, isNgPlus?: boolean): string {
+  if (actId === 'ng_plus_rebirth' || fallbackDescription === NG_PLUS_REBIRTH_STORY) {
+    return NG_PLUS_REBIRTH_STORY;
+  }
   if (isNgPlus && NG_PLUS_ACT_STORIES[actId]) {
     return NG_PLUS_ACT_STORIES[actId];
   }

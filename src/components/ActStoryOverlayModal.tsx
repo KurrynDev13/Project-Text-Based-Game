@@ -8,6 +8,7 @@ interface ActStoryOverlayModalProps {
   actName: string;
   actSubtitle: string;
   actLore?: string; // Multi-paragraph lore text
+  isNgPlus?: boolean;
   onClose: () => void;
 }
 
@@ -26,13 +27,14 @@ const romanNumerals: Record<number, string> = {
 
 /** Extracts the roman numeral from an actId like 'loc_act_1' → 'I' */
 function getActRoman(actId: string): string {
+  if (actId.includes('rebirth')) return 'REBIRTH';
   const actNumber = parseInt(actId.replace('loc_act_', ''), 10) || 1;
   return romanNumerals[actNumber] ?? String(actNumber);
 }
 
 // ─── Auto-Scroll Hook ─────────────────────────────────────────────────────────
 
-/** Manages slow auto-scroll with spacebar pause toggle and bottom completion detection. */
+/** Manages slow auto-scroll with interaction pause toggle and bottom completion detection. */
 function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
   const [paused, setPaused] = useState(false);
   const [reachedBottom, setReachedBottom] = useState(false);
@@ -44,6 +46,12 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
     if (reachedBottomRef.current) return;
     pausedRef.current = !pausedRef.current;
     setPaused(pausedRef.current);
+  }, []);
+
+  const pause = useCallback(() => {
+    if (reachedBottomRef.current) return;
+    pausedRef.current = true;
+    setPaused(true);
   }, []);
 
   const stopScroll = useCallback(() => {
@@ -73,7 +81,7 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
     }, 45);
   }, [scrollRef, stopScroll]);
 
-  // Listen for Spacebar key to pause / resume
+  // Listen for keyboard and gesture/touch interactions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.key === ' ') {
@@ -82,9 +90,32 @@ function useAutoScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
       }
     };
 
+    const el = scrollRef.current;
+
+    const handleWheel = () => pause();
+    const handleTouchStart = () => pause();
+    const handleTouchMove = () => pause();
+    const handleMouseDown = () => togglePause();
+
+    if (el) {
+      el.addEventListener('wheel', handleWheel, { passive: true });
+      el.addEventListener('touchstart', handleTouchStart, { passive: true });
+      el.addEventListener('touchmove', handleTouchMove, { passive: true });
+      el.addEventListener('mousedown', handleMouseDown);
+    }
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePause]);
+
+    return () => {
+      if (el) {
+        el.removeEventListener('wheel', handleWheel);
+        el.removeEventListener('touchstart', handleTouchStart);
+        el.removeEventListener('touchmove', handleTouchMove);
+        el.removeEventListener('mousedown', handleMouseDown);
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [scrollRef, togglePause, pause]);
 
   useEffect(() => {
     startScroll();
@@ -101,13 +132,14 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
   actName,
   actSubtitle,
   actLore,
+  isNgPlus,
   onClose,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { paused, reachedBottom } = useAutoScroll(scrollRef);
 
   const actRoman = getActRoman(actId);
-  const fullEpicLore = getActStory(actId, actLore);
+  const fullEpicLore = getActStory(actId, actLore, isNgPlus);
 
   // Split lore text into paragraphs on double or single newlines
   const loreParagraphs = fullEpicLore
@@ -122,12 +154,12 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
         {/* ── Header ── */}
         <div className="p-6 pb-3 space-y-2 shrink-0 border-b border-amber-900/40">
           {/* ACT badge */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-mono font-bold tracking-widest uppercase px-3.5 py-1 bg-amber-950/80 border border-amber-500/50 text-amber-300 rounded-full shadow-inner">
-              📜 CHAPTER CHRONICLES • ACT {actRoman}
+              📜 CHAPTER CHRONICLES • {actRoman === 'REBIRTH' ? 'REBIRTH' : `ACT ${actRoman}`}
             </span>
             <span className="text-[10px] font-mono text-zinc-400">
-              Press Spacebar to Pause
+              Interact to Pause
             </span>
           </div>
 
@@ -182,8 +214,8 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
               {reachedBottom
                 ? '✓ END OF LORE'
                 : paused
-                ? '⏸ PAUSED (Press Spacebar)'
-                : '▶ AUTO-SCROLLING (Spacebar to Pause)'}
+                ? '⏸ PAUSED (Interact to Resume)'
+                : '▶ AUTO-SCROLLING (Interact to Pause)'}
             </span>
           </div>
         </div>

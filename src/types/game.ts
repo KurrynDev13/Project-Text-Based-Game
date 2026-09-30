@@ -276,6 +276,7 @@ export interface PlayerCharacter {
   unlockedActStoryIds?: string[]; // Act story overlays already shown
   discoveredBossIds?: string[]; // Boss IDs where warning card was shown
   narratorLogs?: string[]; // Sector narrative feed log history (persisted across tabs)
+  persistentCombatLogs?: BattleLogEntry[]; // Persistent combat battle logs (up to 100 entries)
 }
 
 // Monster / Enemy State

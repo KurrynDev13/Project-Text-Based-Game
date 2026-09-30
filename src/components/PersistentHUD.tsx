@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayerCharacter } from '../types/game';
 import { calcDerivedStats, calcMaxStamina } from '../utils/gameFormulas';
 import { BgmControl } from './BgmControl';
+import { AnnouncementTicker } from './AnnouncementTicker';
 
 interface PersistentHUDProps {
   player: PlayerCharacter;
@@ -9,6 +10,7 @@ interface PersistentHUDProps {
 }
 
 export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }) => {
+  const [tickerActive, setTickerActive] = useState<boolean>(false);
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
   const hpPercent = Math.max(0, Math.min(100, Math.floor((player.currentHp / derived.maxHp) * 100)));
@@ -18,8 +20,13 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }
   const currentStamina = Math.min(maxStamina, player.stamina ?? maxStamina);
 
   return (
-    <div data-tutorial-target="persistent-hud" className="fixed top-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-md border-b border-amber-900/60 text-amber-100 px-2 py-1 md:px-3 md:py-2 shadow-2xl font-mono text-[10px] md:text-xs select-none z-40">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-1 md:gap-2">
+    <div className="fixed top-0 left-0 right-0 z-40 flex flex-col transition-all duration-300">
+      {/* Floating Marquee Announcement Ticker Bar */}
+      <AnnouncementTicker onTickerActiveChange={setTickerActive} />
+
+      {/* Main Persistent Status HUD Bar */}
+      <div data-tutorial-target="persistent-hud" className="bg-zinc-950/95 backdrop-blur-md border-b border-amber-900/60 text-amber-100 px-2 py-1 md:px-3 md:py-2 shadow-2xl font-mono text-[10px] md:text-xs select-none">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-1 md:gap-2">
         {/* Top Line: Wayfarer Level & Name & Combat Indicator */}
         <div className="flex items-center space-x-2 md:space-x-3 w-full md:w-auto justify-between">
           <div className="flex items-center space-x-1.5 md:space-x-2">
@@ -93,5 +100,6 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }
         </div>
       </div>
     </div>
+  </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, EncryptedMemory, ItemRarity, Affix } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, BIKES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
-import { calcDerivedStats, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries } from '../utils/gameFormulas';
+import { calcDerivedStats, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, getEquippedItemForCategory, calcItemDelta, calcItemPowerRating } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
 
 interface InventoryViewProps {
@@ -167,7 +167,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       newEquipment.heavyWeapon = null;
     }
 
-    let newInventory = player.inventory.filter((inv) => inv.id !== item.id);
+    let removed = false;
+    let newInventory = player.inventory.filter((inv) => {
+      if (!removed && (inv === item || inv.id === item.id)) {
+        removed = true;
+        return false;
+      }
+      return true;
+    });
     if (unequippedItem) {
       newInventory.push(unequippedItem);
     }
@@ -236,13 +243,22 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     newWallet.mutyaShards = player.wallet.mutyaShards || 0;
     newWallet.prismaticShards = newWallet.mutyaShards;
 
+    let removedSell = false;
+    const remainingInventory = player.inventory.filter((inv) => {
+      if (!removedSell && (inv === item || inv.id === item.id)) {
+        removedSell = true;
+        return false;
+      }
+      return true;
+    });
+
     soundFX.playCoinSound();
     onUpdatePlayer({
       ...player,
-      inventory: player.inventory.filter((inv) => inv.id !== item.id),
+      inventory: remainingInventory,
       wallet: newWallet,
     });
-    if (selectedInspectItem?.id === item.id) setSelectedInspectItem(null);
+    if (selectedInspectItem === item || selectedInspectItem?.id === item.id) setSelectedInspectItem(null);
   };
 
   // BATCH ACTION: Sell All Common Gear
@@ -275,15 +291,60 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     notify(`💰 Sold ${commons.length} Common items! Received +${totalGoldFromSell} Cowrie Shells.`, 'success', '💰');
   };
 
-  // BATCH ACTION 2: Auto-Sort Inventory
+  const [sortMode, setSortMode] = useState<'POWER' | 'CLASS' | 'TYPE'>('POWER');
+
+  // BATCH ACTION 2: Auto-Sort Inventory (Cycles: Power -> Class -> Equipment Type)
   const handleAutoSort = () => {
     soundFX.playClickSound();
+
+    let nextMode: 'POWER' | 'CLASS' | 'TYPE' = 'POWER';
+    if (sortMode === 'POWER') nextMode = 'CLASS';
+    else if (sortMode === 'CLASS') nextMode = 'TYPE';
+    else nextMode = 'POWER';
+
+    setSortMode(nextMode);
+
+    const classOrder: Record<string, number> = { Mandirigma: 1, Bagani: 2, Mangangaso: 3, Babaylan: 4 };
+    const catOrder: Record<string, number> = { UPPER: 1, LOWER: 2, DAGGER: 3, SWORD: 4, BOW: 5, STAFF: 6, MOUNT: 7, BIKE: 7, POTION: 8, FOOD: 9, ELIXIR: 10, VIAL: 11 };
+
     const sorted = [...player.inventory].sort((a, b) => {
-      const tierA = 'tier' in a ? a.tier : 0;
-      const tierB = 'tier' in b ? b.tier : 0;
-      return tierB - tierA;
+      const isEqA = 'category' in a && 'tier' in a;
+      const isEqB = 'category' in b && 'tier' in b;
+
+      if (nextMode === 'POWER') {
+        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
+        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
+        return pB - pA;
+      }
+
+      if (nextMode === 'CLASS') {
+        const cA = isEqA && (a as EquipmentItem).classReq?.[0] ? (classOrder[(a as EquipmentItem).classReq![0]] || 5) : 99;
+        const cB = isEqB && (b as EquipmentItem).classReq?.[0] ? (classOrder[(b as EquipmentItem).classReq![0]] || 5) : 99;
+        if (cA !== cB) return cA - cB;
+        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
+        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
+        return pB - pA;
+      }
+
+      if (nextMode === 'TYPE') {
+        const tA = 'category' in a ? (catOrder[a.category] || 99) : 99;
+        const tB = 'category' in b ? (catOrder[b.category] || 99) : 99;
+        if (tA !== tB) return tA - tB;
+        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
+        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
+        return pB - pA;
+      }
+
+      return 0;
     });
 
+    const modeLabels = {
+      POWER: 'Power Rating (Descending)',
+      CLASS: 'Hero Class',
+      TYPE: 'Equipment Type',
+    };
+
+    notify(`🔄 Sorted Inventory by ${modeLabels[nextMode]}`, 'info', '🔄');
     onUpdatePlayer({ ...player, inventory: sorted });
   };
 
@@ -316,9 +377,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </button>
             <button
               onClick={handleAutoSort}
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all"
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all flex items-center space-x-1"
             >
-              🔄 Auto-Sort
+              <span>🔄</span>
+              <span>Auto-Sort: <strong className="text-amber-300">{sortMode === 'POWER' ? 'Power' : sortMode === 'CLASS' ? 'Class' : 'Type'}</strong></span>
             </button>
           </div>
         </div>
@@ -548,7 +610,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         {/* Gear Grid */}
         {activeTab === 'GEAR' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {gearItems.map((item) => {
+            {gearItems.map((item, idx) => {
               const isMount = item.category === 'MOUNT' || item.category === 'BIKE';
               const isMountLocked = isMount && !player.act6Completed && !player.mountUnlocked;
               const isWeapon = ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
@@ -556,27 +618,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               // Class incompatibility check for weapons
               const isWrongClass = isWeapon && item.classReq && !item.classReq.includes(player.heroClass as any);
 
-              const currentlyEquippedArmor = item.category === 'UPPER' ? player.equipment.upperArmor : player.equipment.lowerArmor;
-              const currentDef = currentlyEquippedArmor?.baseDefense || 0;
-              const deltaArmor = (item.baseDefense || 0) - currentDef;
-
-              // Weapon stat delta calculation vs currently equipped weapon
-              const activeEquippedWeapon = player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
-              let weaponDeltaAvg = 0;
-              if (isWeapon && item.baseDamageMin !== undefined && item.baseDamageMax !== undefined) {
-                const itemAvg = (item.baseDamageMin + item.baseDamageMax) / 2;
-                const eqAvg = activeEquippedWeapon && activeEquippedWeapon.baseDamageMin && activeEquippedWeapon.baseDamageMax
-                  ? (activeEquippedWeapon.baseDamageMin + activeEquippedWeapon.baseDamageMax) / 2
-                  : 0;
-                weaponDeltaAvg = Math.round(itemAvg - eqAvg);
-              }
+              const equippedInSlot = getEquippedItemForCategory(player.equipment, item.category);
+              const delta = calcItemDelta(item, equippedInSlot);
 
               return (
                 <div
-                  key={item.id}
+                  key={`gear_${item.id}_${idx}`}
                   onClick={() => setSelectedInspectItem(item)}
                   className={`bg-zinc-950 border rounded-xl p-3 flex flex-col justify-between space-y-2 cursor-pointer transition-all ${
-                    selectedInspectItem?.id === item.id
+                    selectedInspectItem === item
                       ? 'border-amber-400 ring-2 ring-amber-500/50'
                       : isMountLocked || isWrongClass
                       ? 'border-zinc-800/60 opacity-70'
@@ -617,25 +667,28 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       </>
                     )}
 
-                    {/* Stat Delta Tooltip Highlight for armor items */}
-                    {!isMount && !isWeapon && item.baseDefense !== undefined && (
-                      <div className="text-[10px] font-mono mt-1 font-bold">
-                        Delta vs Equipped:{' '}
-                        <span className={deltaArmor >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                          {deltaArmor >= 0 ? `+${deltaArmor}` : deltaArmor} Armor
+                    {/* Comprehensive Real-time Stat Delta vs Equipped */}
+                    <div className="text-[10px] font-mono mt-1 font-bold flex items-center gap-1 flex-wrap">
+                      <span className="text-zinc-400">Delta vs Equipped:</span>
+                      <span className={delta.deltaPower > 0 ? 'text-emerald-400' : delta.deltaPower < 0 ? 'text-rose-400' : 'text-zinc-400'}>
+                        {delta.deltaPower > 0 ? `📈 +${delta.deltaPower}` : delta.deltaPower < 0 ? `📉 ${delta.deltaPower}` : '➡️ Equal'} Power
+                      </span>
+                      {delta.deltaAvgDamage !== 0 && (
+                        <span className={delta.deltaAvgDamage > 0 ? 'text-emerald-300 text-[9px]' : 'text-rose-300 text-[9px]'}>
+                          ({delta.deltaAvgDamage > 0 ? `+${delta.deltaAvgDamage}` : delta.deltaAvgDamage} Atk)
                         </span>
-                      </div>
-                    )}
-
-                    {/* Stat Delta Tooltip Highlight for weapon items */}
-                    {isWeapon && item.baseDamageMin !== undefined && (
-                      <div className="text-[10px] font-mono mt-1 font-bold">
-                        Delta vs Equipped:{' '}
-                        <span className={weaponDeltaAvg >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                          {weaponDeltaAvg >= 0 ? `+${weaponDeltaAvg}` : weaponDeltaAvg} Avg Atk
+                      )}
+                      {delta.deltaArmor !== 0 && (
+                        <span className={delta.deltaArmor > 0 ? 'text-emerald-300 text-[9px]' : 'text-rose-300 text-[9px]'}>
+                          ({delta.deltaArmor > 0 ? `+${delta.deltaArmor}` : delta.deltaArmor} Arm)
                         </span>
-                      </div>
-                    )}
+                      )}
+                      {delta.statHighlights.length > 0 && (
+                        <span className="text-purple-300 text-[9px]">
+                          [{delta.statHighlights.join(', ')}]
+                        </span>
+                      )}
+                    </div>
 
                     {/* Status Infliction & Mitigation Affix Badges */}
                     {renderAffixBadges(item)}

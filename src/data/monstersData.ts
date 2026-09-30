@@ -1,4 +1,5 @@
 import { EnemyMonster, MemoryRarity } from '../types/game';
+import { calcExpRequired } from '../utils/gameFormulas';
 
 export interface MonsterTemplate {
   id: string;
@@ -776,8 +777,12 @@ export function generateMonsterForLocation(
     }
   }
 
-  const effectiveLevel = ngPlusStartLevel > 0
-    ? ngPlusStartLevel + (Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6))) - 1) * 6
+  const actNumber = Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6)));
+  const actStartLevel = (actNumber - 1) * 6 + 1;
+  const levelOffset = Math.max(0, locationMinLevel - actStartLevel);
+
+  const effectiveLevel = ngPlusLevel > 0
+    ? (ngPlusStartLevel || 53) + (actNumber - 1) * 6 + levelOffset
     : locationMinLevel;
 
   if (!template) {
@@ -789,29 +794,44 @@ export function generateMonsterForLocation(
       : MONSTER_TEMPLATES[0];
   }
 
-  const levelScale = Math.pow(1.14, Math.max(0, effectiveLevel - 1));
-  
-  // Regular monsters have per-Act balanced base stats in MONSTER_TEMPLATES.
-  // Minor stat scaling (4% per floor level offset within the Act) for dynamic floor scaling.
-  const actNumber = Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6)));
-  const actStartLevel = (actNumber - 1) * 6 + 1;
-  const levelOffset = Math.max(0, locationMinLevel - actStartLevel);
-  const statScale = 1.0 + levelOffset * 0.04;
-
-  let maxHp = Math.floor(template.baseHp * statScale);
-  let armor = Math.floor(template.baseArmor * statScale);
-  let attackMin = Math.floor(template.baseMinDmg * statScale);
-  let attackMax = Math.floor(template.baseMaxDmg * statScale);
+  let maxHp: number;
+  let armor: number;
+  let attackMin: number;
+  let attackMax: number;
 
   if (ngPlusLevel > 0) {
-    const ngMult = (1.0 + ngPlusLevel * 1.5) * (1.0 + (ngPlusStartLevel / 50) * 0.5);
-    maxHp = Math.floor(maxHp * ngMult);
-    attackMin = Math.floor(attackMin * ngMult);
-    attackMax = Math.floor(attackMax * ngMult);
-    armor = Math.floor(armor * (1.0 + ngPlusLevel * 0.5));
+    // NG+ Stat Scaling:
+    // Balanced so NG+ Act 1 regular monsters take ~4-6 hits to kill (matching player 400-500 basic attack / 1000 skill dmg)
+    // and deal ~180-260 damage per turn (against player's ~2600 HP pool), scaling progressively across all 8 Acts.
+    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.35;
+    const baseNgHp = 2200 + (actNumber - 1) * 3500 + levelOffset * 250;
+    const hpArchetypeMult = template.baseHp / 120;
+    maxHp = Math.floor(baseNgHp * hpArchetypeMult * (template.isBoss ? 2.5 : 1.0) * ngTierMult);
+
+    const baseNgArmor = 15 + (actNumber - 1) * 6 + levelOffset * 1.5;
+    armor = Math.floor(baseNgArmor * (template.baseArmor / 6) * ngTierMult);
+
+    const baseNgDmgMin = 140 + (actNumber - 1) * 45 + levelOffset * 6;
+    const baseNgDmgMax = 220 + (actNumber - 1) * 65 + levelOffset * 8;
+    const dmgArchetypeMult = template.baseMinDmg / 10;
+    attackMin = Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
+    attackMax = Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
+  } else {
+    // NG0 Scaling: Standard per-Act base stats + 4% per floor level offset
+    const statScale = 1.0 + levelOffset * 0.04;
+    maxHp = Math.floor(template.baseHp * statScale);
+    armor = Math.floor(template.baseArmor * statScale);
+    attackMin = Math.floor(template.baseMinDmg * statScale);
+    attackMax = Math.floor(template.baseMaxDmg * statScale);
   }
 
-  const expReward = Math.max(12, Math.floor(18 * levelScale * template.expMult));
+  // EXP reward scales exponentially with 1.24^level to create a smooth RPG curve
+  // (starts at ~8 kills/level in early game, scaling gradually to ~15-20 in mid game, and ~25-40+ in endgame/NG+)
+  const baseScale = Math.pow(1.24, Math.max(0, effectiveLevel - 1));
+  const expReward = Math.max(
+    15,
+    Math.floor(25 * baseScale * (template.expMult ?? 1.0))
+  );
   const copperReward = Math.floor(30 * (1 + (effectiveLevel - 1) * 0.35) * template.copperMult);
 
   const monsterName = ngPlusLevel > 0 ? `[NG+${ngPlusLevel}] ${template.name}` : template.name;

@@ -11,7 +11,7 @@ import {
   INITIAL_BOUNTIES,
   INITIAL_SIDE_QUESTS,
 } from './data/equipmentData';
-import { calcDerivedStats, cowriesToWallet } from './utils/gameFormulas';
+import { calcDerivedStats, cowriesToWallet, sanitizeItemIds } from './utils/gameFormulas';
 import { getDefaultSkillIds, getBasicAttackId, getSkillsByClass } from './data/skillsData';
 
 import { Navbar, NavTab } from './components/Navbar';
@@ -142,8 +142,13 @@ const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacte
     sanitizedEquipped = [basicId];
   }
 
+  const sanitizedInventory = sanitizeItemIds(savedPlayer.inventory || []);
+  const sanitizedStash = sanitizeItemIds(savedPlayer.stash || []);
+
   return {
     ...savedPlayer,
+    inventory: sanitizedInventory,
+    stash: sanitizedStash,
     bounties: mergedBounties,
     sideQuests: mergedSideQuests,
     forfeitedQuestIds: savedPlayer.forfeitedQuestIds || [],

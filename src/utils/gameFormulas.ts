@@ -1,8 +1,145 @@
-import { PrimaryAttributes, DerivedStats, Wallet, EquipmentSlots } from '../types/game';
+import { PrimaryAttributes, DerivedStats, Wallet, EquipmentSlots, EquipmentItem } from '../types/game';
 
 // Exponential Level & EXP Progression Formula
 export function calcExpRequired(level: number): number {
   return Math.floor(120 * Math.pow(1.28, level - 1) + 80 * level);
+}
+
+/** Sanitizes inventory or stash items so every item is guaranteed to have a 100% unique ID */
+export function sanitizeItemIds<T extends { id?: string }>(items: T[]): T[] {
+  const seenIds = new Set<string>();
+  return items.map((item, idx) => {
+    if (!item.id || seenIds.has(item.id)) {
+      const uniqueId = `${item.id || 'item'}_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`;
+      seenIds.add(uniqueId);
+      return { ...item, id: uniqueId };
+    }
+    seenIds.add(item.id);
+    return item;
+  });
+}
+
+// Formula-driven Level-scaled EXP reward helpers (scales smoothly with 1.24^level progression curve)
+export function calcBountyExpReward(targetLevel: number, baseReward: number = 150): number {
+  return Math.floor(baseReward * Math.pow(1.24, Math.max(0, targetLevel - 1)));
+}
+
+export function calcSideQuestExpReward(targetLevel: number, baseReward: number = 250): number {
+  return Math.floor(baseReward * Math.pow(1.24, Math.max(0, targetLevel - 1)));
+}
+
+// ─── Equipment Rating & Delta vs Equipped Comparison ─────────────────────────
+
+export function calcItemPowerRating(item: EquipmentItem | null): number {
+  if (!item) return 0;
+
+  let score = 0;
+
+  // Tier & Rarity base power rating
+  score += (item.tier || 1) * 10;
+  if (item.rarity === 'UNCOMMON') score += 10;
+  else if (item.rarity === 'RARE') score += 25;
+  else if (item.rarity === 'EPIC') score += 50;
+  else if (item.rarity === 'LEGENDARY') score += 90;
+  else if (item.rarity === 'TRIUMPHANT') score += 150;
+
+  // Base Damage (weapons)
+  if (item.baseDamageMin !== undefined && item.baseDamageMax !== undefined) {
+    const avgDmg = (item.baseDamageMin + item.baseDamageMax) / 2;
+    score += avgDmg * 2.5;
+  }
+
+  // Base Armor (armor / mounts)
+  if (item.baseDefense) {
+    score += item.baseDefense * 1.5;
+  }
+
+  // Affix stat bonuses (STR, AGI, INT, VIT, Crit, Dodge, M.Res, Flat HP/MP/Armor)
+  if (item.affixes) {
+    item.affixes.forEach((aff) => {
+      if (aff.statBonus) {
+        const b = aff.statBonus;
+        if (b.str) score += b.str * 4.0;
+        if (b.agi) score += b.agi * 4.0;
+        if (b.int) score += b.int * 4.0;
+        if (b.vit) score += b.vit * 4.5;
+        if (b.flatArmor) score += b.flatArmor * 1.5;
+        if (b.flatHp) score += b.flatHp * 0.2;
+        if (b.flatMp) score += b.flatMp * 0.2;
+        if (b.critPercent) score += b.critPercent * 3.5;
+        if (b.dodgePercent) score += b.dodgePercent * 3.5;
+        if (b.magicResist) score += b.magicResist * 2.0;
+      }
+      if (aff.statusInfliction) score += 20;
+      if (aff.statusMitigation) score += 20;
+    });
+  }
+
+  return Math.round(score);
+}
+
+export function getEquippedItemForCategory(equipment: EquipmentSlots, category: string): EquipmentItem | null {
+  if (!equipment) return null;
+  if (category === 'UPPER') return equipment.upperArmor || null;
+  if (category === 'LOWER') return equipment.lowerArmor || null;
+  if (['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(category)) {
+    return equipment.weapon ?? equipment.primaryWeapon ?? null;
+  }
+  if (category === 'MOUNT' || category === 'BIKE') {
+    return equipment.mount ?? equipment.bike ?? null;
+  }
+  return null;
+}
+
+export interface ItemDeltaSummary {
+  deltaPower: number;
+  deltaArmor: number;
+  deltaAvgDamage: number;
+  statHighlights: string[];
+}
+
+export function calcItemDelta(candidate: EquipmentItem, equipped: EquipmentItem | null): ItemDeltaSummary {
+  const candidatePower = calcItemPowerRating(candidate);
+  const equippedPower = calcItemPowerRating(equipped);
+  const deltaPower = candidatePower - equippedPower;
+
+  // Armor delta
+  const candArmor = candidate.baseDefense || 0;
+  const eqArmor = equipped?.baseDefense || 0;
+  const deltaArmor = candArmor - eqArmor;
+
+  // Weapon Damage delta
+  let deltaAvgDamage = 0;
+  if (candidate.baseDamageMin !== undefined && candidate.baseDamageMax !== undefined) {
+    const candAvg = (candidate.baseDamageMin + candidate.baseDamageMax) / 2;
+    const eqAvg = equipped && equipped.baseDamageMin !== undefined && equipped.baseDamageMax !== undefined
+      ? (equipped.baseDamageMin + equipped.baseDamageMax) / 2
+      : 0;
+    deltaAvgDamage = Math.round(candAvg - eqAvg);
+  }
+
+  // Stat highlights comparison
+  const statHighlights: string[] = [];
+  if (candidate.affixes) {
+    candidate.affixes.forEach((aff) => {
+      if (aff.statBonus) {
+        const b = aff.statBonus;
+        if (b.str) statHighlights.push(`+${b.str} STR`);
+        if (b.agi) statHighlights.push(`+${b.agi} AGI`);
+        if (b.int) statHighlights.push(`+${b.int} INT`);
+        if (b.vit) statHighlights.push(`+${b.vit} VIT`);
+        if (b.critPercent) statHighlights.push(`+${b.critPercent}% Crit`);
+        if (b.dodgePercent) statHighlights.push(`+${b.dodgePercent}% Dodge`);
+      }
+    });
+  }
+
+  return {
+    deltaPower,
+    deltaArmor,
+    deltaAvgDamage,
+    statHighlights,
+  };
 }
 
 // Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.

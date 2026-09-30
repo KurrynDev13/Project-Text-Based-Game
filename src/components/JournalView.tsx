@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, Bounty, SideQuest } from '../types/game';
 import { GAME_LOCATIONS } from '../data/equipmentData';
-import { totalCowriesFromWallet, cowriesToWallet, processExpGain } from '../utils/gameFormulas';
+import { totalCowriesFromWallet, cowriesToWallet, processExpGain, calcBountyExpReward, calcSideQuestExpReward } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
 
 interface JournalViewProps {
@@ -16,6 +16,9 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   const notify = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string) => {
     onShowToast?.(msg, type, icon);
   };
+
+  const isNgPlus = (player.ngPlusLevel || 0) > 0;
+  const bountyUnlockLevel = isNgPlus ? ((player.ngPlusStartLevel || 0) + 3) : 3;
 
   const [activeTab, setActiveTab] = useState<JournalTab>('BOUNTIES');
   const [actFilter, setActFilter] = useState<string>('CURRENT'); // 'CURRENT' or 'ALL' or specific act id
@@ -70,12 +73,13 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     );
 
     const rewardCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
+    const rewardExp = calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp);
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
     updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + 1;
     updatedWallet.prismaticShards = updatedWallet.mutyaShards;
 
-    const expResult = processExpGain(player.level, player.exp, bounty.rewardExp);
+    const expResult = processExpGain(player.level, player.exp, rewardExp);
 
     onUpdatePlayer({
       ...player,
@@ -88,9 +92,9 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     });
 
     if (expResult.levelsGained > 0) {
-      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points.`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points.`, 'success', '🎉');
     } else {
-      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!`, 'success', '🎉');
     }
   };
 
@@ -111,7 +115,8 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     );
 
     const rewardCowries = sq.rewardCowries ?? 300;
-    const rewardExp = sq.rewardExp ?? 300;
+    const actMinLvl = sq.actId ? (GAME_LOCATIONS.find((l) => l.id === sq.actId)?.minLevel ?? player.level) : player.level;
+    const rewardExp = calcSideQuestExpReward(actMinLvl, sq.rewardExp ?? 300);
     const rewardMutya = sq.rewardMutya ?? 1;
 
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
@@ -221,14 +226,14 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
       {/* TAB 1: ACTIVE BOUNTIES */}
       {activeTab === 'BOUNTIES' && (
         <div className="space-y-3">
-          {player.level < 3 ? (
+          {player.level < bountyUnlockLevel ? (
             <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl text-center space-y-2">
               <div className="text-3xl">🔒</div>
               <h4 className="text-sm font-bold font-serif text-amber-300">Bounties Notice Board Locked</h4>
               <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                Bounties unlock strictly upon reaching <strong className="text-amber-300">Character Level 3</strong>. Slay beasts in Act I or complete initial side quests to level up!
+                Bounties unlock strictly upon reaching <strong className="text-amber-300">Character Level {bountyUnlockLevel}</strong> in this cycle. Slay beasts in Act I or complete initial side quests to level up!
               </p>
-              <div className="text-[10px] text-zinc-500 pt-1 font-mono">Current Progress: Level {player.level} / 3</div>
+              <div className="text-[10px] text-zinc-500 pt-1 font-mono">Current Progress: Level {player.level} / {bountyUnlockLevel}</div>
             </div>
           ) : activeBounties.length === 0 ? (
             <div className="bg-zinc-950 border border-dashed border-zinc-800 p-6 rounded-xl text-center space-y-2">

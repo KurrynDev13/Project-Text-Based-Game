@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS, INITIAL_SIDE_QUESTS, INITIAL_BOUNTIES } from '../data/equipmentData';
-import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina } from '../utils/gameFormulas';
+import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta } from '../utils/gameFormulas';
 import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import FeatureTutorialModal, { TutorialStep } from './FeatureTutorialModal';
 import { ConfirmModal } from './ConfirmModal';
 import { NG_PLUS_REBIRTH_STORY } from '../data/actStoryData';
 import ActStoryOverlayModal from './ActStoryOverlayModal';
+import { broadcastSystemAnnouncement } from '../utils/supabase';
 
 type DistrictTab = 'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH';
 type ForgeCategoryFilter = 'ALL' | 'WEAPONS' | 'ARMOR' | 'DAGGERS' | 'SWORDS' | 'BOWS' | 'STAVES' | 'UPPER' | 'LOWER';
@@ -26,6 +27,9 @@ interface TownHubProps {
 
 export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavigateToWorld, onNavigateToTitanRaid, onShowToast, activeDistrictOverride }) => {
   const [activeDistrict, setActiveDistrict] = useState<DistrictTab>('TAVERN');
+
+  const isNgPlus = (player.ngPlusLevel || 0) > 0;
+  const bountyUnlockLevel = isNgPlus ? ((player.ngPlusStartLevel || 0) + 3) : 3;
 
   const notify = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string) => {
     onShowToast?.(msg, type, icon);
@@ -59,7 +63,15 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   const [selectedEnchantItem, setSelectedEnchantItem] = useState<EquipmentItem | null>(null);
   const [showBountyBoard, setShowBountyBoard] = useState<boolean>(false);
   const [bountyBoardTab, setBountyBoardTab] = useState<'AVAILABLE' | 'COMPLETED'>('AVAILABLE');
-  const [activeRestCardIndex, setActiveRestCardIndex] = useState<number>(0);
+  const [activeRestCardIndex, setActiveRestCardIndexState] = useState<number>(() => {
+    const saved = localStorage.getItem('maharlika_last_rest_option_index');
+    return saved ? Math.max(0, parseInt(saved, 10) || 0) : 0;
+  });
+
+  const setActiveRestCardIndex = (idx: number) => {
+    setActiveRestCardIndexState(idx);
+    localStorage.setItem('maharlika_last_rest_option_index', String(idx));
+  };
   const restCarouselRef = useRef<HTMLDivElement>(null);
   const [activeTutorial, setActiveTutorial] = useState<{ id: string; name: string; steps: TutorialStep[] } | null>(null);
 
@@ -125,7 +137,15 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   const handleConfirmRebirth = () => {
     soundFX.playLevelUpSound();
     const nextNgLevel = (player.ngPlusLevel || 0) + 1;
-    const updatedStash = [...(player.stash || []), ...player.inventory];
+
+    // Filter out all mounts from inventory and stash (all mounts are destroyed on NG+ rebirth)
+    const isNotMount = (item: EquipmentItem | ConsumableItem) =>
+      !('category' in item && (item.category === 'MOUNT' || item.category === 'BIKE')) &&
+      !item.id.startsWith('mount_');
+
+    const cleanInventory = (player.inventory || []).filter(isNotMount);
+    const cleanStash = (player.stash || []).filter(isNotMount);
+    const updatedStash = [...cleanStash, ...cleanInventory];
 
     onUpdatePlayer({
       ...player,
@@ -133,7 +153,7 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
       ngPlusStartLevel: player.level,
       currentLocationId: 'loc_act_1',
       unlockedLocationIds: ['loc_act_1'],
-      unlockedActStoryIds: ['loc_act_1'],
+      unlockedActStoryIds: [],
       inventory: [],
       stash: updatedStash,
       sideQuests: INITIAL_SIDE_QUESTS,
@@ -155,6 +175,8 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
     setActiveDistrict('TAVERN');
     setShowNgPlusConfirm(false);
     setShowRebirthStoryModal(true);
+    const playerTitle = `${player.name} [Lv. ${player.level} ${player.heroClass || 'Wayfarer'}]`;
+    broadcastSystemAnnouncement(`${playerTitle} initiated Anito Cycle Rebirth (New Game+ ${nextNgLevel})!`);
     notify(`🌟 ANITO CYCLE REBIRTH COMPLETE! Advanced to New Game+ ${nextNgLevel}! All Acts reset with scaled monster power. Your stats and gear remain!`, 'success', '🌟');
   };
 
@@ -348,12 +370,13 @@ const REST_OPTIONS: RestOption[] = [
     );
 
     const rewardCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
+    const rewardExp = calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp);
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
     updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + 1;
     updatedWallet.prismaticShards = updatedWallet.mutyaShards;
 
-    const expResult = processExpGain(player.level, player.exp, bounty.rewardExp);
+    const expResult = processExpGain(player.level, player.exp, rewardExp);
 
     onUpdatePlayer({
       ...player,
@@ -367,9 +390,9 @@ const REST_OPTIONS: RestOption[] = [
 
     const memText = `💎 1x Encrypted Memory (${bounty.rewardMemoryRarity})`;
     if (expResult.levelsGained > 0) {
-      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'success', '🎉');
     } else {
-      notify(`🎉 Bounty Claimed! Earned +${bounty.rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)`, 'success', '🎉');
     }
   };
 
@@ -502,14 +525,21 @@ const REST_OPTIONS: RestOption[] = [
     if (isDestroyed) {
       soundFX.playDefeatSound();
 
-      const updatedInventory = player.inventory.filter((inv) => inv.id !== item.id);
+      let removed = false;
+      const updatedInventory = player.inventory.filter((inv) => {
+        if (!removed && (inv === item || inv.id === item.id)) {
+          removed = true;
+          return false;
+        }
+        return true;
+      });
       let updatedEquipment = { ...player.equipment };
-      if (updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = null;
-      if (updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = null;
-      if (updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = null;
-      if (updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = null;
-      if (updatedEquipment.mount?.id === item.id) updatedEquipment.mount = null;
-      if (updatedEquipment.bike?.id === item.id) updatedEquipment.bike = null;
+      if (updatedEquipment.upperArmor === item || updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = null;
+      if (updatedEquipment.lowerArmor === item || updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = null;
+      if (updatedEquipment.weapon === item || updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = null;
+      if (updatedEquipment.primaryWeapon === item || updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = null;
+      if (updatedEquipment.mount === item || updatedEquipment.mount?.id === item.id) updatedEquipment.mount = null;
+      if (updatedEquipment.bike === item || updatedEquipment.bike?.id === item.id) updatedEquipment.bike = null;
 
       onUpdatePlayer({
         ...player,
@@ -585,6 +615,7 @@ const REST_OPTIONS: RestOption[] = [
     const cleanBaseName = item.name.replace(/.*?\s(.*)/, '$1');
     const updatedItem: EquipmentItem = {
       ...item,
+      id: `blessed_${item.id}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: `${chosenPrefix.name} ${cleanBaseName} ${chosenSuffix.name}`,
       baseDefense: newBaseDefense,
       baseDamageMin: newBaseDamageMin,
@@ -593,17 +624,22 @@ const REST_OPTIONS: RestOption[] = [
       blessingAttempts: currentAttempts + 1,
     };
 
-    const updatedInventory = player.inventory.map((inv) =>
-      inv.id === item.id ? updatedItem : inv
-    );
+    let replaced = false;
+    const updatedInventory = player.inventory.map((inv) => {
+      if (!replaced && (inv === item || inv.id === item.id)) {
+        replaced = true;
+        return updatedItem;
+      }
+      return inv;
+    });
 
     let updatedEquipment = { ...player.equipment };
-    if (updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = updatedItem;
-    if (updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = updatedItem;
-    if (updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = updatedItem;
-    if (updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = updatedItem;
-    if (updatedEquipment.mount?.id === item.id) updatedEquipment.mount = updatedItem;
-    if (updatedEquipment.bike?.id === item.id) updatedEquipment.bike = updatedItem;
+    if (updatedEquipment.upperArmor === item || updatedEquipment.upperArmor?.id === item.id) updatedEquipment.upperArmor = updatedItem;
+    if (updatedEquipment.lowerArmor === item || updatedEquipment.lowerArmor?.id === item.id) updatedEquipment.lowerArmor = updatedItem;
+    if (updatedEquipment.weapon === item || updatedEquipment.weapon?.id === item.id) updatedEquipment.weapon = updatedItem;
+    if (updatedEquipment.primaryWeapon === item || updatedEquipment.primaryWeapon?.id === item.id) updatedEquipment.primaryWeapon = updatedItem;
+    if (updatedEquipment.mount === item || updatedEquipment.mount?.id === item.id) updatedEquipment.mount = updatedItem;
+    if (updatedEquipment.bike === item || updatedEquipment.bike?.id === item.id) updatedEquipment.bike = updatedItem;
 
     onUpdatePlayer({
       ...player,
@@ -727,12 +763,7 @@ const REST_OPTIONS: RestOption[] = [
     });
   };
   const getEquippedItemForShopItem = (shopItem: EquipmentItem): EquipmentItem | null => {
-    if (shopItem.category === 'UPPER') return player.equipment.upperArmor || null;
-    if (shopItem.category === 'LOWER') return player.equipment.lowerArmor || null;
-    if (['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(shopItem.category)) {
-      return player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
-    }
-    return null;
+    return getEquippedItemForCategory(player.equipment, shopItem.category);
   };
 
   // DYNAMIC LEVEL-SCALED FORGE EQUIPMENT CATALOG (STAT UPGRADES ONLY)
@@ -744,39 +775,23 @@ const REST_OPTIONS: RestOption[] = [
   );
 
   const filteredForgeItems = rawForgeItems.filter((item) => {
-    const equipped = getEquippedItemForShopItem(item);
+    const equipped = getEquippedItemForCategory(player.equipment, item.category);
     if (!equipped) return true;
-    if (item.baseDefense !== undefined && equipped.baseDefense !== undefined) {
-      return item.baseDefense > equipped.baseDefense;
-    }
-    if (item.baseDamageMax !== undefined && equipped.baseDamageMax !== undefined) {
-      return item.baseDamageMax > equipped.baseDamageMax;
-    }
-    return true;
+    const delta = calcItemDelta(item, equipped);
+    return delta.deltaPower > 0;
   });
 
   const renderItemComparison = (shopItem: EquipmentItem) => {
-    const equipped = getEquippedItemForShopItem(shopItem);
+    const equipped = getEquippedItemForCategory(player.equipment, shopItem.category);
     if (!equipped) return <span className="text-emerald-400 font-mono text-[10px] font-bold">✨ New Slot Gear</span>;
 
-    if (shopItem.baseDefense !== undefined) {
-      const eqDef = equipped.baseDefense || 0;
-      const diff = shopItem.baseDefense - eqDef;
-      if (diff > 0) return <span className="text-emerald-400 font-mono text-[10px] font-bold">📈 +{diff} Armor vs Equipped</span>;
-      if (diff < 0) return <span className="text-rose-400 font-mono text-[10px] font-bold">📉 {diff} Armor vs Equipped</span>;
-      return <span className="text-zinc-500 font-mono text-[10px]">➡️ Equal Armor</span>;
-    }
+    const delta = calcItemDelta(shopItem, equipped);
 
-    if (shopItem.baseDamageMin !== undefined && shopItem.baseDamageMax !== undefined) {
-      const shopAvg = (shopItem.baseDamageMin + shopItem.baseDamageMax) / 2;
-      const eqAvg = equipped.baseDamageMin && equipped.baseDamageMax ? (equipped.baseDamageMin + equipped.baseDamageMax) / 2 : 0;
-      const diff = Math.round(shopAvg - eqAvg);
-      if (diff > 0) return <span className="text-emerald-400 font-mono text-[10px] font-bold">📈 +{diff} Avg Atk vs Equipped</span>;
-      if (diff < 0) return <span className="text-rose-400 font-mono text-[10px] font-bold">📉 {diff} Avg Atk vs Equipped</span>;
-      return <span className="text-zinc-500 font-mono text-[10px]">➡️ Equal Atk</span>;
-    }
-
-    return null;
+    return (
+      <span className={`font-mono text-[10px] font-bold ${delta.deltaPower > 0 ? 'text-emerald-400' : delta.deltaPower < 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
+        {delta.deltaPower > 0 ? `📈 +${delta.deltaPower} Power` : delta.deltaPower < 0 ? `📉 ${delta.deltaPower} Power` : '➡️ Equal Power'} vs Equipped
+      </span>
+    );
   };
 
   // Filter bounties based on current player level and unlocked acts
@@ -1136,16 +1151,16 @@ const REST_OPTIONS: RestOption[] = [
             })()}
 
               {/* Tavern Bounties Notice */}
-              {player.level < 3 ? (
+              {player.level < bountyUnlockLevel ? (
                 <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl space-y-1.5 opacity-80">
                   <div className="flex items-center space-x-2">
                     <span className="text-zinc-500 font-bold text-xs uppercase font-mono">🔒 Bounty Board Locked</span>
-                    <span className="bg-zinc-800 text-amber-400 font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">Unlocks at Lv 3</span>
+                    <span className="bg-zinc-800 text-amber-400 font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">Unlocks at Lv {bountyUnlockLevel}</span>
                   </div>
                   <p className="text-[11px] md:text-xs text-zinc-400 font-mono">
-                    The Town Elders require warriors to reach <strong className="text-amber-300">Character Level 3</strong> before taking on lethal creature bounties.
+                    The Town Elders require warriors to reach <strong className="text-amber-300">Character Level {bountyUnlockLevel}</strong> before taking on lethal creature bounties in this cycle.
                   </p>
-                  <div className="text-[10px] font-mono text-zinc-500">Progress: Level {player.level} / 3</div>
+                  <div className="text-[10px] font-mono text-zinc-500">Progress: Level {player.level} / {bountyUnlockLevel}</div>
                 </div>
               ) : (
                 <div data-tutorial-target="tavern-card" className="bg-zinc-950 border border-zinc-800 p-3 md:p-4 rounded-xl space-y-2 md:space-y-3">
@@ -1278,7 +1293,7 @@ const REST_OPTIONS: RestOption[] = [
 
                             <div className="text-[10px] md:text-xs text-zinc-300 flex items-center space-x-1 flex-wrap">
                               <span className="text-zinc-400 font-semibold">Rewards: </span>
-                              <span className="text-emerald-400 font-bold">+{bounty.rewardExp} EXP</span>
+                              <span className="text-emerald-400 font-bold">+{calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp)} EXP</span>
                               <span className="text-zinc-500">•</span>
                               <span className="text-yellow-400 font-bold">+{bounty.rewardCC} CC</span>
                               <span className="text-zinc-500">•</span>
@@ -1355,12 +1370,12 @@ const REST_OPTIONS: RestOption[] = [
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                {player.inventory.filter((i): i is EquipmentItem => 'tier' in i).map((item) => (
+                {player.inventory.filter((i): i is EquipmentItem => 'tier' in i).map((item, idx) => (
                   <button
-                    key={item.id}
-                    onClick={() => setSelectedEnchantItem(item)}
+                    key={`enchant_${item.id}_${idx}`}
+                    onClick={() => setSelectedEnchantItem((prev) => (prev === item ? null : item))}
                     className={`p-2 rounded border text-left text-xs font-mono transition-all ${
-                      selectedEnchantItem?.id === item.id
+                      selectedEnchantItem === item
                         ? 'border-purple-500 bg-purple-950/60 text-purple-200 ring-1 ring-purple-500 shadow-md'
                         : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
                     }`}
@@ -2376,10 +2391,11 @@ const REST_OPTIONS: RestOption[] = [
       {/* Anito Cycle Rebirth (NG+) Story Cutscene Modal */}
       {showRebirthStoryModal && (
         <ActStoryOverlayModal
-          actId="loc_act_1"
+          actId="ng_plus_rebirth"
           actName="Anito Cycle Rebirth"
           actSubtitle={`New Game+ ${player.ngPlusLevel || 1}`}
           actLore={NG_PLUS_REBIRTH_STORY}
+          isNgPlus={true}
           onClose={() => setShowRebirthStoryModal(false)}
         />
       )}

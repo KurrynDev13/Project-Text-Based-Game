@@ -361,16 +361,6 @@ const SkillTreeView: React.FC<SkillTreeViewProps> = ({ player, onUpdatePlayer })
 
         {/* Action Buttons: Unlock / Equip / Unequip */}
         <div className="flex flex-col gap-2 mt-1">
-          {/* Default Basic Attack */}
-          {isDefault && skill.isBasicAttack && (
-            <button
-              disabled
-              className="w-full py-2 rounded-lg text-xs font-semibold bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed"
-            >
-              Default Skill (Always Active in Combat)
-            </button>
-          )}
-
           {/* Not Yet Unlocked */}
           {!isUnlocked && (
             <button
@@ -392,7 +382,7 @@ const SkillTreeView: React.FC<SkillTreeViewProps> = ({ player, onUpdatePlayer })
           )}
 
           {/* Unlocked Skill: Equip / Unequip */}
-          {isUnlocked && !skill.isBasicAttack && (
+          {isUnlocked && (
             <>
               {isEquipped ? (
                 <button
