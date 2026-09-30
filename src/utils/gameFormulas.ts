@@ -124,8 +124,8 @@ export function calcDerivedStats(
   // Damage Reduction (%): [Armor / (Armor + 150)] * 100
   const damageReductionPercent = Math.min(85, (totalArmor / (totalArmor + 150)) * 100);
 
-  // Dodge Rate: AGI * 0.3% + bonus
-  const dodgeChancePercent = Math.min(60, agi * 0.3 + bonusDodge);
+  // Dodge Rate: AGI * 0.5% + bonus (increased from 0.3 for more impactful AGI builds)
+  const dodgeChancePercent = Math.min(60, agi * 0.5 + bonusDodge);
 
   // Crit Hit Chance: AGI * 0.5% + bonus
   const critChancePercent = Math.min(75, agi * 0.5 + bonusCrit);

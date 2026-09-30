@@ -20,36 +20,33 @@ interface LoreParagraph {
 }
 
 function buildLore(heroName: string, heroClass: string): LoreParagraph[] {
-  return [
-    {
-      text: 'Before the sea was parted and the mountains stood tall, there was only the void — and within it, Bathala, the Supreme Being, breathed creation into existence.',
-      italic: true,
-    },
-    {
-      text: 'He fashioned the islands of Maharlika from the scales of the great Bakunawa serpent, blessed the soil with the tears of Mayari, and lit the heavens with the undying fire of Apolaki.',
-    },
-    {
-      text: 'For a thousand harvests, the people of the archipelago lived as one — Datu and Alipin, Babaylan and Mandirigma — each knowing their sacred place beneath the stars.',
-    },
-    {
-      text: 'But the old covenants have shattered. Ancient creatures stir in the depths of the Balete forests and beneath the ocean trenches. The Aswang covens feast in the moonless dark. Mount Kanlaon bleeds fire once more.',
-      italic: true,
-    },
-    {
-      text: 'The spirit world bleeds into mortal lands, and only one with the courage to walk between worlds can restore the balance.',
-    },
-    {
-      text: `You are ${heroName}, a ${heroClass} who has heard the ancestors' call.`,
-      italic: true,
-    },
-    {
-      text: 'Your path begins at the edge of the Whispering Balete Forest, where the first shadows of a great darkness have fallen.',
-    },
-    {
-      text: 'May Bathala guide your blade. May Mayari light your path. And may the Balete trees remember your name when the final battle is won.',
-      italic: true,
-    },
-  ];
+    return [
+        {
+            text: 'Before the tides carved the coral shelves and the mountains split the sky, there was only the primordial silence of the deep — until Bathala spoke, raising emerald isles from the seafoam and breathing life into the sacred realm of Maharlika.',
+            italic: true,
+        },
+        {
+            text: 'To watch over the mortal sleep, he hung seven radiant sister moons across the celestial dome, blessed the soil with the grace of the ancient Anitos, and lit the dawn with the righteous fire of Apolaki. For a thousand golden harvests, the archipelago thrived in sacred harmony — Datu and warrior, Babaylan and fisherman — living beneath an unbroken canopy of starlight.',
+        },
+        {
+            text: 'Now, that sacred harmony crumbles into rot and shadow. One by one, the sister moons have been torn from the heavens, leaving only a frail, dying crescent to stave off an eternal void. With the fading light, the ancient seals have ruptured: Mount Kanlaon heaves with volcanic fury, the ocean shallows weep with siren madness, and ravenous wings haunt the crimson dusk of the Blood Coast.',
+            italic: true,
+        },
+        {
+            text: 'The veil between the mortal earth and the spirit realm bleeds thin. The grievances of forgotten gods and the wails of restless ancestors curdle the wind, searching for a soul bold enough to step into the dark.',
+        },
+        {
+            text: `You are ${heroName}, a ${heroClass} whose veins pulse with the embers of your ancestors, answering the call of an archipelago on the brink of ruin.`,
+            italic: true,
+        },
+        {
+            text: 'Your odyssey begins upon the windswept bluffs of Poblacion, where the colossal, moss-draped boughs of the Balete Forest swallow the sun and shelter the first whispers of a rising calamity.',
+        },
+        {
+            text: 'Gird your spirit, Maharlika. May the ancient Anitos guide your hand, may the last moon illuminate your path, and may the islands remember your name before the sky is swallowed forever.',
+            italic: true,
+        },
+    ];
 }
 
 // ─── Auto-Scroll Hook ─────────────────────────────────────────────────────────

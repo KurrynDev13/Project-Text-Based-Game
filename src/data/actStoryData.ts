@@ -77,13 +77,19 @@ With your triumph, the realm unlocks:
 🌌 The Celestial Ether of Bathala (Infinite Survival Mode with Prismatic Memory Drops & Boss Waves)
 ☯️ Anito Cycle Rebirth (Start New Game+ with scaled +150% enemy stats, carrying over all gear, skills, and stats!)`;
 
-export const ACT8_NG_PLUS_VICTORY_STORY = `As your final strike lands across the Maw of the Great Eclipse, you do not raise your blade in cold fury. Guided by the seven Forgotten Glyphs resonance pulsing in your soul, you weave ancestral Babaylan chants to soothe the burning starfire trapped within Bakunawa's breast.
+export const ACT8_NG_PLUS_VICTORY_STORY = `As your final strike lands, you do not invoke cold wrath. Your blade does not plunge into the serpent’s throat to butcher; it arrests upon the fractured cosmic scales like a physician’s touch upon a mortal wound. 
 
-The Moon-Devouring Serpent lets out a gentle, echoing sigh that ripples through the void. Rather than shattering in agony, its colossal scales soften into radiant celestial light as the seven swallowed moon-sisters drift peacefully free from its heart, ascending to their rightful thrones in the night sky!
+Guided by the eight Forgotten Glyphs etched into your soul, you cast aside your bloodlust. In its place, an ancestral Babaylan chant rises from your lips—not a battle cry, but a sacred orasyon of mourning, recognition, and solace. You speak directly to the lonely spirit of the primordial deep who loved the heavens too dearly. You acknowledge the grief that the gods dismissed, the rejection that curdled devotion into ravenous despair, and the agonizing starlight that has roasted its belly for uncounted eons.
 
-The cosmic clock of Bathala unlocks forever. The endless cycle of rebirth is broken!
+The eight Glyphs ignite around you in a blinding mandala of celestial gold and ocean blue. Their resonance sinks beneath Bakunawa’s blackened scales, threading cool, soothing currents of ancestral magic into the burning fissure in the beast's chest. For the first time since the birth of the islands, the blistering starfire inside the beast begins to abate. The deafening roar that once shook the cosmic pillars softens into a trembling, shuddering exhalation. The blood-red eclipse blinding the serpent’s gaze dissolves, giving way to the clear, luminous sapphire of the primeval sea.
 
-From the highest cloud-thrones of the Sky-Citadel, Bathala himself shines his divine favor upon you, elevating your mortal spirit to the rank of Supreme Immortal Anito Deity of the Archipelago! The realm is permanently saved across all timelines!`;
+Coaxed by the gentleness of your hymn, the swallowed light stirs. From the open maw of the Great Serpent, six radiant spheres drift upward into the velvet dark—unbroken, cleansed of void-rot, and ringing with celestial chimes. Reunited with the seventh sister, the Seven Moons ascend to their rightful thrones across the heavens, bathing the archipelago in a breathtaking shower of silver and iridescent mother-of-pearl.
+
+Bathed in the gentle, forgiving glow of the celestial sisters it longed to hold, the colossal form of Bakunawa begins to shimmer. The serpent does not writhe in agony nor shatter into bitter ash. Its immense head bows toward you in silent, reverent absolution before its scales dissolve into a flowing river of diamond stardust. It rises peacefully into the heavens to circle the nocturnal sky—not as a world-eater, but as the eternal celestial guardian of the cosmic tides.
+
+Below, across the eight mortal realms, the great temporal loop fractures and dissolves. Time surges forward at last. The strangling Balete boughs breathe with natural green life; the weeping siren's lament softens into a peaceful lullaby of the reef; the volcanic heart of Kanlaon settles into tranquil slumber; and the ancestors in their limestone sarcophagi finally sleep unbroken.
+
+The cycle of suffering is broken. As dawn breaks over the tranquil waters of the archipelago, the seven moons fade gracefully into the morning sun. You stand at the edge of the sky—not merely a slayer of beasts, but the Healer of the Cosmos, the Maharlika who soothed the heavens, and the True Champion of Bathala.`;
 
 export const NG_PLUS_REBIRTH_STORY = `You struck down the world-eater. You watched the serpent’s cosmic scales dissolve into glittering starlight, and you felt the triumphant warmth of dawn break over the archipelago. 
 

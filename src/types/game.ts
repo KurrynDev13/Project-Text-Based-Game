@@ -313,6 +313,7 @@ export interface BattleState {
   survivalKillStreak?: number;
   survivalBossThreshold?: number;
   survivalWaveTier?: number;
+  guardedLastTurn?: boolean; // Prevents back-to-back Guard spamming (1-turn cooldown)
 }
 
 export interface BattleLogEntry {

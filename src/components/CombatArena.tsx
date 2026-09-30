@@ -161,21 +161,50 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
       baseDamage = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * skill.baseDamageMultiplier);
     }
 
-    // Crit check
-    const isCrit = Math.random() * 100 < derived.critChancePercent;
-    if (isCrit) {
-      baseDamage = Math.floor(baseDamage * 1.6);
-      soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} struck ${enemy.name} for ${baseDamage} DMG!`, 'CRIT', 'PLAYER');
-    } else {
-      logs = addLog(logs, `${skill.icon} ${skill.name} hit ${enemy.name} for ${baseDamage} damage!`, 'DAMAGE', 'PLAYER');
+    // Elemental Armor DR
+    const wCat = activeWeapon?.category;
+    const effectiveDmgType =
+      (player.heroClass === 'Babaylan' || wCat === 'STAFF') && skill.damageType === 'PHYSICAL'
+        ? 'MAGIC'
+        : skill.damageType;
+
+    let enemyDR: number;
+    switch (effectiveDmgType) {
+      case 'MAGIC':
+      case 'SHADOW':
+      case 'RADIANT':
+        enemyDR = enemy.armor / (enemy.armor + 400);
+        break;
+      case 'LIGHTNING':
+        enemyDR = enemy.armor / (enemy.armor + 350);
+        break;
+      case 'FIRE':
+      case 'FROST':
+      case 'POISON':
+        enemyDR = enemy.armor / (enemy.armor + 250);
+        break;
+      case 'PHYSICAL':
+      default:
+        enemyDR = enemy.armor / (enemy.armor + 150);
+        break;
     }
 
-    // Apply Enemy Armor DR (physical only; magic pierces partially)
-    const isPurePhysical = skill.damageType === 'PHYSICAL';
-    const enemyDR = isPurePhysical ? enemy.armor / (enemy.armor + 150) : enemy.armor / (enemy.armor + 300);
     const finalDmg = Math.max(1, Math.floor(baseDamage * (1 - enemyDR)));
-    enemy.currentHp -= finalDmg;
+
+    // Crit check (2.0× post-DR)
+    const isCrit = Math.random() * 100 < derived.critChancePercent;
+    if (isCrit) {
+      const critDmg = Math.floor(finalDmg * 2.0);
+      enemy.currentHp -= critDmg;
+      soundFX.playCritSound();
+      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
+    } else {
+      enemy.currentHp -= finalDmg;
+      logs = addLog(logs, `${skill.icon} ${skill.name} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+    }
 
     // Apply status effect if skill triggers one
     if (skill.effectType) {

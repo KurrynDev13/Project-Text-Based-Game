@@ -215,13 +215,13 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 
   // ==========================================
   // ACT IV: THE ASH-WREATHED CALDERA (Levels 19–25)
-  // 4 Regular Monsters + 1 Mandatory Boss
+  // 4 Regular Monsters + 1 Mandatory Boss (-15% baseHp rebalance)
   // ==========================================
   {
     id: 'm_santelmo',
     name: 'Santelmo Fire-Orb',
     title: 'Dancing Flame Soul of the Volcano',
-    baseHp: 1050,
+    baseHp: 890,
     baseArmor: 48,
     baseMinDmg: 75,
     baseMaxDmg: 105,
@@ -236,7 +236,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_dalaketnon',
     name: 'Dalaketnon Shadow Infiltrator',
     title: 'Deceptive Underground Noble',
-    baseHp: 1250,
+    baseHp: 1060,
     baseArmor: 54,
     baseMinDmg: 88,
     baseMaxDmg: 120,
@@ -251,7 +251,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_lava_pugot',
     name: 'Lava-Crusted Headless Ogre (Pugot)',
     title: 'Molten Obsidian Brute',
-    baseHp: 1480,
+    baseHp: 1260,
     baseArmor: 62,
     baseMinDmg: 102,
     baseMaxDmg: 138,
@@ -265,7 +265,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_bungisngis',
     name: 'Bungisngis Laughing Cyclops',
     title: 'One-Eyed Jovial Colossus',
-    baseHp: 1720,
+    baseHp: 1460,
     baseArmor: 72,
     baseMinDmg: 118,
     baseMaxDmg: 155,
@@ -280,7 +280,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_4',
     name: 'Heart of Mount Kanlaon',
     title: 'Act IV Guardian • Primordial Magma Colossus',
-    baseHp: 7200,
+    baseHp: 6100,
     baseArmor: 105,
     baseMinDmg: 155,
     baseMaxDmg: 210,
@@ -295,13 +295,13 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 
   // ==========================================
   // ACT V: THE CURSED BLOOD COAST (Levels 26–32)
-  // 5 Regular Monsters + 1 Mandatory Boss
+  // 5 Regular Monsters + 1 Mandatory Boss (-15% baseHp rebalance)
   // ==========================================
   {
     id: 'm_manananggal',
     name: 'Manananggal Torso-Flayer',
     title: 'Severed Winged Night Predator',
-    baseHp: 1850,
+    baseHp: 1570,
     baseArmor: 78,
     baseMinDmg: 125,
     baseMaxDmg: 170,
@@ -316,7 +316,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_wakwak',
     name: 'Wakwak Night-Harpy',
     title: 'Flapping Omen of the Moon',
-    baseHp: 2100,
+    baseHp: 1785,
     baseArmor: 86,
     baseMinDmg: 140,
     baseMaxDmg: 188,
@@ -330,7 +330,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_tiktik',
     name: 'Tik-Tik Roof-Stalker',
     title: 'Silent Tongue-Hunter',
-    baseHp: 2400,
+    baseHp: 2040,
     baseArmor: 95,
     baseMinDmg: 158,
     baseMaxDmg: 210,
@@ -345,7 +345,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_balbal',
     name: 'Bal-Bal Corpse-Snatcher',
     title: 'Graveyard Sail-Wing Fiend',
-    baseHp: 2700,
+    baseHp: 2295,
     baseArmor: 105,
     baseMinDmg: 175,
     baseMaxDmg: 230,
@@ -360,7 +360,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_tigmamanukan',
     name: 'Tigmamanukan Omen-Raven',
     title: 'Prophetic Blue-Feathered Oracle',
-    baseHp: 3000,
+    baseHp: 2550,
     baseArmor: 115,
     baseMinDmg: 195,
     baseMaxDmg: 255,
@@ -375,7 +375,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_5',
     name: 'The Primordial Aswang Warlord',
     title: 'Act V Guardian • Patriarch of the Night Coven',
-    baseHp: 12800,
+    baseHp: 10880,
     baseArmor: 145,
     baseMinDmg: 235,
     baseMaxDmg: 320,
@@ -390,13 +390,13 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 
   // ==========================================
   // ACT VI: TRENCH OF THE ABYSSAL TIDE (Levels 33–39)
-  // 6 Regular Monsters + 1 Mandatory Boss
+  // 6 Regular Monsters + 1 Mandatory Boss (-25% baseHp rebalance)
   // ==========================================
   {
     id: 'm_syokoy_chieftain',
     name: 'Syokoy Deep-Chieftain',
     title: 'Trident-Wielding Abyssal Lord',
-    baseHp: 3200,
+    baseHp: 2400,
     baseArmor: 125,
     baseMinDmg: 200,
     baseMaxDmg: 265,
@@ -410,7 +410,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_trench_leviathan',
     name: 'Trench Sea Leviathan',
     title: 'Sunken Trench Behemoth',
-    baseHp: 3600,
+    baseHp: 2700,
     baseArmor: 138,
     baseMinDmg: 225,
     baseMaxDmg: 295,
@@ -425,7 +425,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_sunken_corsair',
     name: 'Sunken Corsair Phantom',
     title: 'Ghostly Spanish Galleon Captain',
-    baseHp: 4050,
+    baseHp: 3035,
     baseArmor: 150,
     baseMinDmg: 250,
     baseMaxDmg: 325,
@@ -439,7 +439,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_coral_berbalang',
     name: 'Coral Berbalang Fiend',
     title: 'Calcified Reef Predator',
-    baseHp: 4500,
+    baseHp: 3375,
     baseArmor: 162,
     baseMinDmg: 275,
     baseMaxDmg: 355,
@@ -454,7 +454,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_maelstrom_spirit',
     name: 'Abyssal Maelstrom Spirit',
     title: 'Swirling Vortex Elemental',
-    baseHp: 5000,
+    baseHp: 3750,
     baseArmor: 175,
     baseMinDmg: 300,
     baseMaxDmg: 390,
@@ -468,7 +468,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_giant_kelp_leech',
     name: 'Giant Kelp Leech',
     title: 'Submerged Blood Parasite',
-    baseHp: 5500,
+    baseHp: 4125,
     baseArmor: 188,
     baseMinDmg: 325,
     baseMaxDmg: 425,
@@ -483,7 +483,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_6',
     name: 'Tambanokano, The Moon-Crusher',
     title: 'Act VI Guardian • Giant Moon-Devouring Crab Titan',
-    baseHp: 22000,
+    baseHp: 16500,
     baseArmor: 195,
     baseMinDmg: 350,
     baseMaxDmg: 475,
@@ -498,13 +498,13 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 
   // ==========================================
   // ACT VII: SPIRES OF THE SKY-CITADEL (Levels 40–46)
-  // 7 Regular Monsters + 1 Mandatory Boss
+  // 7 Regular Monsters + 1 Mandatory Boss (-30% baseHp rebalance)
   // ==========================================
   {
     id: 'm_minokawa_raptor',
     name: 'Sun-Slayer Raptor (Minokawa)',
     title: 'Sky-Dwelling Sun-Chaser',
-    baseHp: 5200,
+    baseHp: 3640,
     baseArmor: 195,
     baseMinDmg: 310,
     baseMaxDmg: 410,
@@ -519,7 +519,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_sarimanok_warden',
     name: 'Sarimanok Arcane Warden',
     title: 'Rainbow Plumed Celestial Sentry',
-    baseHp: 5800,
+    baseHp: 4060,
     baseArmor: 210,
     baseMinDmg: 340,
     baseMaxDmg: 445,
@@ -533,7 +533,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_diwata_sentinel',
     name: 'Diwata Sky-Sentinel',
     title: 'Guardian Spirit of the Clouds',
-    baseHp: 6450,
+    baseHp: 4515,
     baseArmor: 225,
     baseMinDmg: 370,
     baseMaxDmg: 485,
@@ -548,7 +548,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_storm_bagwis',
     name: 'Storm Wind Harpy (Bagwis)',
     title: 'Gale-Force Feathered Fury',
-    baseHp: 7150,
+    baseHp: 5005,
     baseArmor: 240,
     baseMinDmg: 405,
     baseMaxDmg: 525,
@@ -562,7 +562,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_kidlat_elemental',
     name: 'Lightning Kidlat Elemental',
     title: 'Living Arc of Thunder',
-    baseHp: 7900,
+    baseHp: 5530,
     baseArmor: 256,
     baseMinDmg: 440,
     baseMaxDmg: 570,
@@ -577,7 +577,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_kawal_datu',
     name: 'Warrior of the Mountain Datu',
     title: 'Celestial Guard of Sinukuan',
-    baseHp: 8700,
+    baseHp: 6090,
     baseArmor: 272,
     baseMinDmg: 480,
     baseMaxDmg: 620,
@@ -591,7 +591,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_anito_colossus',
     name: 'Stone Anito Colossus',
     title: 'Living Monolith of Ancestral Earth',
-    baseHp: 9600,
+    baseHp: 6720,
     baseArmor: 290,
     baseMinDmg: 520,
     baseMaxDmg: 675,
@@ -606,7 +606,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_7',
     name: 'Celestial Arbiter of Mount Arayat',
     title: 'Act VII Guardian • Divine Judge of the High Heavens',
-    baseHp: 35000,
+    baseHp: 24500,
     baseArmor: 280,
     baseMinDmg: 510,
     baseMaxDmg: 680,
@@ -621,13 +621,13 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
 
   // ==========================================
   // ACT VIII: MAW OF THE GREAT ECLIPSE (Levels 47–55+)
-  // 8 Regular Monsters + 1 Supreme World Titan Boss
+  // 8 Regular Monsters + 1 Supreme World Titan Boss (-45% baseHp rebalance)
   // ==========================================
   {
     id: 'm_eclipse_void_drake',
     name: 'Eclipse Void Drake',
     title: 'Winged Spawn of the Black Moon',
-    baseHp: 9800,
+    baseHp: 5390,
     baseArmor: 305,
     baseMinDmg: 550,
     baseMaxDmg: 710,
@@ -641,7 +641,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_cosmic_tikbalang',
     name: 'Cosmic Tikbalang Stalker',
     title: 'Interstellar Equine Phantom',
-    baseHp: 10800,
+    baseHp: 5940,
     baseArmor: 325,
     baseMinDmg: 595,
     baseMaxDmg: 765,
@@ -656,7 +656,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_abyssal_aswang_lord',
     name: 'Abyssal Aswang Overlord',
     title: 'Crowned Lord of the Dark Hinterlands',
-    baseHp: 11900,
+    baseHp: 6545,
     baseArmor: 345,
     baseMinDmg: 640,
     baseMaxDmg: 825,
@@ -671,7 +671,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_corrupted_shaman_lich',
     name: 'Corrupted Shaman Lich',
     title: 'Fallen Babaylan Devoured by Void',
-    baseHp: 13000,
+    baseHp: 7150,
     baseArmor: 365,
     baseMinDmg: 690,
     baseMaxDmg: 885,
@@ -686,7 +686,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_balete_void_horror',
     name: 'Balete Void Abomination',
     title: 'Twisted Root Horror of the Maw',
-    baseHp: 14200,
+    baseHp: 7810,
     baseArmor: 385,
     baseMinDmg: 740,
     baseMaxDmg: 950,
@@ -701,7 +701,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_tidal_nether_serpent',
     name: 'Tidal Nether-Serpent',
     title: 'Frozen Coils of the Sub-Surface Abyss',
-    baseHp: 15500,
+    baseHp: 8525,
     baseArmor: 405,
     baseMinDmg: 795,
     baseMaxDmg: 1020,
@@ -716,7 +716,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_spectral_sky_devourer',
     name: 'Spectral Sky-Devourer',
     title: 'Astral Aberration of the Eclipse',
-    baseHp: 16900,
+    baseHp: 9295,
     baseArmor: 425,
     baseMinDmg: 850,
     baseMaxDmg: 1090,
@@ -731,7 +731,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'm_bakunawa_spawn',
     name: 'Brood of the Moon Serpent',
     title: 'Venomous Hatchling of the Great Drake',
-    baseHp: 18400,
+    baseHp: 10120,
     baseArmor: 445,
     baseMinDmg: 910,
     baseMaxDmg: 1160,
@@ -746,7 +746,7 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_8',
     name: 'Bakunawa, The Moon-Devouring Serpent',
     title: 'Act VIII Supreme World Titan • Devourer of the Seven Moons',
-    baseHp: 75000,
+    baseHp: 41250,
     baseArmor: 400,
     baseMinDmg: 750,
     baseMaxDmg: 1050,

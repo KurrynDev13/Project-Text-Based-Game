@@ -888,6 +888,42 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   };
 
+  // ─── ELEMENTAL ARMOR DR HELPER ──────────────────────────────────────────
+  // Returns the armor damage reduction ratio based on damage type.
+  // Higher denominator = more magic pierce = less mitigation.
+  // PHYSICAL       → armor/(armor+150)  — heaviest mitigation
+  // FIRE/FROST/POISON → armor/(armor+250) — elemental, partially blocked
+  // LIGHTNING      → armor/(armor+350)  — mid-tier elemental
+  // MAGIC/SHADOW/RADIANT → armor/(armor+400) — lightest mitigation
+  const getEnemyDR = (
+    armor: number,
+    dmgType: string,
+    heroClass?: string,
+    weaponCategory?: string
+  ): number => {
+    // Babaylan / Staff basic attacks always count as MAGIC pierce
+    const effectiveDmgType =
+      (heroClass === 'Babaylan' || weaponCategory === 'STAFF') && dmgType === 'PHYSICAL'
+        ? 'MAGIC'
+        : dmgType;
+
+    switch (effectiveDmgType) {
+      case 'MAGIC':
+      case 'SHADOW':
+      case 'RADIANT':
+        return armor / (armor + 400);
+      case 'LIGHTNING':
+        return armor / (armor + 350);
+      case 'FIRE':
+      case 'FROST':
+      case 'POISON':
+        return armor / (armor + 250);
+      case 'PHYSICAL':
+      default:
+        return armor / (armor + 150);
+    }
+  };
+
   // COMBAT ACTION 1: Basic Attack (Restores +5 MP on hit!)
   const handleAttack = () => {
     if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
@@ -910,23 +946,30 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     const weaponRoll = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1));
-    let baseDmg = weaponRoll + Math.floor(statBonus);
+    const baseDmg = weaponRoll + Math.floor(statBonus);
 
     // Basic Attack restores +5 MP per strike
     const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
 
+    // Class/weapon-aware armor DR (fixes Babaylan always using physical formula)
+    const enemyDR = getEnemyDR(enemy.armor, 'PHYSICAL', player.heroClass, weaponCategory);
+    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
+
     const isCrit = Math.random() * 100 < derived.critChancePercent;
     if (isCrit) {
-      baseDmg = Math.floor(baseDmg * 1.6);
+      // Crit: 2.0x applied to post-DR finalDmg for consistent feel regardless of enemy armor
+      const critDmg = Math.floor(finalDmg * 2.0);
+      enemy.currentHp -= critDmg;
       soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL STRIKE! Dealt ${baseDmg} physical damage to ${enemy.name}! (+5 MP restored)`, 'CRIT', 'PLAYER');
+      logs = addLog(logs, `⚡ CRITICAL STRIKE! ${activeWeapon?.name || 'Strike'} devastated ${enemy.name} for ${critDmg} damage! (+5 MP)`, 'CRIT', 'PLAYER');
+      // Guaranteed Bleed proc on critical hits
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
     } else {
-      logs = addLog(logs, `⚔️ You struck ${enemy.name} with ${activeWeapon?.name || 'Weapon'} for ${baseDmg} damage! (+5 MP restored)`, 'DAMAGE', 'PLAYER');
+      enemy.currentHp -= finalDmg;
+      logs = addLog(logs, `⚔️ ${activeWeapon?.name || 'Basic Strike'} hit ${enemy.name} for ${finalDmg} damage! (+5 MP)`, 'DAMAGE', 'PLAYER');
     }
-
-    const enemyDR = enemy.armor / (enemy.armor + 150);
-    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
-    enemy.currentHp -= finalDmg;
 
     const updatedPlayer = { ...player, currentMp: regenedMp };
     onUpdatePlayer(updatedPlayer);
@@ -939,7 +982,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
     if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: false });
   };
 
   // COMBAT ACTION 2: Skill Execution (Dynamic from player equipped skills)
@@ -1004,19 +1047,24 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage applied!`, 'BUFF', 'PLAYER');
     }
 
-    // Crit check
+    // Crit check (must happen after finalDmg is computed so 2.0x applies post-armor)
+    const enemyDR = getEnemyDR(enemy.armor, skill.damageType);
+    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
+
     const isCrit = Math.random() * 100 < derived.critChancePercent;
     if (isCrit) {
-      baseDmg = Math.floor(baseDmg * 1.6);
+      const critDmg = Math.floor(finalDmg * 2.0);
+      enemy.currentHp -= critDmg;
       soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} dealt ${baseDmg} damage to ${enemy.name}!`, 'CRIT', 'PLAYER');
+      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
+      // Guaranteed Bleed proc on critical hits
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
     } else {
-      logs = addLog(logs, `${skill.icon} Executed [${skill.name}]${rankLabel} for ${baseDmg} damage on ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      enemy.currentHp -= finalDmg;
+      logs = addLog(logs, `${skill.icon} [${skill.name}]${rankLabel} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
     }
-
-    const enemyDR = skill.damageType === 'PHYSICAL' ? enemy.armor / (enemy.armor + 150) : enemy.armor / (enemy.armor + 300);
-    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
-    enemy.currentHp -= finalDmg;
 
     if (skill.effectType) {
       logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
@@ -1032,7 +1080,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     onUpdatePlayer(updatedPlayer);
     const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
     if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: false });
   };
 
   // COMBAT ACTION 3: Use Consumable Item
@@ -1076,16 +1124,23 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const handleGuard = () => {
     if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
 
+    // Guard Exhaustion: cannot guard 2 turns in a row
+    if (battle.guardedLastTurn) {
+      notify('⚔️ Guard Exhausted! You must act offensively before raising your guard again.', 'warning', '🛡️');
+      return;
+    }
+
     soundFX.playPotionSound();
     let logs = battle.logs;
 
-    // Guarding restores +10 MP (focusing breath) and grants Defensive Stance
-    const regenedMp = Math.min(derived.maxMp, player.currentMp + 10);
-    const parryChance = Math.min(50, Math.floor(25 + player.attributes.agi * 0.4));
+    // Guarding restores +5 MP (reduced from +10) and grants a modest Defensive Stance
+    const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
+    // Parry: 8% base + AGI×0.25, capped at 40% — rewards AGI-focused classes
+    const parryChance = Math.min(40, Math.floor(8 + player.attributes.agi * 0.25));
 
     logs = addLog(
       logs,
-      `🛡️ Raised Guard & Focused Breath! (+10 MP restored, -40% DR & ${parryChance}% Parry Riposte active)`,
+      `🛡️ Raised Guard! (+5 MP, +15% DR, ${parryChance}% Parry active)`,
       'BUFF',
       'PLAYER'
     );
@@ -1100,7 +1155,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const enemy = { ...battle.enemy };
     const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
     if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: true });
   };
 
   // COMBAT ACTION 5: Flee (Max 2 attempts per battle; 2nd attempt has significantly higher fail chance)
@@ -1176,21 +1231,59 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   ): { logs: BattleLogEntry[]; isDefeated: boolean } => {
     const p = activePlayerState || player;
     let logs = currentLogs;
+
+    // ── Enemy Bleed DoT tick (from player critical hits) ──────────────────
+    const enemyBleed = (enemy.activeEffects || []).find(e => e.type === 'BLEED');
+    if (enemyBleed && enemyBleed.durationTurnsLeft > 0) {
+      const bleedDmg = Math.max(1, Math.floor(enemy.maxHp * 0.03));
+      enemy.currentHp = Math.max(0, enemy.currentHp - bleedDmg);
+      logs = addLog(logs, `🩸 ${enemy.name} bleeds for ${bleedDmg} HP (3% max HP)!`, 'DAMAGE', 'SYSTEM');
+      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+        e.type === 'BLEED' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BLEED');
+      // Check if bleed killed the enemy
+      if (enemy.currentHp <= 0) {
+        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+        handleVictory(enemy, logs);
+        return { logs, isDefeated: true };
+      }
+    }
+
     const enemyDmg = Math.floor(enemy.attackMin + Math.random() * (enemy.attackMax - enemy.attackMin + 1));
 
-    // Parry & Riposte Check when Guarding
+    // ── Dodge check ──────────────────────────────────────────────────────
+    if (Math.random() * 100 < derived.dodgeChancePercent) {
+      // AGI counter-dodge: Bagani/Mangangaso at sufficient AGI get a counter-attack proc
+      const isAgiClass = player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso';
+      const counterChance = isAgiClass ? Math.min(40, Math.floor(p.attributes.agi * 0.4)) : 0;
+      if (isAgiClass && Math.random() * 100 < counterChance) {
+        const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
+        const counterDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.6));
+        enemy.currentHp -= counterDmg;
+        logs = addLog(logs, `💨 EVASION COUNTER! Evaded ${enemy.name}'s strike — riposted for ${counterDmg}!`, 'CRIT', 'PLAYER');
+      } else {
+        logs = addLog(logs, `💨 Evaded ${enemy.name}'s strike! No damage taken.`, 'INFO', 'PLAYER');
+      }
+      onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+      return { logs, isDefeated: false };
+    }
+
+    // ── Parry & Riposte check when Guarding ──────────────────────────────
     if (p.isCoveredNextTurn) {
-      const parryChance = Math.min(50, Math.floor(25 + p.attributes.agi * 0.4));
+      // Parry: 8% base + AGI×0.25, capped at 40% — rewards AGI builds
+      const parryChance = Math.min(40, Math.floor(8 + p.attributes.agi * 0.25));
       const isParried = Math.random() * 100 < parryChance;
 
       if (isParried) {
         soundFX.playCritSound();
-        const riposteDmg = Math.max(1, Math.floor(enemyDmg * 0.75));
+        // Riposte = 50% of player's weapon baseDamageMin (class-appropriate, not inflated by enemy roll)
+        const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
+        const riposteDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.5));
         enemy.currentHp = Math.max(0, enemy.currentHp - riposteDmg);
 
         logs = addLog(
           logs,
-          `⚔️ PERFECT PARRY! Deflected ${enemy.name}'s attack (0 damage taken) and riposted for ${riposteDmg} counter damage!`,
+          `⚔️ PARRY! Deflected ${enemy.name}'s strike — countered for ${riposteDmg}!`,
           'CRIT',
           'PLAYER'
         );
@@ -1208,7 +1301,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     let playerDR = derived.damageReductionPercent / 100;
     if (p.isCoveredNextTurn) {
-      playerDR = Math.min(0.9, playerDR + 0.4);
+      playerDR = Math.min(0.85, playerDR + 0.15);
     }
 
     const finalEnemyDmg = Math.max(1, Math.floor(enemyDmg * (1 - playerDR)));
