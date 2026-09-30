@@ -1616,16 +1616,28 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               className="w-full sm:w-auto bg-zinc-950 border border-amber-500/40 text-amber-200 rounded px-2 py-1 md:px-3 md:py-1.5 text-[10px] md:text-xs font-mono font-bold cursor-pointer truncate"
             >
               {GAME_LOCATIONS.map((loc, idx) => {
+                const isInfinite = loc.id === 'loc_act_infinite';
                 const isLevelLocked = player.level < loc.minLevel;
                 const prevLoc = idx > 0 ? GAME_LOCATIONS[idx - 1] : null;
-                const isBossLocked = prevLoc?.bossId ? !(player.completedBossIds || []).includes(prevLoc.bossId) : false;
+                const isBossLocked = isInfinite
+                  ? !(player.act8Completed || (player.completedBossIds || []).includes('boss_act_8'))
+                  : (prevLoc?.bossId ? !(player.completedBossIds || []).includes(prevLoc.bossId) : false);
                 const isLocked = isLevelLocked || isBossLocked;
-                const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx] || `${idx + 1}`;
+                const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
+
                 let lockLabel = '';
                 if (isLocked) {
-                  lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `Lv ${loc.minLevel}`})`;
+                  if (isInfinite) {
+                    lockLabel = `🔒 Celestial Ether (Req Defeat Act VIII Guardian)`;
+                  } else {
+                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `Lv ${loc.minLevel}`})`;
+                  }
                 } else {
-                  lockLabel = `✅ ${loc.name} (Lv ${loc.minLevel})`;
+                  if (isInfinite) {
+                    lockLabel = `🌌 ${loc.name} (Survival Realm)`;
+                  } else {
+                    lockLabel = `✅ ${loc.name} (Lv ${loc.minLevel})`;
+                  }
                 }
 
                 return (

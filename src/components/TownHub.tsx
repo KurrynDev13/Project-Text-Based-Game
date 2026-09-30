@@ -1950,20 +1950,41 @@ const REST_OPTIONS: RestOption[] = [
             <div className="space-y-3">
               <h4 className="text-xs font-mono uppercase text-cyan-400 font-bold flex items-center space-x-1">
                 <span>🌌 EXPEDITION REALMS & ACT ZONES</span>
-                <span className="text-zinc-500 font-normal">({unlockedLocationIds.length} / 8 Acts Unlocked)</span>
+                <span className="text-zinc-500 font-normal">({unlockedLocationIds.filter(id => id !== 'loc_act_infinite').length} / 8 Acts Unlocked)</span>
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {GAME_LOCATIONS.map((loc, idx) => {
-                  const isUnlocked = player.level >= loc.minLevel;
+                  const isInfiniteRealm = loc.id === 'loc_act_infinite';
+                  const isUnlocked = isInfiniteRealm
+                    ? (player.act8Completed || (player.completedBossIds || []).includes('boss_act_8') || (player.unlockedLocationIds || []).includes('loc_act_infinite'))
+                    : (player.level >= loc.minLevel);
                   const isCurrent = player.currentLocationId === loc.id;
-                  const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx] || `${idx + 1}`;
+                  const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
+
+                  const headerSubtitle = isInfiniteRealm
+                    ? (isUnlocked ? loc.subtitle : '🔒 ENDGAME SURVIVAL REALM')
+                    : (isUnlocked ? loc.subtitle : '??? UNDISCOVERED REGION');
+
+                  const cardTitle = isInfiniteRealm
+                    ? (isUnlocked ? loc.name : 'The Celestial Ether of Bathala')
+                    : (isUnlocked ? loc.name : `Act ${actRoman}: ??? Unknown Territory`);
+
+                  const cardDesc = isInfiniteRealm
+                    ? (isUnlocked ? loc.description : 'An infinite cosmic realm of Bathala where malevolent titan spirits continuously spawn. Requires defeating Act VIII Guardian (Bakunawa) to unlock.')
+                    : (isUnlocked ? loc.description : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`);
+
+                  const reqText = isInfiniteRealm
+                    ? (isUnlocked ? '✅ Unlocked' : '🔒 Req: Defeat Act VIII Guardian')
+                    : (isUnlocked ? '✅ Unlocked' : `🔒 Req: Lv ${loc.minLevel}`);
 
                   return (
                     <div
                       key={loc.id}
                       className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
-                        isUnlocked
+                        isCurrent
+                          ? 'bg-zinc-950 border-cyan-400 ring-2 ring-cyan-500/40 shadow-xl'
+                          : isUnlocked
                           ? 'bg-zinc-950 border-cyan-500/40 hover:border-cyan-400 shadow-lg'
                           : 'bg-zinc-950/60 border-zinc-800/80 opacity-60'
                       }`}
@@ -1971,7 +1992,7 @@ const REST_OPTIONS: RestOption[] = [
                       <div>
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-mono font-bold uppercase text-cyan-400">
-                            {isUnlocked ? loc.subtitle : '??? UNDISCOVERED REGION'}
+                            {headerSubtitle}
                           </span>
                           <span
                             className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
@@ -1980,23 +2001,25 @@ const REST_OPTIONS: RestOption[] = [
                                 : 'bg-red-950 text-red-400 border border-red-900/60'
                             }`}
                           >
-                            {isUnlocked ? '✅ Unlocked' : `🔒 Req: Lv ${loc.minLevel}`}
+                            {reqText}
                           </span>
                         </div>
                         <h4 className="text-base font-bold font-serif text-white mt-1">
-                          {isUnlocked ? loc.name : `Act ${actRoman}: ??? Unknown Territory`}
+                          {cardTitle}
                         </h4>
                         <p className="text-xs text-zinc-400 font-mono mt-1 line-clamp-2">
-                          {isUnlocked
-                            ? loc.description
-                            : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`}
+                          {cardDesc}
                         </p>
                       </div>
 
                       <button
                         onClick={() => {
                           if (!isUnlocked) {
-                            notify(`🔒 Realm Locked! Reach Level ${loc.minLevel} to access Act ${actRoman}. (Your Level: ${player.level})`, 'warning', '🔒');
+                            if (isInfiniteRealm) {
+                              notify(`🔒 Infinite Survival Realm Locked! Defeat Act VIII Guardian (Bakunawa) to access The Celestial Ether of Bathala.`, 'warning', '🔒');
+                            } else {
+                              notify(`🔒 Act Locked! Reach Level ${loc.minLevel} to access Act ${actRoman}. (Your Level: ${player.level})`, 'warning', '🔒');
+                            }
                             return;
                           }
                           onUpdatePlayer({ ...player, currentLocationId: loc.id });
@@ -2009,7 +2032,7 @@ const REST_OPTIONS: RestOption[] = [
                             : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
                         }`}
                       >
-                        {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? 'Step Through Portal' : `🔒 Locked (Level ${loc.minLevel})`}
+                        {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? (isInfiniteRealm ? 'Enter Survival Realm' : 'Step Through Portal') : (isInfiniteRealm ? '🔒 Locked (Defeat Act VIII Boss)' : `🔒 Locked (Level ${loc.minLevel})`)}
                       </button>
                     </div>
                   );
