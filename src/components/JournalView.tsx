@@ -25,11 +25,14 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   const sideQuests = player.sideQuests || [];
   const completedSideQuests = sideQuests.filter((q) => q.isClaimed);
 
-  // Current Act data
+  // Latest Unlocked Act location for Main Campaign Objective header (stays at latest unlocked frontier)
+  const latestUnlockedLoc = [...GAME_LOCATIONS].reverse().find((l) => (player.unlockedLocationIds || []).includes(l.id) || player.level >= l.minLevel) || GAME_LOCATIONS[0];
+  const latestActQuests = sideQuests.filter((q) => q.actId === latestUnlockedLoc.id);
+  const latestActCompletedCount = latestActQuests.filter((q) => q.isCompleted || q.isClaimed).length;
+  const latestActDiscoveredCount = latestActQuests.filter((q) => q.isDiscovered).length;
+
+  // Current selected location (for tab filtering when inspecting specific acts)
   const currentLoc = GAME_LOCATIONS.find((l) => l.id === player.currentLocationId) || GAME_LOCATIONS[0];
-  const currentActQuests = sideQuests.filter((q) => q.actId === currentLoc.id);
-  const currentActCompletedCount = currentActQuests.filter((q) => q.isCompleted || q.isClaimed).length;
-  const currentActDiscoveredCount = currentActQuests.filter((q) => q.isDiscovered).length;
 
   // Filtered side quests for display (Anti-spoiler: Only show quests for unlocked Acts!)
   const unlockedLocationIds = GAME_LOCATIONS.filter((l) => player.level >= l.minLevel).map((l) => l.id);
@@ -138,13 +141,13 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-zinc-800/80 pb-2">
           <div>
             <div className="text-[10px] uppercase text-amber-500 font-bold tracking-wider">
-              Main Campaign Objective • {currentLoc.name}
+              Main Campaign Objective • {latestUnlockedLoc.name}
             </div>
-            <h3 className="text-base font-bold font-serif text-amber-200">{currentLoc.subtitle}</h3>
+            <h3 className="text-base font-bold font-serif text-amber-200">{latestUnlockedLoc.subtitle}</h3>
           </div>
           <div className="flex items-center space-x-2">
             <span className="bg-zinc-900 text-zinc-300 px-2.5 py-1 rounded border border-zinc-700 text-[10px]">
-              Quests: <strong className={currentActCompletedCount >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{currentActCompletedCount}/3 Completed</strong> ({currentActDiscoveredCount}/3 Discovered)
+              Quests: <strong className={latestActCompletedCount >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{latestActCompletedCount}/3 Completed</strong> ({latestActDiscoveredCount}/3 Discovered)
             </span>
             <span className="bg-purple-950/80 text-purple-300 px-2.5 py-1 rounded border border-purple-500/40 text-[10px]">
               Active Bounties: <strong className="text-amber-300">{activeBounties.length}/3</strong>
@@ -153,7 +156,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
         </div>
 
         <p className="text-zinc-300 text-xs leading-relaxed">
-          {currentLoc.description}
+          {latestUnlockedLoc.description}
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">

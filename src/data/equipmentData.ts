@@ -978,53 +978,193 @@ export const MOUNTS: EquipmentItem[] = [
 
 export const BIKES = MOUNTS; // deprecated alias
 
-// Consumable Items Catalog
+// Consumable Items Catalog — 13 Master Act-Scaled Botanical Potions & Elixirs
 export const CONSUMABLES: ConsumableItem[] = [
+  // Act I: Whispering Balete Forest (Levels 1–6)
   {
-    id: 'pot_1',
-    name: 'Minor Healing Draught',
+    id: 'pot_act1_hp',
+    name: 'Balete Leaf Healing Draught',
     category: 'POTION',
     costInCC: 25,
-    effectDescription: 'Instantly recovers 50 HP',
+    effectDescription: 'Instantly recovers 75 HP',
     durationTurns: 0,
-    hpRestore: 50,
+    hpRestore: 75,
+    actReq: 1,
+    actId: 'loc_act_1',
+    icon: '🌿',
   },
   {
-    id: 'pot_2',
-    name: 'Elixir of Clarity',
+    id: 'pot_act1_mp',
+    name: 'Bramble Spirit Tonic',
     category: 'POTION',
-    costInCC: 45,
-    effectDescription: 'Recovers 40 MP and removes Exhaustion',
+    costInCC: 35,
+    effectDescription: 'Recovers 50 MP and cleanses 1 stack of Exhaustion',
     durationTurns: 0,
-    mpRestore: 40,
+    mpRestore: 50,
     cleansesDebuffs: true,
+    actReq: 1,
+    actId: 'loc_act_1',
+    icon: '🧪',
+  },
+
+  // Act II: Lagoon of Sunken Sirens (Levels 7–12)
+  {
+    id: 'pot_act2_hp',
+    name: "Sirena's Bioluminescent Elixir",
+    category: 'ELIXIR',
+    costInCC: 120, // 1 Silver 20 CC
+    effectDescription: 'Restores 180 HP & 60 MP',
+    durationTurns: 0,
+    hpRestore: 180,
+    mpRestore: 60,
+    actReq: 2,
+    actId: 'loc_act_2',
+    icon: '💧',
   },
   {
-    id: 'pot_3',
-    name: "Berserker's Brew",
+    id: 'pot_act2_antivenom',
+    name: 'Coral Viper Anti-Venom',
+    category: 'TINCTURE',
+    costInCC: 150, // 1 Silver 50 CC
+    effectDescription: 'Cleanses Poison & Bleed debuffs; grants Fortified stance',
+    durationTurns: 4,
+    cleansesDebuffs: true,
+    grantsBuff: 'FORTIFIED',
+    actReq: 2,
+    actId: 'loc_act_2',
+    icon: '🐍',
+  },
+
+  // Act III: Caves of Ancestral Dead (Levels 13–18)
+  {
+    id: 'pot_act3_hp',
+    name: 'Burial Cavern Vitality Brew',
     category: 'POTION',
-    costInCC: 120,
-    effectDescription: '+25% Physical DMG, -15% Armor for 4 turns',
+    costInCC: 350, // 3 Silver 50 CC
+    effectDescription: 'Instantly recovers 350 HP',
+    durationTurns: 0,
+    hpRestore: 350,
+    actReq: 3,
+    actId: 'loc_act_3',
+    icon: '🏺',
+  },
+  {
+    id: 'pot_act3_shadow',
+    name: 'Shadow-Ward Tincture',
+    category: 'TINCTURE',
+    costInCC: 400, // 4 Silver
+    effectDescription: 'Grants Fortified and immunity to Shadow curses for 4 turns',
+    durationTurns: 4,
+    grantsBuff: 'FORTIFIED',
+    cleansesDebuffs: true,
+    actReq: 3,
+    actId: 'loc_act_3',
+    icon: '🛡️',
+  },
+
+  // Act IV: The Ash-Wreathed Caldera (Levels 19–25)
+  {
+    id: 'pot_act4_hp',
+    name: 'Kanlaon Flame-Heart Draught',
+    category: 'ELIXIR',
+    costInCC: 800, // 8 Silver
+    effectDescription: 'Restores 600 HP & 150 MP; cleanses Burn debuffs',
+    durationTurns: 0,
+    hpRestore: 600,
+    mpRestore: 150,
+    cleansesDebuffs: true,
+    actReq: 4,
+    actId: 'loc_act_4',
+    icon: '🔥',
+  },
+  {
+    id: 'pot_act4_lava',
+    name: "Berserker's Lava Brew",
+    category: 'ELIXIR',
+    costInCC: 1000, // 10 Silver
+    effectDescription: '+30% Physical/Ranged DMG for 4 turns (Empowered)',
     durationTurns: 4,
     grantsBuff: 'EMPOWERED',
+    actReq: 4,
+    actId: 'loc_act_4',
+    icon: '🌋',
   },
+
+  // Act V: The Cursed Blood Coast (Levels 26–32)
   {
-    id: 'pot_4',
-    name: 'Stoneskin Tincture',
+    id: 'pot_act5_hp',
+    name: "Blood Warlord's Rejuvenation",
     category: 'POTION',
-    costInCC: 150,
-    effectDescription: 'Grants Fortified and immunity to Bleed for 5 turns',
-    durationTurns: 5,
-    grantsBuff: 'FORTIFIED',
-  },
-  {
-    id: 'pot_5',
-    name: 'Panacea Vial',
-    category: 'POTION',
-    costInCC: 300,
-    effectDescription: 'Cleanses all active debuffs instantly',
+    costInCC: 2000, // 20 Silver (2 Gold)
+    effectDescription: 'Restores 1,000 HP & 250 MP; cleanses all active debuffs',
     durationTurns: 0,
+    hpRestore: 1000,
+    mpRestore: 250,
     cleansesDebuffs: true,
+    actReq: 5,
+    actId: 'loc_act_5',
+    icon: '🩸',
+  },
+  {
+    id: 'pot_act5_shield',
+    name: 'Anito Spirit Aegis Draught',
+    category: 'TINCTURE',
+    costInCC: 2500, // 25 Silver
+    effectDescription: 'Instantly grants Spirit Shield equal to 30% Max HP for 5 turns',
+    durationTurns: 5,
+    shieldPercent: 0.30,
+    actReq: 5,
+    actId: 'loc_act_5',
+    icon: '🔮',
+  },
+
+  // Act VI: Trench of Abyssal Tide (Levels 33–39)
+  {
+    id: 'pot_act6_hp',
+    name: 'Abyssal Pearl Ambrosia',
+    category: 'ELIXIR',
+    costInCC: 4000, // 40 Silver (4 Gold)
+    effectDescription: 'Restores 1,600 HP & 400 MP; grants Haste stance for 4 turns',
+    durationTurns: 4,
+    hpRestore: 1600,
+    mpRestore: 400,
+    grantsBuff: 'HASTE',
+    actReq: 6,
+    actId: 'loc_act_6',
+    icon: '🐚',
+  },
+
+  // Act VII: Spires of Sky-Citadel (Levels 40–46)
+  {
+    id: 'pot_act7_hp',
+    name: "Celestial Arbiter's Elixir",
+    category: 'ELIXIR',
+    costInCC: 8000, // 80 Silver (8 Gold)
+    effectDescription: 'Restores 2,800 HP & 700 MP; cleanses all debuffs',
+    durationTurns: 0,
+    hpRestore: 2800,
+    mpRestore: 700,
+    cleansesDebuffs: true,
+    actReq: 7,
+    actId: 'loc_act_7',
+    icon: '👑',
+  },
+
+  // Act VIII: Maw of Great Eclipse (Levels 47–55+)
+  {
+    id: 'pot_act8_panacea',
+    name: 'Eclipse Sovereign Panacea',
+    category: 'PANACEA',
+    costInCC: 15000, // 1 Gold 50 Silver (150 Silver)
+    effectDescription: 'Full 100% HP & MP Restore; cleanses all debuffs & grants Empowered',
+    durationTurns: 4,
+    hpRestore: 9999,
+    mpRestore: 9999,
+    cleansesDebuffs: true,
+    grantsBuff: 'EMPOWERED',
+    actReq: 8,
+    actId: 'loc_act_8',
+    icon: '✨',
   },
 ];
 

@@ -103,7 +103,7 @@ export interface EquipmentItem {
   blessingAttempts?: number; // Tracks Mutya blessing attempts to scale break risk (5%, 10%, 15%...)
 }
 
-export type ConsumableCategory = 'POTION' | 'FOOD' | 'ELIXIR' | 'VIAL';
+export type ConsumableCategory = 'POTION' | 'FOOD' | 'ELIXIR' | 'VIAL' | 'TINCTURE' | 'PANACEA' | 'VITALITY';
 
 export interface ConsumableItem {
   id: string;
@@ -116,6 +116,10 @@ export interface ConsumableItem {
   mpRestore?: number;
   cleansesDebuffs?: boolean;
   grantsBuff?: StatusEffectType;
+  actReq?: number; // Act tier 1 to 8
+  actId?: string; // Location ID e.g. 'loc_act_1'
+  shieldPercent?: number; // % of Max HP as Spirit Shield
+  icon?: string;
 }
 
 // Status Effects (Buffs & Debuffs)

@@ -109,6 +109,9 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   const [inspectedShopItem, setInspectedShopItem] = useState<EquipmentItem | null>(null);
   const [selectedForgeItemId, setSelectedForgeItemId] = useState<string | null>(null);
 
+  // Alchemist Apothecary State
+  const [alchemistCategory, setAlchemistCategory] = useState<'ALL' | 'VITALITY' | 'ELIXIR' | 'PANACEA'>('ALL');
+
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
 interface RestOption {
@@ -345,6 +348,39 @@ const REST_OPTIONS: RestOption[] = [
       inventory: [...player.inventory, { ...item, id: `bought_${Date.now()}_${Math.random()}` }],
       wallet: updatedWallet,
     });
+  };
+
+  const handleBuyMultipleConsumables = (item: ConsumableItem, count: number = 5) => {
+    const totalCost = item.costInCC * count;
+    const playerTotalCC = totalCowriesFromWallet(player.wallet);
+
+    if (playerTotalCC < totalCost) {
+      notify(`Insufficient currency for ${count}x ${item.name}! (Requires ${formatCostInCC(totalCost)})`, 'error', '🪙');
+      return;
+    }
+
+    if (player.inventory.length + count > derived.inventoryCapacity) {
+      notify(`Not enough inventory space for ${count} potions!`, 'warning', '🎒');
+      return;
+    }
+
+    soundFX.playCoinSound();
+
+    const remainingCC = playerTotalCC - totalCost;
+    const updatedWallet = cowriesToWallet(remainingCC, player.wallet.mutyaShards || player.wallet.prismaticShards || 0);
+
+    const brewedItems = Array.from({ length: count }, (_, i) => ({
+      ...item,
+      id: `bought_${Date.now()}_${i}_${Math.random()}`,
+    }));
+
+    onUpdatePlayer({
+      ...player,
+      inventory: [...player.inventory, ...brewedItems],
+      wallet: updatedWallet,
+    });
+
+    notify(`🧪 Successfully brewed ${count}x ${item.name}! Added to Inventory.`, 'success', '🧪');
   };
   const calcMutyaBreakRisk = (attempts: number): { breakRisk: number; isTooFragile: boolean } => {
     const risks = [5, 15, 30, 50, 80];
@@ -1695,30 +1731,151 @@ const REST_OPTIONS: RestOption[] = [
         {/* DISTRICT 3: BABAYLAN SHAMAN'S APOTHECARY */}
         {activeDistrict === 'ALCHEMIST' && (
           <div data-tutorial-target="alchemist-view" className="space-y-4">
-            <div className="flex items-center space-x-3 border-b border-zinc-800 pb-3">
-              <span className="text-3xl">🧪</span>
-              <div>
-                <h3 className="text-xl font-bold font-serif text-amber-200">Babaylan Shaman's Apothecary</h3>
-                <p className="text-xs text-zinc-400">Apothecary brewing sacred healing draughts, clarity elixirs, and panacea vials.</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-zinc-800 pb-3">
+              <div className="flex items-center space-x-3">
+                <span className="text-3xl">🧪</span>
+                <div>
+                  <h3 className="text-xl font-bold font-serif text-amber-200">Babaylan Shaman's Apothecary</h3>
+                  <p className="text-xs text-zinc-400">
+                    Apothecary brewing sacred botanical remedies, vitality draughts, clarity elixirs, and panacea vials scaled across the 8 Acts.
+                  </p>
+                </div>
+              </div>
+
+              {/* Category Filter Tabs */}
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { id: 'ALL', label: 'All Potions', icon: '✨' },
+                  { id: 'VITALITY', label: 'Vitality Brews', icon: '🌿' },
+                  { id: 'ELIXIR', label: 'Elixirs & Tinctures', icon: '🧪' },
+                  { id: 'PANACEA', label: 'Mythic Panaceas', icon: '👑' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setAlchemistCategory(tab.id as 'ALL' | 'VITALITY' | 'ELIXIR' | 'PANACEA')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center space-x-1 transition-all ${
+                      alchemistCategory === tab.id
+                        ? 'bg-emerald-600 text-zinc-950 shadow-md ring-1 ring-emerald-400'
+                        : 'bg-zinc-950 text-zinc-400 hover:text-emerald-200 hover:bg-zinc-800 border border-zinc-800'
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {CONSUMABLES.map((potion) => (
-                <div key={potion.id} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex justify-between items-center">
-                  <div>
-                    <h4 className="text-sm font-bold font-serif text-emerald-300">{potion.name}</h4>
-                    <p className="text-xs text-zinc-400 font-mono mt-0.5">{potion.effectDescription}</p>
-                    <div className="text-xs font-mono text-amber-400 mt-1">{formatCostInCC(potion.costInCC)}</div>
-                  </div>
-                  <button
-                    onClick={() => handleBuyItem(potion)}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold px-4 py-2 rounded text-xs uppercase font-mono tracking-wider transition-all"
+            {/* Consumables Catalog Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {CONSUMABLES.filter((potion) => {
+                if (alchemistCategory === 'VITALITY') return potion.category === 'VITALITY' || potion.category === 'POTION';
+                if (alchemistCategory === 'ELIXIR') return potion.category === 'ELIXIR' || potion.category === 'TINCTURE';
+                if (alchemistCategory === 'PANACEA') return potion.category === 'PANACEA';
+                return true;
+              }).map((potion) => {
+                const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][(potion.actReq ?? 1) - 1] || `${potion.actReq}`;
+                const unlockedLocationIds = player.unlockedLocationIds || ['loc_act_1'];
+                const targetLoc = GAME_LOCATIONS.find((l) => l.id === potion.actId);
+                const minLvl = targetLoc?.minLevel ?? (potion.actReq ? potion.actReq * 6 - 5 : 1);
+                const isUnlocked = unlockedLocationIds.includes(potion.actId || '') || player.level >= minLvl;
+
+                return (
+                  <div
+                    key={potion.id}
+                    className={`bg-zinc-950 border rounded-xl p-3.5 flex flex-col justify-between space-y-3 transition-all ${
+                      isUnlocked
+                        ? 'border-emerald-900/60 hover:border-emerald-500/80 bg-zinc-950 shadow-lg'
+                        : 'border-zinc-800/80 opacity-60 bg-zinc-950/60'
+                    }`}
                   >
-                    Brew
-                  </button>
-                </div>
-              ))}
+                    <div className="space-y-2">
+                      {/* Header Badge Row */}
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold uppercase bg-zinc-900 text-emerald-400 border border-emerald-900/40">
+                            {potion.category}
+                          </span>
+                          <span
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold uppercase border ${
+                              isUnlocked
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                                : 'bg-red-950/80 text-red-400 border border-red-900/60'
+                            }`}
+                          >
+                            {isUnlocked ? `Act ${actRoman} Unlocked` : `🔒 Req Act ${actRoman}`}
+                          </span>
+                        </div>
+
+                        <span className="text-xl">{potion.icon || '🧪'}</span>
+                      </div>
+
+                      {/* Title & Description */}
+                      <div>
+                        <h4 className="text-sm font-bold font-serif text-emerald-300">{potion.name}</h4>
+                        <p className="text-xs text-zinc-300 font-mono mt-1 leading-snug">{potion.effectDescription}</p>
+                      </div>
+
+                      {/* Key Stats Pill */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {potion.hpRestore !== undefined && (
+                          <span className="text-[10px] font-mono bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
+                            ❤️ +{potion.hpRestore >= 9999 ? '100% Full' : potion.hpRestore} HP
+                          </span>
+                        )}
+                        {potion.mpRestore !== undefined && (
+                          <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">
+                            🔮 +{potion.mpRestore >= 9999 ? '100% Full' : potion.mpRestore} MP
+                          </span>
+                        )}
+                        {potion.shieldPercent !== undefined && (
+                          <span className="text-[10px] font-mono bg-purple-950 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">
+                            🛡️ {Math.round(potion.shieldPercent * 100)}% Max HP Shield
+                          </span>
+                        )}
+                        {potion.cleansesDebuffs && (
+                          <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                            ✨ Cleanses Debuffs
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Price & Action Buttons */}
+                    <div className="pt-2 border-t border-zinc-800/80 flex justify-between items-center gap-2">
+                      <div className="text-xs font-mono font-bold text-amber-400">
+                        {formatCostInCC(potion.costInCC)}
+                      </div>
+
+                      {isUnlocked ? (
+                        <div className="flex space-x-1.5">
+                          <button
+                            onClick={() => handleBuyItem(potion)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold px-3 py-1.5 rounded text-xs uppercase font-mono tracking-wider transition-all shadow active:scale-95"
+                            title={`Brew 1x ${potion.name}`}
+                          >
+                            Brew x1
+                          </button>
+                          <button
+                            onClick={() => handleBuyMultipleConsumables(potion, 5)}
+                            className="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 font-bold px-2.5 py-1.5 rounded text-xs font-mono transition-all shadow active:scale-95"
+                            title={`Brew 5x ${potion.name}`}
+                          >
+                            x5
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          disabled
+                          className="bg-zinc-900 text-zinc-500 border border-zinc-800 font-bold px-3 py-1.5 rounded text-xs uppercase font-mono tracking-wider cursor-not-allowed"
+                        >
+                          🔒 Locked (Act {actRoman})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
