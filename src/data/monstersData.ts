@@ -785,15 +785,17 @@ export function generateMonsterForLocation(
 
   const levelScale = Math.pow(1.14, Math.max(0, locationMinLevel - 1));
   
-  // Act-aware stat scaling multiplier to ensure newly unlocked Acts present a real tactical challenge
+  // Regular monsters already have per-Act balanced base stats in MONSTER_TEMPLATES.
+  // Minor stat scaling (5% per floor level offset within the Act) for dynamic floor scaling.
   const actNumber = Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6)));
-  const actStatMult = 1.0 + Math.pow(actNumber - 1, 1.45) * 0.55;
+  const actStartLevel = (actNumber - 1) * 6 + 1;
+  const levelOffset = Math.max(0, locationMinLevel - actStartLevel);
+  const statScale = 1.0 + levelOffset * 0.05;
 
-  const statScale = (1 + (locationMinLevel - 1) * 0.22) * actStatMult;
-  const maxHp = Math.floor(template.baseHp * (template.isBoss ? 1 : statScale));
-  const armor = Math.floor(template.baseArmor * (template.isBoss ? 1 : statScale));
-  const attackMin = Math.floor(template.baseMinDmg * (template.isBoss ? 1 : statScale));
-  const attackMax = Math.floor(template.baseMaxDmg * (template.isBoss ? 1 : statScale));
+  const maxHp = Math.floor(template.baseHp * statScale);
+  const armor = Math.floor(template.baseArmor * statScale);
+  const attackMin = Math.floor(template.baseMinDmg * statScale);
+  const attackMax = Math.floor(template.baseMaxDmg * statScale);
   const expReward = Math.max(12, Math.floor(18 * levelScale * template.expMult));
   const copperReward = Math.floor(30 * (1 + (locationMinLevel - 1) * 0.35) * template.copperMult);
 
