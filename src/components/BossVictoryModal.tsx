@@ -36,8 +36,8 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-gradient-to-b from-amber-950/90 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl shadow-amber-950/80 animate-fade-in text-center">
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gradient-to-b from-amber-950/90 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-3.5 sm:p-6 space-y-3 sm:space-y-5 shadow-2xl shadow-amber-950/80 animate-fade-in text-center my-auto">
         {/* Victory Header Badge */}
         <div className="flex items-center justify-center space-x-2">
           <span className="text-2xl animate-bounce">👑</span>

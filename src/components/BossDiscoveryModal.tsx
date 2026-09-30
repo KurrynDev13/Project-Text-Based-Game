@@ -45,11 +45,11 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
   const isUnderLeveled = playerLevel < climaxLevelReq;
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div
         className="bg-gradient-to-b from-red-950/90 to-zinc-950 border-2 border-red-700/60
-          rounded-2xl max-w-lg w-full p-6 space-y-5
-          shadow-2xl shadow-red-950/60 animate-pulse-border"
+          rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-5
+          shadow-2xl shadow-red-950/60 animate-pulse-border my-auto"
       >
         {/* ── Warning Badge ── */}
         <div className="flex items-center justify-center gap-2">
