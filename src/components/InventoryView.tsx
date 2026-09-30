@@ -134,6 +134,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const handleEquipGear = (item: EquipmentItem) => {
     soundFX.playClickSound();
 
+    if (item.classReq && item.classReq.length > 0 && !item.classReq.includes(player.heroClass as any)) {
+      notify(`🔒 Incompatible Item! (${player.heroClass} cannot equip this item.)`, 'warning', '🔒');
+      return;
+    }
+
     const newEquipment = { ...player.equipment };
     let unequippedItem: EquipmentItem | null = null;
 
@@ -154,11 +159,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       newEquipment.mount = item;
       newEquipment.bike = item;
     } else if (isWeapon) {
-      // Class-compatibility check for weapons
-      if (item.classReq && !item.classReq.includes(player.heroClass as any)) {
-        notify(`🔒 Incompatible Weapon! (${player.heroClass} cannot equip this item.)`, 'warning', '🔒');
-        return;
-      }
       // Unified single weapon slot — old deprecated slot is also cleared to keep data clean
       unequippedItem = newEquipment.weapon ?? newEquipment.primaryWeapon ?? null;
       newEquipment.weapon = item;
@@ -564,15 +564,33 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
 
             <div className="flex justify-end space-x-2 pt-1 font-mono text-xs">
-              <button
-                onClick={() => {
-                  handleEquipGear(selectedInspectItem);
-                  setSelectedInspectItem(null);
-                }}
-                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold px-4 py-1.5 rounded-lg uppercase tracking-wider"
-              >
-                Equip Item
-              </button>
+              {(() => {
+                const inspectWrongClass = Boolean(
+                  selectedInspectItem.classReq &&
+                    selectedInspectItem.classReq.length > 0 &&
+                    !selectedInspectItem.classReq.includes(player.heroClass as any)
+                );
+                return (
+                  <button
+                    onClick={() => {
+                      if (inspectWrongClass) {
+                        notify(`🔒 Incompatible Item! (${player.heroClass} cannot equip this item.)`, 'warning', '🔒');
+                        return;
+                      }
+                      handleEquipGear(selectedInspectItem);
+                      setSelectedInspectItem(null);
+                    }}
+                    disabled={inspectWrongClass}
+                    className={`font-bold px-4 py-1.5 rounded-lg uppercase tracking-wider ${
+                      inspectWrongClass
+                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                        : 'bg-amber-500 hover:bg-amber-400 text-zinc-950'
+                    }`}
+                  >
+                    {inspectWrongClass ? '🔒 Wrong Class' : 'Equip Item'}
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => {
                   handleSellGear(selectedInspectItem);
@@ -613,10 +631,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             {gearItems.map((item, idx) => {
               const isMount = item.category === 'MOUNT' || item.category === 'BIKE';
               const isMountLocked = isMount && !player.act6Completed && !player.mountUnlocked;
-              const isWeapon = ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
 
-              // Class incompatibility check for weapons
-              const isWrongClass = isWeapon && item.classReq && !item.classReq.includes(player.heroClass as any);
+              // Class incompatibility check for ALL equipment items (weapons, armors, mounts)
+              const isWrongClass = Boolean(item.classReq && item.classReq.length > 0 && !item.classReq.includes(player.heroClass as any));
 
               const equippedInSlot = getEquippedItemForCategory(player.equipment, item.category);
               const delta = calcItemDelta(item, equippedInSlot);
@@ -640,10 +657,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </div>
                     <h4 className="text-sm font-bold font-serif text-amber-200">{item.name}</h4>
 
-                    {/* Class requirement label for weapons */}
-                    {isWeapon && item.classReq && (
-                      <div className={`text-[10px] font-mono mt-0.5 ${isWrongClass ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {isWrongClass ? '🔒 Wrong Class' : `✅ For: ${item.classReq.join(', ')}`}
+                    {/* Class requirement label for all equipment */}
+                    {item.classReq && item.classReq.length > 0 && (
+                      <div className={`text-[10px] font-mono mt-0.5 ${isWrongClass ? 'text-red-400 font-bold' : 'text-emerald-400'}`}>
+                        {isWrongClass ? `🔒 Requires: ${item.classReq.join(', ')}` : `✅ For: ${item.classReq.join(', ')}`}
                       </div>
                     )}
 
