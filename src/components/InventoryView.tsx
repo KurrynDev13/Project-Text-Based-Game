@@ -631,6 +631,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             {gearItems.map((item, idx) => {
               const isMount = item.category === 'MOUNT' || item.category === 'BIKE';
               const isMountLocked = isMount && !player.act6Completed && !player.mountUnlocked;
+              const isWeapon = ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
 
               // Class incompatibility check for ALL equipment items (weapons, armors, mounts)
               const isWrongClass = Boolean(item.classReq && item.classReq.length > 0 && !item.classReq.includes(player.heroClass as any));
