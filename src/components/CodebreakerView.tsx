@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, EncryptedMemory, EquipmentItem, ItemRarity } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, BIKES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
+import { sortInventory } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
 
 interface CodebreakerViewProps {
@@ -51,7 +52,7 @@ export const CodebreakerView: React.FC<CodebreakerViewProps> = ({ player, onUpda
 
     // Remove memory from player & add new item to inventory
     const updatedMemories = player.encryptedMemories.filter((m) => m.id !== memory.id);
-    const updatedInventory = [...player.inventory, newItem];
+    const updatedInventory = sortInventory([...player.inventory, newItem]);
 
     onUpdatePlayer({
       ...player,

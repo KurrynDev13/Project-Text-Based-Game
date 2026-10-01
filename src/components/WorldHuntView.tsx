@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation } from '../data/monstersData';
-import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts } from '../utils/gameFormulas';
+import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower } from '../utils/gameFormulas';
 import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
 import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
@@ -66,7 +66,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   const [selectedLocation, setSelectedLocation] = useState<GameLocation>(() => {
     const found = GAME_LOCATIONS.find((l) => l.id === player.currentLocationId);
-    if (found && player.level >= found.minLevel) return found;
+    const reqPower = found ? calcRequiredActPower(found.id, player.ngPlusLevel || 0) : 0;
+    const derivedInitial = calcDerivedStats(player.attributes, player.level, player.equipment);
+    if (found && derivedInitial.powerLevel >= reqPower) return found;
     return GAME_LOCATIONS[0];
   });
   const [showSpellPicker, setShowSpellPicker] = useState(false);
@@ -332,8 +334,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       setActiveInteractiveEncounter(null);
     }
 
-    if (player.level < loc.minLevel) {
-      notify(`🔒 Act Locked! Character Level ${loc.minLevel} required to enter ${loc.name}. (Your Level: ${player.level})`, 'warning', '🔒');
+    const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
+    if (derived.powerLevel < reqPower) {
+      notify(`🔒 Act Locked! Titan Power Rating ${reqPower} required to enter ${loc.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
       return;
     }
 
@@ -495,8 +498,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
       return;
     }
-    if (player.level < selectedLocation.minLevel) {
-      notify(`🔒 Act Locked! Reach Level ${selectedLocation.minLevel} to explore ${selectedLocation.name}.`, 'warning', '🔒');
+    const reqVenturePower = calcRequiredActPower(selectedLocation.id, player.ngPlusLevel || 0);
+    if (derived.powerLevel < reqVenturePower) {
+      notify(`🔒 Act Locked! Reach Titan Power ${reqVenturePower} to explore ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
       return;
     }
 
@@ -746,8 +750,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
       return;
     }
-    if (player.level < selectedLocation.minLevel) {
-      notify(`🔒 Act Locked! Reach Level ${selectedLocation.minLevel} to search ${selectedLocation.name}.`, 'warning', '🔒');
+    const reqSearchPower = calcRequiredActPower(selectedLocation.id, player.ngPlusLevel || 0);
+    if (derived.powerLevel < reqSearchPower) {
+      notify(`🔒 Act Locked! Reach Titan Power ${reqSearchPower} to search ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
       return;
     }
 
@@ -1753,26 +1758,27 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             >
               {GAME_LOCATIONS.map((loc, idx) => {
                 const isInfinite = loc.id === 'loc_act_infinite';
-                const isLevelLocked = player.level < loc.minLevel;
+                const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
+                const isPowerLocked = derived.powerLevel < reqPower;
                 const prevLoc = idx > 0 ? GAME_LOCATIONS[idx - 1] : null;
                 const isBossLocked = isInfinite
                   ? !(player.act8Completed || (player.completedBossIds || []).includes('boss_act_8'))
                   : (prevLoc?.bossId ? !(player.completedBossIds || []).includes(prevLoc.bossId) : false);
-                const isLocked = isLevelLocked || isBossLocked;
+                const isLocked = isPowerLocked || isBossLocked;
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
 
                 let lockLabel = '';
                 if (isLocked) {
                   if (isInfinite) {
-                    lockLabel = `🔒 Celestial Ether (Req Defeat Act VIII Guardian)`;
+                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII' : `${reqPower} Power`})`;
                   } else {
-                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `Lv ${loc.minLevel}`})`;
+                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `${reqPower} Power`})`;
                   }
                 } else {
                   if (isInfinite) {
                     lockLabel = `🌌 ${loc.name} (Survival Realm)`;
                   } else {
-                    lockLabel = `✅ ${loc.name} (Lv ${loc.minLevel})`;
+                    lockLabel = `✅ ${loc.name} (${reqPower} Power)`;
                   }
                 }
 

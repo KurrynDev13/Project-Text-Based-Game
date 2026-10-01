@@ -163,6 +163,7 @@ export interface GameLocation {
   name: string;
   subtitle: string;
   minLevel: number;
+  minPowerReq?: number; // Minimum Titan Power Rating required to enter
   bossLevelReq?: number; // Climax Level required to challenge the Act Guardian
   lpRequired: number; // Location Points needed to unlock
   description: string;

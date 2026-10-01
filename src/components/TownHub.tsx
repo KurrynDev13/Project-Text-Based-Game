@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS, INITIAL_SIDE_QUESTS, INITIAL_BOUNTIES } from '../data/equipmentData';
-import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta } from '../utils/gameFormulas';
+import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta, sortInventory } from '../utils/gameFormulas';
 import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import FeatureTutorialModal, { TutorialStep } from './FeatureTutorialModal';
@@ -416,7 +416,7 @@ const REST_OPTIONS: RestOption[] = [
 
     onUpdatePlayer({
       ...player,
-      inventory: [...player.inventory, { ...item, id: `bought_${Date.now()}_${Math.random()}` }],
+      inventory: sortInventory([...player.inventory, { ...item, id: `bought_${Date.now()}_${Math.random()}` }]),
       wallet: updatedWallet,
     });
   };

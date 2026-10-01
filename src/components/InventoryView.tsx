@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, EncryptedMemory, ItemRarity, Affix } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, BIKES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
-import { calcDerivedStats, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, getEquippedItemForCategory, calcItemDelta, calcItemPowerRating } from '../utils/gameFormulas';
+import { calcDerivedStats, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, getEquippedItemForCategory, calcItemDelta, calcItemPowerRating, sortInventory } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
 
 interface InventoryViewProps {
@@ -115,7 +115,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     // Remove memory from player & add new item to inventory
     const updatedMemories = (player.encryptedMemories || []).filter((m) => m.id !== memory.id);
-    const updatedInventory = [...player.inventory, newItem];
+    const updatedInventory = sortInventory([...player.inventory, newItem], sortMode);
 
     onUpdatePlayer({
       ...player,
@@ -178,6 +178,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     if (unequippedItem) {
       newInventory.push(unequippedItem);
     }
+    newInventory = sortInventory(newInventory, sortMode);
 
     onUpdatePlayer({
       ...player,
@@ -304,39 +305,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     setSortMode(nextMode);
 
-    const classOrder: Record<string, number> = { Mandirigma: 1, Bagani: 2, Mangangaso: 3, Babaylan: 4 };
-    const catOrder: Record<string, number> = { UPPER: 1, LOWER: 2, DAGGER: 3, SWORD: 4, BOW: 5, STAFF: 6, MOUNT: 7, BIKE: 7, POTION: 8, FOOD: 9, ELIXIR: 10, VIAL: 11 };
-
-    const sorted = [...player.inventory].sort((a, b) => {
-      const isEqA = 'category' in a && 'tier' in a;
-      const isEqB = 'category' in b && 'tier' in b;
-
-      if (nextMode === 'POWER') {
-        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
-        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
-        return pB - pA;
-      }
-
-      if (nextMode === 'CLASS') {
-        const cA = isEqA && (a as EquipmentItem).classReq?.[0] ? (classOrder[(a as EquipmentItem).classReq![0]] || 5) : 99;
-        const cB = isEqB && (b as EquipmentItem).classReq?.[0] ? (classOrder[(b as EquipmentItem).classReq![0]] || 5) : 99;
-        if (cA !== cB) return cA - cB;
-        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
-        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
-        return pB - pA;
-      }
-
-      if (nextMode === 'TYPE') {
-        const tA = 'category' in a ? (catOrder[a.category] || 99) : 99;
-        const tB = 'category' in b ? (catOrder[b.category] || 99) : 99;
-        if (tA !== tB) return tA - tB;
-        const pA = isEqA ? calcItemPowerRating(a as EquipmentItem) : 0;
-        const pB = isEqB ? calcItemPowerRating(b as EquipmentItem) : 0;
-        return pB - pA;
-      }
-
-      return 0;
-    });
+    const sorted = sortInventory(player.inventory, nextMode);
 
     const modeLabels = {
       POWER: 'Power Rating (Descending)',

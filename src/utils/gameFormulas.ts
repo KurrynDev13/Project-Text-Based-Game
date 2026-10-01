@@ -284,20 +284,15 @@ export function calcDerivedStats(
 
   const expRequiredNextLevel = calcExpRequired(level);
 
-  // Power Level Score (Gear & Stat Rating)
-  let gearPower = 0;
+  // Power Level Score (Titan Power Rating using exact calcItemPowerRating for gear)
+  let totalEquippedGearPower = 0;
   equippedItems.forEach((item) => {
     if (item) {
-      gearPower += (item.tier || 1) * 20;
-      if (item.rarity === 'UNCOMMON') gearPower += 15;
-      if (item.rarity === 'RARE') gearPower += 35;
-      if (item.rarity === 'EPIC') gearPower += 70;
-      if (item.rarity === 'LEGENDARY') gearPower += 120;
-      if (item.rarity === 'TRIUMPHANT') gearPower += 200;
+      totalEquippedGearPower += calcItemPowerRating(item);
     }
   });
 
-  const powerLevel = Math.floor(level * 25 + (str + agi + int + vit) * 5 + gearPower);
+  const powerLevel = Math.floor(level * 20 + (str + agi + int + vit) * 4 + totalEquippedGearPower);
 
   return {
     maxHp,
@@ -417,3 +412,67 @@ export function getActStaminaCosts(locationId: string, ngPlusLevel: number = 0):
 
   return { ventureCost: baseVenture, searchCost: baseSearch, bossCost: baseBoss };
 }
+
+/** Dynamically calculates the required Titan Power Rating for an Act, scaled by NG+ level */
+export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0): number {
+  const baseMap: Record<string, number> = {
+    loc_act_1: 0,
+    loc_act_2: 450,
+    loc_act_3: 850,
+    loc_act_4: 1450,
+    loc_act_5: 2200,
+    loc_act_6: 3200,
+    loc_act_7: 4500,
+    loc_act_8: 6000,
+    loc_act_infinite: 7500,
+  };
+  const base = baseMap[actId] ?? 0;
+  return Math.floor(base * (1 + ngPlusLevel * 0.65));
+}
+
+/** Standardized inventory auto-sorter using calcItemPowerRating (matching Delta vs Equipped) */
+export function sortInventory<T extends { category?: string; tier?: number; classReq?: string[] }>(
+  inventory: T[],
+  mode: 'POWER' | 'CLASS' | 'TYPE' = 'POWER'
+): T[] {
+  const classOrder: Record<string, number> = { Mandirigma: 1, Bagani: 2, Mangangaso: 3, Babaylan: 4 };
+  const catOrder: Record<string, number> = {
+    UPPER: 1, LOWER: 2, DAGGER: 3, SWORD: 4, BOW: 5, STAFF: 6, MOUNT: 7, BIKE: 7,
+    POTION: 8, FOOD: 9, ELIXIR: 10, VIAL: 11
+  };
+
+  return [...inventory].sort((a, b) => {
+    const isEqA = 'category' in a && 'tier' in a;
+    const isEqB = 'category' in b && 'tier' in b;
+
+    if (mode === 'POWER') {
+      const pA = isEqA ? calcItemPowerRating(a as unknown as EquipmentItem) : 0;
+      const pB = isEqB ? calcItemPowerRating(b as unknown as EquipmentItem) : 0;
+      if (pA !== pB) return pB - pA;
+      const tierA = (a as unknown as EquipmentItem).tier || 1;
+      const tierB = (b as unknown as EquipmentItem).tier || 1;
+      return tierB - tierA;
+    }
+
+    if (mode === 'CLASS') {
+      const cA = isEqA && (a as unknown as EquipmentItem).classReq?.[0] ? (classOrder[(a as unknown as EquipmentItem).classReq![0]] || 5) : 99;
+      const cB = isEqB && (b as unknown as EquipmentItem).classReq?.[0] ? (classOrder[(b as unknown as EquipmentItem).classReq![0]] || 5) : 99;
+      if (cA !== cB) return cA - cB;
+      const pA = isEqA ? calcItemPowerRating(a as unknown as EquipmentItem) : 0;
+      const pB = isEqB ? calcItemPowerRating(b as unknown as EquipmentItem) : 0;
+      return pB - pA;
+    }
+
+    if (mode === 'TYPE') {
+      const tA = 'category' in a && a.category ? (catOrder[a.category] || 99) : 99;
+      const tB = 'category' in b && b.category ? (catOrder[b.category] || 99) : 99;
+      if (tA !== tB) return tA - tB;
+      const pA = isEqA ? calcItemPowerRating(a as unknown as EquipmentItem) : 0;
+      const pB = isEqB ? calcItemPowerRating(b as unknown as EquipmentItem) : 0;
+      return pB - pA;
+    }
+
+    return 0;
+  });
+}
+
