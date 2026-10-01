@@ -11,7 +11,7 @@ import {
   INITIAL_BOUNTIES,
   INITIAL_SIDE_QUESTS,
 } from './data/equipmentData';
-import { calcDerivedStats, cowriesToWallet, sanitizeItemIds } from './utils/gameFormulas';
+import { calcDerivedStats, cowriesToWallet, sanitizeItemIds, sortInventory } from './utils/gameFormulas';
 import { getDefaultSkillIds, getBasicAttackId, getSkillsByClass } from './data/skillsData';
 
 import { Navbar, NavTab } from './components/Navbar';
@@ -382,11 +382,21 @@ export function App() {
   const handleUnequipItem = (
     slot: 'weapon' | 'upperArmor' | 'lowerArmor' | 'mount' | 'bike'
   ) => {
-    const item = player.equipment[slot];
+    const item = player.equipment[slot] ??
+      (slot === 'weapon' ? player.equipment.primaryWeapon : slot === 'mount' ? player.equipment.bike : null);
     if (!item) return;
 
     const newEquipment = { ...player.equipment, [slot]: null };
-    const newInventory = [...player.inventory, item];
+    if (slot === 'weapon') {
+      newEquipment.primaryWeapon = null;
+      newEquipment.specialWeapon = null;
+      newEquipment.heavyWeapon = null;
+    }
+    if (slot === 'mount') {
+      newEquipment.bike = null;
+    }
+
+    const newInventory = sortInventory([...player.inventory, item]);
 
     setPlayer((prev) => ({
       ...prev,

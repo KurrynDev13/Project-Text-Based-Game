@@ -1,4 +1,6 @@
-import { PrimaryAttributes, DerivedStats, Wallet, EquipmentSlots, EquipmentItem } from '../types/game';
+import { PrimaryAttributes, DerivedStats, Wallet, EquipmentSlots, EquipmentItem, EnemyMonster } from '../types/game';
+import { GAME_LOCATIONS } from '../data/equipmentData';
+import { MONSTER_TEMPLATES, MonsterTemplate } from '../data/monstersData';
 
 // Exponential Level & EXP Progression Formula
 export function calcExpRequired(level: number): number {
@@ -413,21 +415,63 @@ export function getActStaminaCosts(locationId: string, ngPlusLevel: number = 0):
   return { ventureCost: baseVenture, searchCost: baseSearch, bossCost: baseBoss };
 }
 
-/** Dynamically calculates the required Titan Power Rating for an Act, scaled by NG+ level */
+export interface MonsterPowerInput {
+  baseHp?: number;
+  maxHp?: number;
+  baseArmor?: number;
+  armor?: number;
+  baseMinDmg?: number;
+  attackMin?: number;
+  baseMaxDmg?: number;
+  attackMax?: number;
+  damageType?: string;
+  specialAbility?: string;
+  isBoss?: boolean;
+}
+
+/** Calculates Titan Power Rating for a Monster or Act Guardian based on HP, armor, attack, damage type & special abilities */
+export function calcMonsterPowerRating(
+  monster: MonsterPowerInput,
+  levelOffset: number = 0,
+  ngPlusLevel: number = 0
+): number {
+  if (!monster) return 0;
+
+  const statScale = 1.0 + levelOffset * 0.04;
+  const ngTierMult = ngPlusLevel > 0 ? 1.0 + (ngPlusLevel - 1) * 0.35 : 1.0;
+
+  const hp = monster.maxHp ?? Math.floor((monster.baseHp || 100) * statScale);
+  const arm = monster.armor ?? Math.floor((monster.baseArmor || 5) * statScale);
+  const minDmg = monster.attackMin ?? Math.floor((monster.baseMinDmg || 10) * statScale);
+  const maxDmg = monster.attackMax ?? Math.floor((monster.baseMaxDmg || 15) * statScale);
+
+  const avgDmg = (minDmg + maxDmg) / 2;
+  const dmgTypeMult = monster.damageType && monster.damageType !== 'PHYSICAL' ? 1.15 : 1.0;
+
+  const basePower = (hp / 10) + (arm * 8) + (avgDmg * 6 * dmgTypeMult);
+  const abilityBonus = monster.specialAbility ? 40 : 0;
+  const bossBonus = monster.isBoss ? 250 : 0;
+
+  return Math.floor((basePower + abilityBonus + bossBonus) * (ngPlusLevel > 0 ? ngTierMult : 1.0));
+}
+
+/** Dynamically calculates the required Titan Power Rating for an Act, derived from average Act monster power & scaled by NG+ */
 export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0): number {
-  const baseMap: Record<string, number> = {
-    loc_act_1: 0,
-    loc_act_2: 450,
-    loc_act_3: 850,
-    loc_act_4: 1450,
-    loc_act_5: 2200,
-    loc_act_6: 3200,
-    loc_act_7: 4500,
-    loc_act_8: 6000,
-    loc_act_infinite: 7500,
-  };
-  const base = baseMap[actId] ?? 0;
-  return Math.floor(base * (1 + ngPlusLevel * 0.65));
+  if (actId === 'loc_act_1') return 0; // Act I always unlocked at start
+
+  const loc = GAME_LOCATIONS.find((l) => l.id === actId);
+  if (!loc) return 0;
+
+  const monsters = loc.monsters
+    .map((id) => MONSTER_TEMPLATES.find((m) => m.id === id))
+    .filter((m): m is MonsterTemplate => !!m);
+
+  if (monsters.length === 0) return 0;
+
+  const sumPower = monsters.reduce((acc, m) => acc + calcMonsterPowerRating(m, loc.minLevel, ngPlusLevel), 0);
+  const avgMonsterPower = sumPower / monsters.length;
+
+  return Math.floor(avgMonsterPower * 0.80);
 }
 
 /** Standardized inventory auto-sorter using calcItemPowerRating (matching Delta vs Equipped) */

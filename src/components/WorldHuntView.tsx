@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
-import { generateMonsterForLocation } from '../data/monstersData';
-import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower } from '../utils/gameFormulas';
+import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
+import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating } from '../utils/gameFormulas';
 import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
 import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
@@ -1803,7 +1803,13 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 ? (selectedLocation.name.split(':')[1]?.trim() || 'Act Guardian')
                 : '??? Undiscovered'}
             </span>
-            <span className="text-[8px] md:text-[10px] text-amber-400 font-semibold">(Lv {bossLevelReq})</span>
+            {(() => {
+              const tmpl = MONSTER_TEMPLATES.find((m) => m.id === selectedLocation.bossId);
+              const pwr = tmpl ? calcMonsterPowerRating(tmpl, selectedLocation.minLevel, player.ngPlusLevel || 0) : 0;
+              return pwr > 0 ? (
+                <span className="text-[8px] md:text-[10px] text-amber-300 font-bold font-mono">⚡ {pwr} Power</span>
+              ) : null;
+            })()}
             {isBossDefeated ? (
               <span className="bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase">
                 Conquered ✓
