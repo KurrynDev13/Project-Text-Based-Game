@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS, INITIAL_SIDE_QUESTS, INITIAL_BOUNTIES } from '../data/equipmentData';
-import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta, sortInventory } from '../utils/gameFormulas';
+import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta, sortInventory, calcRequiredActPower } from '../utils/gameFormulas';
 import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import FeatureTutorialModal, { TutorialStep } from './FeatureTutorialModal';
@@ -23,9 +23,18 @@ interface TownHubProps {
     district: DistrictTab;
     key: number;
   } | null;
+  onDistrictChange?: (district: DistrictTab) => void;
 }
 
-export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavigateToWorld, onNavigateToTitanRaid, onShowToast, activeDistrictOverride }) => {
+export const TownHub: React.FC<TownHubProps> = ({
+  player,
+  onUpdatePlayer,
+  onNavigateToWorld,
+  onNavigateToTitanRaid,
+  onShowToast,
+  activeDistrictOverride,
+  onDistrictChange,
+}) => {
   const [activeDistrict, setActiveDistrict] = useState<DistrictTab>('TAVERN');
 
   const isNgPlus = (player.ngPlusLevel || 0) > 0;
@@ -34,6 +43,10 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
   const notify = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string) => {
     onShowToast?.(msg, type, icon);
   };
+
+  React.useEffect(() => {
+    onDistrictChange?.(activeDistrict);
+  }, [activeDistrict, onDistrictChange]);
 
   React.useEffect(() => {
     if (activeDistrictOverride?.district) {
@@ -97,7 +110,7 @@ export const TownHub: React.FC<TownHubProps> = ({ player, onUpdatePlayer, onNavi
     const isNgPlus = (player.ngPlusLevel || 0) > 0;
     const bountyUnlockLevel = isNgPlus ? ((player.ngPlusStartLevel || 0) + 3) : 3;
     if (player.level < bountyUnlockLevel) {
-      notify(`🔒 Poblacion Bounty Board Locked! Reach Character Level ${bountyUnlockLevel} to accept monster contracts in this cycle.`, 'warning', '🔒');
+      notify(`🔒 Poblacion Bounty Board Locked! Reach Character Level ${bountyUnlockLevel} to accept monster contracts.`, 'warning', '🔒');
       return;
     }
     setShowBountyBoard(true);
@@ -829,9 +842,9 @@ const REST_OPTIONS: RestOption[] = [
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-2 md:p-6 space-y-2.5 md:space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-transparent text-amber-100 p-2 md:p-6 space-y-2.5 md:space-y-4 overflow-y-auto">
       {/* Town Banner */}
-      <div data-tutorial-target="town-banner" className="bg-zinc-900/90 border border-amber-900/50 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-3">
+      <div data-tutorial-target="town-banner" className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-3">
         <div>
           <div className="text-[9px] md:text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">SAFE ZONE • PRE-COLONIAL SANCTUARY</div>
           <h2 className="text-lg md:text-2xl font-bold font-serif text-amber-200">Poblacion Sanctuary</h2>
@@ -1158,7 +1171,7 @@ const REST_OPTIONS: RestOption[] = [
                     <span className="bg-zinc-800 text-amber-400 font-mono text-[9px] px-1.5 py-0.5 rounded font-bold">Unlocks at Lv {bountyUnlockLevel}</span>
                   </div>
                   <p className="text-[11px] md:text-xs text-zinc-400 font-mono">
-                    The Town Elders require warriors to reach <strong className="text-amber-300">Character Level {bountyUnlockLevel}</strong> before taking on lethal creature bounties in this cycle.
+                    The Town Elders require warriors to reach <strong className="text-amber-300">Character Level {bountyUnlockLevel}</strong> before taking on lethal creature bounties.
                   </p>
                   <div className="text-[10px] font-mono text-zinc-500">Progress: Level {player.level} / {bountyUnlockLevel}</div>
                 </div>
@@ -2038,26 +2051,28 @@ const REST_OPTIONS: RestOption[] = [
                         ? `Act ${actRoman}: ${loc.name} (Guardian: ${guardianName})`
                         : `Act ${actRoman}: ??? Unknown Territory`);
 
+                  const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
+
                   const cardDesc = isInfiniteRealm
                     ? (isUnlocked ? loc.description : 'An infinite cosmic realm of Bathala where malevolent titan spirits continuously spawn. Requires defeating Act VIII Guardian (Bakunawa) to unlock.')
                     : (isUnlocked
                         ? loc.description
                         : isNgPlus
                         ? `${loc.description} (Requires defeating Act ${['I','II','III','IV','V','VI','VII'][idx - 1]} Guardian ${prevGuardianName} in this cycle).`
-                        : `Unexplored territory shrouded in ancient fog. Requires Character Level ${loc.minLevel} and defeating the previous Act Guardian.`);
+                        : `Unexplored territory shrouded in ancient fog. Requires Titan Power Rating ${reqPower} and defeating the previous Act Guardian.`);
 
                   const reqText = isInfiniteRealm
                     ? (isUnlocked ? '✅ Unlocked' : '🔒 Req: Defeat Act VIII Guardian')
-                    : (isUnlocked ? '✅ Unlocked' : isNgPlus ? `🔒 Req: Slay ${prevGuardianName}` : `🔒 Req: Lv ${loc.minLevel}`);
+                    : (isUnlocked ? '✅ Unlocked' : isNgPlus ? `🔒 Req: Slay ${prevGuardianName}` : `🔒 Req: ${reqPower} Power`);
 
                   return (
                     <div
                       key={loc.id}
                       className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
                         isCurrent
-                          ? 'bg-zinc-950 border-cyan-400 ring-2 ring-cyan-500/40 shadow-xl'
+                          ? 'bg-zinc-950/85 border-cyan-400 ring-2 ring-cyan-500/40 shadow-xl'
                           : isUnlocked
-                          ? 'bg-zinc-950 border-cyan-500/40 hover:border-cyan-400 shadow-lg'
+                          ? 'bg-zinc-950/85 border-cyan-500/40 hover:border-cyan-400 shadow-lg'
                           : 'bg-zinc-950/60 border-zinc-800/80 opacity-60'
                       }`}
                     >
@@ -2084,30 +2099,44 @@ const REST_OPTIONS: RestOption[] = [
                         </p>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          if (!isUnlocked) {
-                            if (isInfiniteRealm) {
-                              notify(`🔒 Infinite Survival Realm Locked! Defeat Act VIII Guardian (Bakunawa) to access The Celestial Ether of Bathala.`, 'warning', '🔒');
-                            } else if (isNgPlus) {
-                              notify(`🔒 Act Locked! Slay Act Guardian ${prevGuardianName} to unlock ${loc.name}.`, 'warning', '🔒');
-                            } else {
-                              notify(`🔒 Act Locked! Reach Level ${loc.minLevel} to access Act ${actRoman}. (Your Level: ${player.level})`, 'warning', '🔒');
+                      <div className="space-y-2">
+                        {isUnlocked && !isInfiniteRealm && (
+                          <button
+                            onClick={() => {
+                              setSelectedStoryLocation(loc);
+                              setShowActStoryOverlay(true);
+                            }}
+                            className="w-full py-1 text-[11px] font-mono bg-amber-950/50 hover:bg-amber-900/70 border border-amber-600/40 text-amber-200 rounded flex items-center justify-center space-x-1 transition-colors"
+                          >
+                            <span>📜</span>
+                            <span>Replay Act Lore</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (!isUnlocked) {
+                              if (isInfiniteRealm) {
+                                notify(`🔒 Infinite Survival Realm Locked! Defeat Act VIII Guardian (Bakunawa) to access The Celestial Ether of Bathala.`, 'warning', '🔒');
+                              } else if (isNgPlus) {
+                                notify(`🔒 Act Locked! Slay Act Guardian ${prevGuardianName} to unlock ${loc.name}.`, 'warning', '🔒');
+                              } else {
+                                notify(`🔒 Act Locked! Titan Power Rating ${reqPower} required to access Act ${actRoman}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          onUpdatePlayer({ ...player, currentLocationId: loc.id });
-                          onNavigateToWorld();
-                        }}
-                        disabled={!isUnlocked}
-                        className={`w-full py-2 rounded-lg font-mono font-bold text-xs uppercase tracking-wider transition-all shadow ${
-                          isUnlocked
-                            ? 'bg-cyan-600 hover:bg-cyan-500 text-zinc-950 active:scale-95'
-                            : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
-                        }`}
-                      >
-                        {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? (isInfiniteRealm ? 'Enter Survival Realm' : 'Step Through Portal') : (isInfiniteRealm ? '🔒 Locked (Defeat Act VIII Boss)' : isNgPlus ? `🔒 Locked (Slay ${prevGuardianName})` : `🔒 Locked (Level ${loc.minLevel})`)}
-                      </button>
+                            onUpdatePlayer({ ...player, currentLocationId: loc.id });
+                            onNavigateToWorld();
+                          }}
+                          disabled={!isUnlocked}
+                          className={`w-full py-2 rounded-lg font-mono font-bold text-xs uppercase tracking-wider transition-all shadow ${
+                            isUnlocked
+                              ? 'bg-cyan-600 hover:bg-cyan-500 text-zinc-950 active:scale-95'
+                              : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
+                          }`}
+                        >
+                          {isCurrent ? '⚡ Enter Active Zone' : isUnlocked ? (isInfiniteRealm ? 'Enter Survival Realm' : 'Step Through Portal') : (isInfiniteRealm ? '🔒 Locked (Defeat Act VIII Boss)' : isNgPlus ? `🔒 Locked (Slay ${prevGuardianName})` : `🔒 Locked (${reqPower} Power)`)}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

@@ -1,8 +1,8 @@
 // src/utils/supabase.ts
 // Supabase Client Helper for Free Cloud Database (Global Chat, GM System Broadcasts & Cloud Saves)
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -100,4 +100,83 @@ export async function fetchRecentAnnouncements(): Promise<string[]> {
     return [];
   }
 }
+
+export interface GlobalRaidEventData {
+  id: string;
+  boss_name: string;
+  boss_title: string;
+  current_hp: number;
+  max_hp: number;
+  status: 'ACTIVE' | 'DEFEATED';
+  total_participants: number;
+}
+
+export interface GlobalRaidContribution {
+  player_name: string;
+  damage_dealt: number;
+  battles_count: number;
+}
+
+export async function fetchGlobalRaidEvent(eventId: string = 'bakunawa_eclipse_raid'): Promise<GlobalRaidEventData | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/global_raid_event?id=eq.${eventId}&select=*`, {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function submitGlobalRaidDamage(
+  eventId: string,
+  playerName: string,
+  damageDealt: number
+): Promise<{ current_hp: number; status: string } | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/deal_global_raid_damage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        p_event_id: eventId,
+        p_player_name: playerName,
+        p_damage: damageDealt,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchGlobalRaidLeaderboard(eventId: string = 'bakunawa_eclipse_raid'): Promise<GlobalRaidContribution[]> {
+  if (!isSupabaseConfigured) return [];
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/global_raid_contributions?event_id=eq.${eventId}&order=damage_dealt.desc&limit=10`, {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data;
+  } catch {
+    return [];
+  }
+}
+
 

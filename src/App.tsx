@@ -11,7 +11,7 @@ import {
   INITIAL_BOUNTIES,
   INITIAL_SIDE_QUESTS,
 } from './data/equipmentData';
-import { calcDerivedStats, cowriesToWallet, sanitizeItemIds, sortInventory } from './utils/gameFormulas';
+import { calcDerivedStats, calcMaxStamina, cowriesToWallet, sanitizeItemIds, sortInventory } from './utils/gameFormulas';
 import { getDefaultSkillIds, getBasicAttackId, getSkillsByClass } from './data/skillsData';
 
 import { Navbar, NavTab } from './components/Navbar';
@@ -26,6 +26,7 @@ import CharacterCreationModal from './components/CharacterCreationModal';
 import OpeningStoryModal from './components/OpeningStoryModal';
 import InteractiveOnboardingTutorial from './components/InteractiveOnboardingTutorial';
 import { ToastBanner, ToastMessage } from './components/ToastBanner';
+import { BackgroundLayer } from './components/BackgroundLayer';
 import { bgmManager } from './utils/musicManager';
 // SkillTreeView is used inside CharacterSheet now
 
@@ -210,6 +211,9 @@ export function App() {
     key: number;
   } | null>(null);
 
+  const [currentDistrict, setCurrentDistrict] = useState<'TAVERN' | 'FORGE' | 'ALCHEMIST' | 'STABLES' | 'GATE' | 'STASH'>('TAVERN');
+  const [selectedWorldLocationId, setSelectedWorldLocationId] = useState<string>(player.currentLocationId || 'loc_act_1');
+
   const handleCompleteOnboarding = useCallback(() => {
     setShowOnboardingTutorial(false);
     setTownDistrictOverride(null);
@@ -251,6 +255,53 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
   }, [player]);
+
+  // Out-of-Combat Passive HP & MP Regeneration Ticker (Every 10 Seconds)
+  useEffect(() => {
+    if (!player.hasCreatedCharacter || battle.inCombat) return;
+
+    const regenInterval = setInterval(() => {
+      setPlayer((prev) => {
+        const derived = calcDerivedStats(prev.attributes, prev.level, prev.equipment);
+
+        const hpRegen = Math.max(1, Math.floor(prev.attributes.vit * 0.1));
+        const mpRegen = Math.max(1, Math.floor(prev.attributes.int * 0.08));
+
+        const newHp = Math.min(derived.maxHp, prev.currentHp + hpRegen);
+        const newMp = Math.min(derived.maxMp, prev.currentMp + mpRegen);
+
+        if (newHp === prev.currentHp && newMp === prev.currentMp) return prev;
+
+        return {
+          ...prev,
+          currentHp: newHp,
+          currentMp: newMp,
+        };
+      });
+    }, 10000);
+
+    return () => clearInterval(regenInterval);
+  }, [player.hasCreatedCharacter, battle.inCombat]);
+
+  // Poblacion Sanctuary Passive Stamina Regeneration Ticker (Every 30 Seconds in Haven)
+  useEffect(() => {
+    if (!player.hasCreatedCharacter || battle.inCombat || currentTab !== 'HAVEN') return;
+
+    const staminaRegenInterval = setInterval(() => {
+      setPlayer((prev) => {
+        const maxStam = calcMaxStamina(prev.level);
+        const curStam = prev.stamina ?? maxStam;
+        if (curStam >= maxStam) return prev;
+
+        return {
+          ...prev,
+          stamina: Math.min(maxStam, curStam + 1),
+        };
+      });
+    }, 30000);
+
+    return () => clearInterval(staminaRegenInterval);
+  }, [player.hasCreatedCharacter, battle.inCombat, currentTab]);
 
   // Context-Aware Ambient Background Music Controller
   useEffect(() => {
@@ -405,8 +456,51 @@ export function App() {
     }));
   };
 
+  const handleLaunchRaidBattle = (currentBakunawaHp: number) => {
+    setShowRaidView(false);
+    setCurrentTab('WORLD');
+
+    const bakunawaMonster: EnemyMonster = {
+      id: 'boss_bakunawa_raid',
+      name: 'Bakunawa, The Moon-Devouring Serpent',
+      level: 55,
+      maxHp: 50000000,
+      currentHp: currentBakunawaHp > 0 ? currentBakunawaHp : 50000000,
+      attackMin: 180,
+      attackMax: 260,
+      armor: 140,
+      expReward: 15000,
+      isBoss: true,
+      icon: '🐉',
+      element: 'DARK',
+    };
+
+    setBattle({
+      inCombat: true,
+      turnNumber: 1,
+      playerActionGauge: 100,
+      enemyActionGauge: 0,
+      enemy: bakunawaMonster,
+      logs: [
+        {
+          id: `log_raid_start_${Date.now()}`,
+          text: '🐉 CELESTIAL RAID ENGAGEMENT: Bakunawa coils across the eclipsed heavens! Utilize your weapon attacks, Mutya skills, consumables, guard, or retreat!',
+          type: 'SYSTEM',
+        },
+      ],
+      winner: null,
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-amber-100 flex flex-col font-sans select-none overflow-hidden">
+    <div className="min-h-screen text-amber-100 flex flex-col font-sans select-none overflow-hidden relative">
+      {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
+      <BackgroundLayer
+        currentTab={currentTab}
+        townDistrict={townDistrictOverride?.district || currentDistrict}
+        locationId={selectedWorldLocationId}
+        showRaidView={showRaidView}
+      />
       {/* Character Creation Modal — shown for new players before anything else */}
       {!player.hasCreatedCharacter && (
         <CharacterCreationModal onComplete={handleCharacterCreate} />
@@ -434,6 +528,7 @@ export function App() {
             onUpdatePlayer={setPlayer}
             onNavigateToHaven={() => setShowRaidView(false)}
             onShowToast={showToast}
+            onLaunchRaidBattle={handleLaunchRaidBattle}
           />
         ) : (
           <>
@@ -445,6 +540,7 @@ export function App() {
                 onNavigateToTitanRaid={() => setShowRaidView(true)}
                 onShowToast={showToast}
                 activeDistrictOverride={townDistrictOverride}
+                onDistrictChange={setCurrentDistrict}
               />
             )}
 
@@ -458,6 +554,7 @@ export function App() {
                 onMonsterKilled={handleMonsterKilled}
                 suppressActStory={showOnboardingTutorial}
                 onShowToast={showToast}
+                onLocationChange={setSelectedWorldLocationId}
               />
             )}
 

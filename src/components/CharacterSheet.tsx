@@ -50,9 +50,9 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-4 md:p-6 space-y-6 overflow-y-auto">
+    <div className="flex flex-col h-full bg-transparent text-amber-100 p-4 md:p-6 space-y-6 overflow-y-auto">
       {/* Hero Header & Power Level */}
-      <div className="bg-zinc-900 border border-amber-900/50 rounded-xl p-5 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-xl p-5 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center space-x-3">
             <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200">{player.name}</h2>
@@ -201,36 +201,84 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Derived Combat Metrics */}
-          <div className="bg-zinc-900/80 p-5 rounded-xl border border-zinc-800 space-y-4 shadow-md">
+          {/* Right Column: Expanded Derived Combat Metrics */}
+          <div className="bg-zinc-950/80 p-4 md:p-5 rounded-xl border border-zinc-800 space-y-4 shadow-md">
             <h3 className="font-serif font-bold text-lg text-amber-200 pb-2 border-b border-zinc-800">
               Combat Metrics
             </h3>
 
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Max HP</span>
-                <span className="text-red-400 font-bold text-sm">{derived.maxHp} HP</span>
+            {/* Category 1: Vitality & Survival */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-mono font-bold uppercase text-amber-500 tracking-wider">
+                ❤️ VITALITY &amp; REGENERATION
               </div>
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Max MP</span>
-                <span className="text-sky-400 font-bold text-sm">{derived.maxMp} MP</span>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2.5 bg-zinc-950 rounded border border-red-900/40">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Max HP</span>
+                  <span className="text-red-400 font-bold text-sm">{derived.maxHp} HP</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-sky-900/40">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Max MP</span>
+                  <span className="text-sky-400 font-bold text-sm">{derived.maxMp} MP</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-pink-900/40">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">HP Passive Regen</span>
+                  <span className="text-pink-400 font-bold text-sm">+{derived.hpRegenRate} HP / 10s</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-amber-900/40">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Carrying Capacity</span>
+                  <span className="text-amber-300 font-bold text-sm">🎒 {derived.inventoryCapacity} Slots</span>
+                </div>
               </div>
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Armor Rating</span>
-                <span className="text-amber-200 font-bold text-sm">{derived.physicalArmor}</span>
+            </div>
+
+            {/* Category 2: Offense & Weapon Damage */}
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] font-mono font-bold uppercase text-amber-500 tracking-wider">
+                ⚔️ OFFENSE &amp; WEAPON SCALING
               </div>
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Damage Reduction</span>
-                <span className="text-amber-400 font-bold text-sm">{derived.damageReductionPercent.toFixed(1)}%</span>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className={`p-2.5 bg-zinc-950 rounded border ${player.heroClass === 'Mandirigma' ? 'border-amber-500 ring-1 ring-amber-500/50' : 'border-zinc-800'}`}>
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Melee Physical DMG</span>
+                  <span className="text-amber-300 font-bold text-sm">⚔️ {derived.meleeDamage}</span>
+                </div>
+                <div className={`p-2.5 bg-zinc-950 rounded border ${player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso' ? 'border-emerald-500 ring-1 ring-emerald-500/50' : 'border-zinc-800'}`}>
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Ranged / Agility DMG</span>
+                  <span className="text-emerald-400 font-bold text-sm">🏹 {derived.rangedDamage}</span>
+                </div>
+                <div className={`p-2.5 bg-zinc-950 rounded border ${player.heroClass === 'Babaylan' ? 'border-purple-500 ring-1 ring-purple-500/50' : 'border-zinc-800'}`}>
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Magic Spell DMG</span>
+                  <span className="text-purple-300 font-bold text-sm">🔮 {derived.magicDamage}</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-rose-900/40">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Critical Hit Rate</span>
+                  <span className="text-rose-400 font-bold text-sm">🎯 {derived.critChancePercent.toFixed(1)}%</span>
+                </div>
               </div>
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Dodge Chance</span>
-                <span className="text-emerald-400 font-bold text-sm">{derived.dodgeChancePercent.toFixed(1)}%</span>
+            </div>
+
+            {/* Category 3: Defense & Avoidance */}
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[10px] font-mono font-bold uppercase text-amber-500 tracking-wider">
+                🛡️ DEFENSE &amp; AVOIDANCE
               </div>
-              <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] block">Crit Hit Rate</span>
-                <span className="text-rose-400 font-bold text-sm">{derived.critChancePercent.toFixed(1)}%</span>
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Armor Rating</span>
+                  <span className="text-amber-200 font-bold text-sm">🛡️ {derived.physicalArmor}</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Physical Damage Red.</span>
+                  <span className="text-amber-400 font-bold text-sm">🔰 {derived.damageReductionPercent.toFixed(1)}%</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Magic Resistance</span>
+                  <span className="text-purple-300 font-bold text-sm">🔮 {derived.magicDefense} ({derived.magicDRPercent.toFixed(1)}%)</span>
+                </div>
+                <div className="p-2.5 bg-zinc-950 rounded border border-zinc-800">
+                  <span className="text-zinc-400 text-[10px] block font-semibold">Dodge Chance</span>
+                  <span className="text-emerald-400 font-bold text-sm">💨 {derived.dodgeChancePercent.toFixed(1)}%</span>
+                </div>
               </div>
             </div>
           </div>

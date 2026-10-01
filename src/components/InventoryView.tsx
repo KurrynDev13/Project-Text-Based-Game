@@ -321,9 +321,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const consumableItems = player.inventory.filter((i): i is ConsumableItem => 'category' in i && ['POTION', 'FOOD', 'ELIXIR', 'VIAL'].includes(i.category));
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-transparent text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
       {/* Paper Doll Inspection Header */}
-      <div className="bg-zinc-900 border border-amber-900/50 rounded-xl p-4 shadow-xl space-y-4">
+      <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-xl p-4 shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div>
             <div className="text-[10px] font-mono uppercase text-amber-500 font-semibold tracking-widest">CHARACTER PAPER DOLL INSPECTOR</div>

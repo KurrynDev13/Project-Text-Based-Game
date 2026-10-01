@@ -48,6 +48,7 @@ interface WorldHuntViewProps {
   onMonsterKilled: (monster: EnemyMonster) => void;
   suppressActStory?: boolean;
   onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
+  onLocationChange?: (locationId: string) => void;
 }
 
 export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
@@ -59,6 +60,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   onMonsterKilled,
   suppressActStory,
   onShowToast,
+  onLocationChange,
 }) => {
   const notify = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', icon?: string) => {
     onShowToast?.(msg, type, icon);
@@ -71,6 +73,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (found && derivedInitial.powerLevel >= reqPower) return found;
     return GAME_LOCATIONS[0];
   });
+
+  useEffect(() => {
+    onLocationChange?.(selectedLocation.id);
+  }, [selectedLocation.id, onLocationChange]);
   const [showSpellPicker, setShowSpellPicker] = useState(false);
   const [showItemPicker, setShowItemPicker] = useState(false);
   const [showBossWarningModal, setShowBossWarningModal] = useState(false);
@@ -291,15 +297,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const actQuests = (player.sideQuests || []).filter((q) => q.actId === selectedLocation.id);
   const actQuestsCompleted = actQuests.filter((q) => q.isCompleted || q.isClaimed).length;
   const actQuestsDiscovered = actQuests.filter((q) => q.isDiscovered).length;
-  const hasUndiscovered = actQuests.some((q) => !q.isDiscovered);
-  const hasUncompleted = actQuestsCompleted < actQuests.length;
-  const isBossDefeated = (player.completedBossIds || []).includes(selectedLocation.bossId || '');
+  const isBossDefeated = selectedLocation.bossId ? (player.completedBossIds || []).includes(selectedLocation.bossId) : false;
+  const bossTemplate = MONSTER_TEMPLATES.find((m) => m.id === selectedLocation.bossId);
+  const bossPowerReq = bossTemplate
+    ? calcMonsterPowerRating(bossTemplate, selectedLocation.minLevel, player.ngPlusLevel || 0)
+    : calcRequiredActPower(selectedLocation.id, player.ngPlusLevel || 0);
+
   const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
   const isNgPlus = (player.ngPlusLevel || 0) > 0;
   const startLvl = player.ngPlusStartLevel || player.level;
   const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
   const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
-  const isBossQualified = isBossDefeated || player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
+  const isBossQualified = isBossDefeated || derived.powerLevel >= bossPowerReq || player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
   const isBossLevelLocked = !isBossQualified;
 
   const addLog = (
@@ -1737,10 +1746,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-amber-100 p-1.5 md:p-6 space-y-1.5 md:space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-transparent text-amber-100 p-1.5 md:p-6 space-y-1.5 md:space-y-4 overflow-y-auto">
       {/* Sector Header & Location Selector */}
       {!battle.inCombat && (
-        <div className="bg-zinc-900/90 border border-amber-900/50 rounded-lg md:rounded-xl p-2 md:p-4 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 md:gap-3">
+        <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-lg md:rounded-xl p-2 md:p-4 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 md:gap-3">
           <div className="flex-1 min-w-0">
             <div className="text-[8px] md:text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">ACTIVE EXPEDITION ZONE</div>
             <h2 className="text-base md:text-2xl font-bold font-serif text-amber-200 truncate">{selectedLocation.name}</h2>
@@ -1778,7 +1787,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                   if (isInfinite) {
                     lockLabel = `🌌 ${loc.name} (Survival Realm)`;
                   } else {
-                    lockLabel = `✅ ${loc.name} (${reqPower} Power)`;
+                    lockLabel = `✅ ${loc.name} (${reqPower > 0 ? `${reqPower} Power` : 'Unlocked'})`;
                   }
                 }
 
@@ -1848,21 +1857,30 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           <span className="text-xs md:text-base">{isBossLevelLocked ? '🔒' : '👑'}</span>
           <span className="truncate">
             {isBossLevelLocked
-              ? `[ Act Guardian Locked — Req Lv ${bossLevelReq} ]`
+              ? `[ ACT GUARDIAN LOCKED — REQ ${bossPowerReq} POWER ]`
               : isBossDefeated
-              ? `[ Re-challenge ${selectedLocation.name.split(':')[1]?.trim() || 'Act Guardian'} ]`
-              : `[ CONFRONT ACT GUARDIAN ] (${bossCost} Stamina)`}
+              ? `[ RE-CHALLENGE ${selectedLocation.name.split(':')[1]?.trim() || 'ACT GUARDIAN'} ]`
+              : `[ CONFRONT ACT GUARDIAN ] (${bossCost} STAMINA)`}
           </span>
         </button>
       )}
 
       {/* Exploration Event Feed (When NOT in combat) */}
       {!battle.inCombat && (
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3.5 flex flex-col justify-between shadow-xl min-h-[105px] md:min-h-[220px]">
+        <div className="bg-zinc-900/85 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3.5 flex flex-col justify-between shadow-xl min-h-[105px] md:min-h-[220px]">
           <div>
             <div className="text-[10px] md:text-xs font-mono uppercase text-amber-500 font-bold mb-1 flex justify-between items-center border-b border-zinc-800/80 pb-0.5">
-              <span>SECTOR NARRATIVE FEED</span>
-              <span className="text-[9px] md:text-[10px] text-zinc-500 font-normal">PERSISTED LORE LOG</span>
+              <div className="flex items-center space-x-2">
+                <span>SECTOR NARRATIVE FEED</span>
+                <button
+                  onClick={() => setShowActStoryModal(true)}
+                  className="text-[9px] md:text-[10px] text-amber-300 hover:text-amber-200 font-mono font-bold bg-amber-950/70 border border-amber-500/50 px-2 py-0.5 rounded transition-colors flex items-center space-x-1"
+                >
+                  <span>📜</span>
+                  <span>Replay Act Lore</span>
+                </button>
+              </div>
+              <span className="text-[9px] md:text-[10px] text-zinc-500 font-normal hidden sm:inline">PERSISTED LORE LOG</span>
             </div>
             <div className="space-y-1 md:space-y-2 max-h-28 md:max-h-48 overflow-y-auto pr-1">
               {(player.narratorLogs && player.narratorLogs.length > 0) ? (

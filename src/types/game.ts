@@ -12,11 +12,13 @@ export interface DerivedStats {
   physicalArmor: number;
   magicDefense: number;
   damageReductionPercent: number; // [Armor / (Armor + 150)] * 100
+  magicDRPercent: number; // [MagicDef / (MagicDef + 100)] * 100
   dodgeChancePercent: number;
   critChancePercent: number;
   meleeDamage: number;
   rangedDamage: number;
   magicDamage: number;
+  hpRegenRate: number;
   inventoryCapacity: number;
   expRequiredNextLevel: number;
   powerLevel: number; // Overall gear & stat score (Titan Conquest style)
@@ -278,6 +280,8 @@ export interface PlayerCharacter {
   discoveredBossIds?: string[]; // Boss IDs where warning card was shown
   narratorLogs?: string[]; // Sector narrative feed log history (persisted across tabs)
   persistentCombatLogs?: BattleLogEntry[]; // Persistent combat battle logs (up to 100 entries)
+  dailyRaidAttemptsCount?: number; // Current day's challenge count (max 3)
+  lastRaidAttemptDate?: string; // Date string YYYY-MM-DD for daily reset
 }
 
 // Monster / Enemy State

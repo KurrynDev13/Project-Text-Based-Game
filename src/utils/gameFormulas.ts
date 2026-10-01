@@ -272,14 +272,26 @@ export function calcDerivedStats(
   // Magic Defense: INT * 0.5 + bonus
   const magicDefense = int * 0.5 + bonusMagicDef;
 
-  // Melee Physical DMG: STR * 2.5
-  const meleeDamage = str * 2.5;
+  const equippedWeapon = equipment.weapon ?? equipment.primaryWeapon ?? null;
+  let weaponAvgDmg = 0;
+  if (equippedWeapon && equippedWeapon.baseDamageMin !== undefined && equippedWeapon.baseDamageMax !== undefined) {
+    weaponAvgDmg = (equippedWeapon.baseDamageMin + equippedWeapon.baseDamageMax) / 2;
+  }
 
-  // Bows/Daggers DMG: AGI * 2.5
-  const rangedDamage = agi * 2.5;
+  // Melee Physical DMG: STR * 2.5 + Weapon Avg Dmg
+  const meleeDamage = Math.floor(str * 2.5 + weaponAvgDmg);
 
-  // Magic Staves DMG: INT * 3.0
-  const magicDamage = int * 3.0;
+  // Bows/Daggers DMG: AGI * 2.5 + Weapon Avg Dmg
+  const rangedDamage = Math.floor(agi * 2.5 + weaponAvgDmg);
+
+  // Magic Staves DMG: INT * 3.0 + Weapon Avg Dmg
+  const magicDamage = Math.floor(int * 3.0 + weaponAvgDmg);
+
+  // Out-of-Combat HP Regen: Base 1 + (VIT * 0.2)
+  const hpRegenRate = Math.floor(1 + vit * 0.2);
+
+  // Magic Damage Reduction (%): [MagicDef / (MagicDef + 100)] * 100
+  const magicDRPercent = Math.min(75, (magicDefense / (magicDefense + 100)) * 100);
 
   // Inventory Capacity: Base 12 + 1 slot per 2 STR points
   const inventoryCapacity = 12 + Math.floor(str / 2);
@@ -302,11 +314,13 @@ export function calcDerivedStats(
     physicalArmor: totalArmor,
     magicDefense,
     damageReductionPercent,
+    magicDRPercent,
     dodgeChancePercent,
     critChancePercent,
     meleeDamage,
     rangedDamage,
     magicDamage,
+    hpRegenRate,
     inventoryCapacity,
     expRequiredNextLevel,
     powerLevel,
@@ -433,17 +447,41 @@ export interface MonsterPowerInput {
 export function calcMonsterPowerRating(
   monster: MonsterPowerInput,
   levelOffset: number = 0,
-  ngPlusLevel: number = 0
+  ngPlusLevel: number = 0,
+  ngPlusStartLevel: number = 0
 ): number {
   if (!monster) return 0;
 
-  const statScale = 1.0 + levelOffset * 0.04;
-  const ngTierMult = ngPlusLevel > 0 ? 1.0 + (ngPlusLevel - 1) * 0.35 : 1.0;
+  let hp: number;
+  let arm: number;
+  let minDmg: number;
+  let maxDmg: number;
 
-  const hp = monster.maxHp ?? Math.floor((monster.baseHp || 100) * statScale);
-  const arm = monster.armor ?? Math.floor((monster.baseArmor || 5) * statScale);
-  const minDmg = monster.attackMin ?? Math.floor((monster.baseMinDmg || 10) * statScale);
-  const maxDmg = monster.attackMax ?? Math.floor((monster.baseMaxDmg || 15) * statScale);
+  if (ngPlusLevel > 0) {
+    const actNumber = Math.max(1, Math.min(8, Math.ceil((levelOffset || 1) / 6)));
+    const actStartLevel = (actNumber - 1) * 6 + 1;
+    const subLevelOffset = Math.max(0, levelOffset - actStartLevel);
+
+    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.35;
+    const baseNgHp = 2200 + (actNumber - 1) * 3500 + subLevelOffset * 250;
+    const hpArchetypeMult = (monster.baseHp || 100) / 120;
+    hp = monster.maxHp ?? Math.floor(baseNgHp * hpArchetypeMult * (monster.isBoss ? 2.5 : 1.0) * ngTierMult);
+
+    const baseNgArmor = 15 + (actNumber - 1) * 6 + subLevelOffset * 1.5;
+    arm = monster.armor ?? Math.floor(baseNgArmor * ((monster.baseArmor || 5) / 6) * ngTierMult);
+
+    const baseNgDmgMin = 140 + (actNumber - 1) * 45 + subLevelOffset * 6;
+    const baseNgDmgMax = 220 + (actNumber - 1) * 65 + subLevelOffset * 8;
+    const dmgArchetypeMult = (monster.baseMinDmg || 10) / 10;
+    minDmg = monster.attackMin ?? Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
+    maxDmg = monster.attackMax ?? Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
+  } else {
+    const statScale = 1.0 + levelOffset * 0.04;
+    hp = monster.maxHp ?? Math.floor((monster.baseHp || 100) * statScale);
+    arm = monster.armor ?? Math.floor((monster.baseArmor || 5) * statScale);
+    minDmg = monster.attackMin ?? Math.floor((monster.baseMinDmg || 10) * statScale);
+    maxDmg = monster.attackMax ?? Math.floor((monster.baseMaxDmg || 15) * statScale);
+  }
 
   const avgDmg = (minDmg + maxDmg) / 2;
   const dmgTypeMult = monster.damageType && monster.damageType !== 'PHYSICAL' ? 1.15 : 1.0;
@@ -452,11 +490,11 @@ export function calcMonsterPowerRating(
   const abilityBonus = monster.specialAbility ? 40 : 0;
   const bossBonus = monster.isBoss ? 250 : 0;
 
-  return Math.floor((basePower + abilityBonus + bossBonus) * (ngPlusLevel > 0 ? ngTierMult : 1.0));
+  return Math.floor(basePower + abilityBonus + bossBonus);
 }
 
 /** Dynamically calculates the required Titan Power Rating for an Act, derived from average Act monster power & scaled by NG+ */
-export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0): number {
+export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0, ngPlusStartLevel: number = 0): number {
   if (actId === 'loc_act_1') return 0; // Act I always unlocked at start
 
   const loc = GAME_LOCATIONS.find((l) => l.id === actId);
@@ -468,7 +506,7 @@ export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0): nu
 
   if (monsters.length === 0) return 0;
 
-  const sumPower = monsters.reduce((acc, m) => acc + calcMonsterPowerRating(m, loc.minLevel, ngPlusLevel), 0);
+  const sumPower = monsters.reduce((acc, m) => acc + calcMonsterPowerRating(m, loc.minLevel, ngPlusLevel, ngPlusStartLevel), 0);
   const avgMonsterPower = sumPower / monsters.length;
 
   return Math.floor(avgMonsterPower * 0.80);
@@ -518,5 +556,31 @@ export function sortInventory<T extends { category?: string; tier?: number; clas
 
     return 0;
   });
+}
+
+/** Checks if current UTC/PST time is within daily Raid windows: 7:00-9:00 AM PST or 7:00-9:00 PM PST */
+export function isRaidWindowActive(now: Date = new Date()): boolean {
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+
+  // PST is UTC - 8 hours
+  const pstHours = (utcHours - 8 + 24) % 24;
+  const totalPstMinutes = pstHours * 60 + utcMinutes;
+
+  // Window 1: 7:00 AM to 9:00 AM PST (420 to 540 min)
+  const w1 = totalPstMinutes >= 420 && totalPstMinutes < 540;
+  // Window 2: 7:00 PM to 9:00 PM PST (1140 to 1260 min)
+  const w2 = totalPstMinutes >= 1140 && totalPstMinutes < 1260;
+
+  return w1 || w2;
+}
+
+/** Formats remaining time status until next Raid window or active status */
+export function getRaidWindowStatusText(now: Date = new Date()): { active: boolean; label: string } {
+  const active = isRaidWindowActive(now);
+  if (active) {
+    return { active: true, label: '🌌 CELESTIAL RAID ACTIVE (7:00–9:00 AM/PM PST Window)' };
+  }
+  return { active: false, label: '🔒 CELESTIAL RAID LOCKED (Opens Daily at 7–9 AM & PM PST)' };
 }
 

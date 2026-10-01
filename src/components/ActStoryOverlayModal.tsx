@@ -152,58 +152,15 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
       <div className="bg-gradient-to-b from-amber-950/90 via-zinc-900 to-zinc-950 border-2 border-amber-500/70 rounded-2xl max-w-xl md:max-w-2xl w-full flex flex-col max-h-[92vh] shadow-2xl animate-fade-in">
 
         {/* ── Header ── */}
-        <div className="p-6 pb-3 space-y-2 shrink-0 border-b border-amber-900/40">
+        <div className="p-4 md:p-6 pb-3 space-y-2 shrink-0 border-b border-amber-900/40">
           {/* ACT badge */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-mono font-bold tracking-widest uppercase px-3.5 py-1 bg-amber-950/80 border border-amber-500/50 text-amber-300 rounded-full shadow-inner">
               📜 CHAPTER CHRONICLES • {actRoman === 'REBIRTH' ? 'REBIRTH' : `ACT ${actRoman}`}
             </span>
-            <span className="text-[10px] font-mono text-zinc-400">
-              Interact to Pause
-            </span>
-          </div>
-
-          {/* Act name */}
-          <h2 className="font-serif text-amber-200 text-2xl md:text-3xl font-bold leading-tight mt-1">
-            {actName}
-          </h2>
-
-          {/* Act subtitle */}
-          <p className="text-amber-400/90 text-sm font-serif italic">{actSubtitle}</p>
-
-          {/* Decorative divider */}
-          <div className="flex items-center gap-3 pt-1">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/60 to-transparent" />
-            <span className="text-amber-500 text-xs">✦</span>
-            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-amber-600/60 to-transparent" />
-          </div>
-        </div>
-
-        {/* ── Scrollable Lore Cutscene ── */}
-        <div className="relative flex-1 min-h-0 py-2">
-          <div
-            ref={scrollRef}
-            className="overflow-y-auto px-6 md:px-8 py-2 scroll-smooth"
-            style={{ maxHeight: '52vh' }}
-          >
-            <div className="space-y-4">
-              {loreParagraphs.map((para, i) => (
-                <p
-                  key={i}
-                  className="font-serif text-amber-100/95 text-sm md:text-base leading-relaxed tracking-wide first-letter:text-xl first-letter:font-bold first-letter:text-amber-400"
-                >
-                  {para}
-                </p>
-              ))}
-              {/* Bottom padding so last paragraph isn't hidden behind badge */}
-              <div className="h-10" />
-            </div>
-          </div>
-
-          {/* Auto-scroll status badge */}
-          <div className="absolute bottom-2 right-4 pointer-events-none">
+            {/* Auto-scroll status badge placed in header so it never obscures lore text or footer buttons */}
             <span
-              className={`text-xs font-mono px-3 py-1 rounded-full shadow-lg border ${
+              className={`text-[10px] md:text-xs font-mono px-2.5 py-0.5 rounded-full border ${
                 reachedBottom
                   ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-400 font-bold'
                   : paused
@@ -218,16 +175,44 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
                 : '▶ AUTO-SCROLLING (Interact to Pause)'}
             </span>
           </div>
+
+          {/* Act name */}
+          <h2 className="font-serif text-amber-200 text-xl md:text-3xl font-bold leading-tight mt-1">
+            {actName}
+          </h2>
+
+          {/* Act subtitle */}
+          <p className="text-amber-400/90 text-xs md:text-sm font-serif italic">{actSubtitle}</p>
+
+          {/* Decorative divider */}
+          <div className="flex items-center gap-3 pt-1">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/60 to-transparent" />
+            <span className="text-amber-500 text-xs">✦</span>
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-amber-600/60 to-transparent" />
+          </div>
+        </div>
+
+        {/* ── Scrollable Lore Cutscene (Clean flex scroll container) ── */}
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 md:px-8 py-4 scroll-smooth space-y-4">
+          {loreParagraphs.map((para, i) => (
+            <p
+              key={i}
+              className="font-serif text-amber-100/95 text-sm md:text-base leading-relaxed tracking-wide first-letter:text-xl first-letter:font-bold first-letter:text-amber-400"
+            >
+              {para}
+            </p>
+          ))}
+          <div className="h-4" />
         </div>
 
         {/* ── Footer ── */}
-        <div className="p-6 pt-4 shrink-0 border-t border-amber-900/40">
+        <div className="p-4 md:p-6 pt-3 shrink-0 border-t border-amber-900/40 bg-zinc-950/80 rounded-b-2xl">
           <button
             type="button"
             onClick={onClose}
-            className="w-full min-h-[44px] px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
+            className="w-full min-h-[44px] px-6 py-2.5 rounded-xl font-bold text-sm md:text-base transition-all duration-200
               bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500
-              text-amber-100 shadow-lg shadow-amber-900/30"
+              text-amber-100 shadow-xl border border-amber-500/40 active:scale-98"
           >
             Enter the Act →
           </button>

@@ -65,9 +65,9 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
     : battleLogs;
 
   return (
-    <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-x-hidden bg-zinc-950 text-amber-100 p-2 sm:p-4 md:p-6 space-y-3 md:space-y-4">
+    <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-x-hidden bg-transparent text-amber-100 p-2 sm:p-4 md:p-6 space-y-3 md:space-y-4">
       {/* Log & Social Header */}
-      <div className="bg-zinc-900 border border-amber-900/50 rounded-xl p-3 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full min-w-0">
+      <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-xl p-3 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full min-w-0">
         <div>
           <div className="text-[10px] font-mono text-amber-500 uppercase tracking-widest font-semibold">LOG & JOURNAL CENTER</div>
           <h2 className="text-xl md:text-2xl font-bold font-serif text-amber-200">Journal, Chat & History</h2>
