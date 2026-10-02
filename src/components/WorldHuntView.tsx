@@ -277,27 +277,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   }, [selectedLocation.id, player.unlockedActStoryIds, suppressActStory]);
 
-  // Mandatory Automatic Act Guardian Discovery Modal trigger when player reaches Climax Level
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
   const bossPowerReq = calcRequiredGuardianPower(selectedLocation.id, player.ngPlusLevel || 0);
-
-  // Mandatory Automatic Act Guardian Discovery Modal trigger when player reaches required Titan Power
-  useEffect(() => {
-    if (battle.inCombat || showActStoryModal) return;
-    const bossId = selectedLocation.bossId;
-    if (!bossId) return;
-
-    const isDiscovered = (player.discoveredBossIds ?? []).includes(bossId);
-
-    if (derived.powerLevel >= bossPowerReq && !isDiscovered) {
-      setShowBossDiscoveryModal(true);
-      const discovered = Array.from(new Set([...(player.discoveredBossIds ?? []), bossId]));
-      onUpdatePlayer({
-        ...player,
-        discoveredBossIds: discovered,
-      });
-    }
-  }, [selectedLocation.id, selectedLocation.bossId, bossPowerReq, derived.powerLevel, player.discoveredBossIds, battle.inCombat, showActStoryModal]);
 
   const handleCloseActStory = () => {
     setShowActStoryModal(false);
