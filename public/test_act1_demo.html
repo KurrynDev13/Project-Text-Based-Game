@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Maharlika: Act I 2D Tactile Combat & Exploration (9:16 Mobile No-Scroll)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #030305;
+      color: #fef3c7;
+      touch-action: manipulation;
+    }
+    .font-cinzel { font-family: 'Cinzel', serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Custom Combat Physics Animations */
+    @keyframes idleBreath {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-2.5px) scale(1.012); }
+    }
+    .animate-idle {
+      animation: idleBreath 3.4s ease-in-out infinite;
+    }
+
+    @keyframes lungeRight {
+      0% { transform: translateX(0) scale(1); }
+      35% { transform: translateX(34px) scale(1.08); filter: brightness(1.3); }
+      100% { transform: translateX(0) scale(1); }
+    }
+    .anim-lunge-right {
+      animation: lungeRight 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    @keyframes lungeLeft {
+      0% { transform: translateX(0) scale(1); }
+      35% { transform: translateX(-34px) scale(1.08); filter: brightness(1.3); }
+      100% { transform: translateX(0) scale(1); }
+    }
+    .anim-lunge-left {
+      animation: lungeLeft 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    @keyframes hitShake {
+      0% { transform: translate(0, 0); filter: brightness(2.2) contrast(1.5); }
+      20% { transform: translate(-8px, 3px) rotate(-3deg); }
+      40% { transform: translate(8px, -3px) rotate(3deg); filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.95)); }
+      60% { transform: translate(-5px, 2px); }
+      80% { transform: translate(3px, -1px); }
+      100% { transform: translate(0, 0); filter: none; }
+    }
+    .anim-hit {
+      animation: hitShake 0.36s ease-out;
+    }
+
+    @keyframes arenaRumble {
+      0% { transform: translate(0, 0); }
+      20% { transform: translate(-4px, 4px); }
+      40% { transform: translate(4px, -4px); }
+      60% { transform: translate(-3px, 2px); }
+      80% { transform: translate(2px, -2px); }
+      100% { transform: translate(0, 0); }
+    }
+    .anim-rumble {
+      animation: arenaRumble 0.32s ease-in-out;
+    }
+
+    @keyframes faintFade {
+      0% { transform: scale(1) translateY(0); opacity: 1; filter: none; }
+      50% { transform: scale(0.9) translateY(12px); opacity: 0.5; filter: grayscale(1) brightness(0.4); }
+      100% { transform: scale(0.75) translateY(30px); opacity: 0; filter: grayscale(1) brightness(0.1); }
+    }
+    .anim-faint {
+      animation: faintFade 0.75s forwards cubic-bezier(0.4, 0, 1, 1);
+    }
+
+    /* Modal Sheet Slide Up */
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .anim-slide-up {
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Clean Scrollbars */
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #78350f; border-radius: 2px; }
+    * { scrollbar-width: thin; scrollbar-color: #78350f transparent; }
+  </style>
+</head>
+<body class="h-full flex items-center justify-center p-0 sm:p-2 bg-gradient-to-b from-black via-zinc-950 to-black">
+
+  <!-- 9:16 MOBILE FRAME CONTAINER (Zero Scroll on any viewport) -->
+  <div class="w-full h-full sm:max-w-[420px] sm:aspect-[9/16] sm:max-h-[96dvh] sm:rounded-[32px] sm:border-2 sm:border-amber-600/40 sm:shadow-[0_0_60px_rgba(0,0,0,0.95)] bg-zinc-950 flex flex-col justify-between overflow-hidden relative">
+
+    <!-- 1. TOP HEADER (Act Title, Stamina Meter, Turn Counter & Hero/Enemy Selectors) -->
+    <header class="bg-zinc-950/95 border-b border-amber-900/60 px-3 py-1.5 z-30 shrink-0 shadow-lg backdrop-blur-md">
+      <!-- Row 1: Act Title + Stamina Gauge + Turn Counter + Reset -->
+      <div class="flex items-center justify-between gap-1.5 mb-1">
+        <div class="flex items-center gap-1.5 truncate">
+          <div class="w-6 h-6 rounded bg-gradient-to-br from-amber-600 to-amber-950 flex items-center justify-center text-xs shadow border border-amber-500/40 shrink-0">
+            🌿
+          </div>
+          <div class="leading-none truncate">
+            <span class="text-[9px] font-mono text-amber-500 font-bold uppercase tracking-wider block">Act I</span>
+            <span class="text-xs font-cinzel font-bold text-amber-100 block truncate">Whispering Balete</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <span class="bg-black/80 px-1.5 py-0.5 rounded-full border border-amber-700/60 text-amber-300 font-mono text-[9px] font-bold flex items-center gap-0.5">
+            <span>⚡</span> <span id="stamina-text" class="text-amber-400 font-bold">20/20</span>
+          </span>
+          <span class="bg-black/80 px-1.5 py-0.5 rounded-full border border-amber-900/60 text-amber-300 font-mono text-[9px] font-bold">
+            T<span id="turn-counter" class="text-amber-400">1</span>
+          </span>
+          <button onclick="resetEncounter()" title="Reset Encounter" class="bg-amber-950/90 hover:bg-amber-900 text-amber-200 border border-amber-700/60 px-1.5 py-0.5 rounded-full font-mono text-[9px] transition-all active:scale-95 flex items-center gap-0.5">
+            <span>🔄</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Row 2: Touch Selectors (Hero & Monster encounter preset) -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="relative">
+          <select onchange="selectHero(this.value)" id="hero-select" class="w-full bg-zinc-900/95 border border-amber-700/60 text-amber-200 text-[10px] font-cinzel font-bold rounded-lg px-2 py-0.5 appearance-none focus:outline-none focus:border-amber-400 shadow-inner pr-6 truncate">
+            <option value="Mandirigma">⚔️ Mandirigma</option>
+            <option value="Bagani" selected>`🌑 Bagani`</option>
+            <option value="Mangangaso">🏹 Mangangaso</option>
+            <option value="Babaylan">🌿 Babaylan</option>
+          </select>
+          <span class="absolute right-2 top-1/2 -translate-y-1/2 text-amber-500 text-[8px] pointer-events-none">▼</span>
+        </div>
+
+        <div class="relative">
+          <select onchange="selectMonster(this.value)" id="mon-select" class="w-full bg-zinc-900/95 border border-red-700/60 text-red-200 text-[10px] font-cinzel font-bold rounded-lg px-2 py-0.5 appearance-none focus:outline-none focus:border-red-400 shadow-inner pr-6 truncate">
+            <option value="tiyanak">🐺 Tiyanak (Lv.1)</option>
+            <option value="nuno" selected>🍄 Nuno (Lv.3)</option>
+            <option value="tikbalang">🐴 Tikbalang (Lv.5)</option>
+            <option value="kapre">🪵 Boss Kapre</option>
+          </select>
+          <span class="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 text-[8px] pointer-events-none">▼</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. DYNAMIC ARENA CONTENT (Switches between Exploration Scenes & Combat Arena) -->
+    <section id="arena-box" class="relative flex-1 min-h-[220px] max-h-[300px] flex flex-col justify-between overflow-hidden bg-black select-none">
+      
+      <!-- Balete Forest Background Art Layer -->
+      <div class="absolute inset-0 z-0 pointer-events-none">
+        <img src="./concepts/bg_balete.jpg" alt="Balete Forest" class="w-full h-full object-cover object-center filter brightness-[0.38] contrast-125 scale-105">
+        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-zinc-950/70"></div>
+        <div class="absolute inset-0 bg-radial from-transparent via-black/25 to-black/85"></div>
+      </div>
+
+      <!-- CANVAS PARTICLE VFX LAYER (Absolute Overlay) -->
+      <canvas id="vfxCanvas" class="absolute inset-0 z-20 pointer-events-none w-full h-full"></canvas>
+
+      <!-- FLOATING COMBAT TEXT CONTAINER -->
+      <div id="floatingTextContainer" class="absolute inset-0 z-25 pointer-events-none overflow-hidden"></div>
+
+      <!-- ── ARENA CONTENT: COMBAT MODE VIEW ── -->
+      <div id="combatView" class="relative z-10 flex-1 flex flex-col justify-between px-3 py-1.5">
+
+        <!-- UPPER RIGHT: MONSTER UNIT -->
+        <div class="flex flex-col items-end w-full pl-4">
+          <div class="bg-zinc-950/90 backdrop-blur-md px-2.5 py-1 rounded-xl border border-red-900/80 shadow-2xl w-44 sm:w-52 mb-1 text-right">
+            <div class="flex items-center justify-between text-[10px] font-cinzel font-bold text-red-100">
+              <span id="monster-boss-tag" class="hidden text-[7px] bg-red-600 text-white px-1 py-0.2 rounded uppercase font-mono font-bold tracking-wider animate-pulse">Boss</span>
+              <span id="monster-name" class="truncate font-bold">Mound Sprite (Nuno)</span>
+            </div>
+            
+            <div class="flex items-center justify-between text-[8px] font-mono text-zinc-400 my-0.2">
+              <span>Armor: <b id="monster-armor-text" class="text-amber-400">6</b></span>
+              <span id="monster-hp-text" class="text-red-300 font-bold">120 / 120</span>
+            </div>
+
+            <div class="h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-700/80">
+              <div id="monster-hp-bar" class="h-full bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.7)]" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <div id="monster-card" class="relative flex flex-col items-center mr-2">
+            <div class="absolute -bottom-1.5 w-24 h-5 bg-red-600/25 rounded-full blur-md -z-10"></div>
+            <div id="monster-glow" class="absolute -inset-1 rounded-2xl bg-gradient-to-br from-red-600 to-amber-900 opacity-60 blur transition duration-500"></div>
+            <div id="monster-frame" class="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900 animate-idle transition-all">
+              <img id="monster-img" src="./concepts/act1/nuno.jpg" alt="Enemy" class="w-full h-full object-cover object-top filter contrast-110">
+            </div>
+          </div>
+        </div>
+
+        <!-- CENTER VS EMBLEM -->
+        <div class="flex justify-center items-center py-0 pointer-events-none opacity-70">
+          <div class="w-6 h-6 rounded-full bg-zinc-950/80 border border-amber-600/60 flex items-center justify-center font-cinzel font-black text-amber-300 text-[9px] shadow-lg">
+            VS
+          </div>
+        </div>
+
+        <!-- LOWER LEFT: PLAYER HERO UNIT -->
+        <div class="flex flex-col items-start w-full pr-4">
+          <div class="flex items-end gap-2.5 w-full">
+            <div id="hero-card" class="relative flex flex-col items-center ml-2 shrink-0">
+              <div class="absolute -bottom-1.5 w-26 h-5 bg-amber-500/25 rounded-full blur-md -z-10"></div>
+              <div id="hero-glow" class="absolute -inset-1 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-900 opacity-70 blur transition duration-500"></div>
+              <div class="relative w-22 h-28 sm:w-24 sm:h-32 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 animate-idle">
+                <img id="hero-img" src="./concepts/heroes/bagani.jpg" alt="Hero" class="w-full h-full object-cover object-top filter contrast-110">
+              </div>
+            </div>
+
+            <div class="bg-zinc-950/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-amber-900/80 shadow-2xl flex-1 text-left mb-0.5">
+              <div class="flex items-center justify-between text-[10px] font-cinzel font-bold text-amber-100">
+                <div class="flex items-center gap-1">
+                  <span id="hero-title" class="truncate font-bold">Bagani</span>
+                  <span id="guard-badge" class="hidden text-[8px] bg-amber-500 text-zinc-950 font-mono font-bold px-1 rounded">GUARD</span>
+                </div>
+                <span id="hero-subtitle" class="text-[8px] font-mono text-amber-400/90">Lv. 4</span>
+              </div>
+              
+              <div class="mt-0.5">
+                <div class="flex items-center justify-between text-[8px] font-mono text-amber-300 mb-0.2">
+                  <span class="font-bold flex items-center gap-1">❤️ HP</span>
+                  <span id="hero-hp-text">205 / 220</span>
+                </div>
+                <div class="h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-700/80">
+                  <div id="hero-hp-bar" class="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.7)]" style="width: 100%;"></div>
+                </div>
+              </div>
+
+              <div class="mt-0.5">
+                <div class="flex items-center justify-between text-[8px] font-mono text-cyan-300 mb-0.2">
+                  <span class="font-bold flex items-center gap-1">✨ MP</span>
+                  <span id="hero-mp-text">120 / 120</span>
+                </div>
+                <div class="h-1 bg-zinc-900 rounded-full overflow-hidden border border-zinc-700/80">
+                  <div id="hero-mp-bar" class="h-full bg-gradient-to-r from-cyan-600 to-blue-400 transition-all duration-300 rounded-full shadow-[0_0_6px_rgba(6,182,212,0.6)]" style="width: 100%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── ARENA CONTENT: EXPLORATION / OUT-OF-COMBAT EVENT VIEW ── -->
+      <div id="explorationView" class="hidden relative z-10 flex-1 flex flex-col items-center justify-center p-3 text-center">
+        <!-- Event Artwork & Card -->
+        <div id="event-card-box" class="relative group max-w-[200px] sm:max-w-[220px]">
+          <div id="event-glow" class="absolute -inset-1 rounded-2xl bg-gradient-to-br from-amber-500 to-red-600 opacity-70 blur-md transition duration-500"></div>
+          <div class="relative w-36 h-48 sm:w-40 sm:h-52 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900">
+            <img id="event-img" src="./concepts/events/chest.jpg" alt="Event Discovery" class="w-full h-full object-cover object-center filter contrast-110">
+          </div>
+        </div>
+
+        <div class="mt-2 bg-zinc-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-900/80 shadow-2xl max-w-xs">
+          <h3 id="event-title" class="text-xs font-cinzel font-bold text-amber-200">Ancient Cursed Spirit Chest</h3>
+          <p id="event-desc" class="text-[9px] font-mono text-zinc-300 mt-0.5">An obsidian chest wrapped in blood-red runes demands a sacrifice to unseal.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 3. TACTILE ACTION DOCK (Switches between Exploration Mode & Combat Mode) -->
+    <div class="bg-zinc-950/98 border-t border-amber-900/80 p-2 z-30 shrink-0 shadow-2xl backdrop-blur-md">
+      
+      <!-- DOCK STATE A: OUT-OF-COMBAT EXPLORATION BUTTONS (Venture Forward / Search Area) -->
+      <div id="explorationDock" class="space-y-1.5 max-w-sm mx-auto">
+        <!-- Row 1: Venture Forward (Full Width) -->
+        <button id="btn-venture" onclick="handleVentureForward()" class="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-700 via-amber-800 to-amber-950 hover:from-amber-600 hover:to-amber-900 text-amber-100 font-cinzel font-bold text-xs border border-amber-400/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition-all active:scale-98 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🧭</span>
+            <span class="font-bold tracking-wide">Venture Forward</span>
+          </div>
+          <span class="text-[10px] font-mono text-amber-300 bg-amber-950/90 px-2 py-0.5 rounded border border-amber-600/60 font-bold">5 Stamina</span>
+        </button>
+
+        <!-- Row 2: Search Area (Full Width) -->
+        <button id="btn-search" onclick="handleSearchArea()" class="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-zinc-800 via-zinc-900 to-zinc-950 hover:from-zinc-700 hover:to-zinc-900 text-amber-200 font-cinzel font-bold text-xs border border-amber-800/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all active:scale-98 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🔍</span>
+            <span class="font-bold tracking-wide">Search Area</span>
+          </div>
+          <span class="text-[10px] font-mono text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60 font-bold">2 Stamina</span>
+        </button>
+      </div>
+
+      <!-- DOCK STATE B: COMBAT BUTTON GRID ([Attack][Skills] / [Items][Guard] + 2-Row [Flee]) -->
+      <div id="combatDock" class="hidden grid grid-cols-[1.1fr_1.1fr_0.9fr] gap-1.5 max-w-sm mx-auto transition-all duration-200">
+        <!-- Row 1, Col 1: [Attack] -->
+        <button id="btn-attack" onclick="performAction('attack')" class="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-amber-800 to-amber-950 hover:from-amber-700 hover:to-amber-900 text-amber-100 font-cinzel font-bold text-xs border border-amber-500/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate">
+          <span class="text-sm">⚔️</span>
+          <span class="truncate font-bold tracking-wide">Attack</span>
+        </button>
+
+        <!-- Row 1, Col 2: [Skills] -->
+        <button id="btn-skills-modal" onclick="openSkillsModal()" class="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate">
+          <span class="text-sm">⚡</span>
+          <span class="truncate font-bold tracking-wide">Skills</span>
+        </button>
+
+        <!-- Col 3: [Flee] (Spans 2 Rows!) -->
+        <button id="btn-flee" onclick="performAction('flee')" class="row-span-2 min-h-[92px] rounded-xl bg-gradient-to-b from-stone-900 to-zinc-950 hover:from-stone-800 hover:to-zinc-900 text-amber-200/90 font-cinzel font-bold text-xs border border-amber-900/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
+          <span class="text-xl">🏃</span>
+          <span class="font-bold tracking-wider">Flee</span>
+          <span id="flee-attempts-hint" class="text-[8px] font-mono text-amber-400/80 bg-black/60 px-1 rounded">2 Left</span>
+        </button>
+
+        <!-- Row 2, Col 1: [Items] -->
+        <button id="btn-items-modal" onclick="openItemsModal()" class="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-emerald-950 to-zinc-900 hover:from-emerald-900 hover:to-zinc-800 text-emerald-200 font-cinzel font-bold text-xs border border-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate">
+          <span class="text-sm">🎒</span>
+          <span class="truncate font-bold tracking-wide">Items</span>
+        </button>
+
+        <!-- Row 2, Col 2: [Guard] -->
+        <button id="btn-guard" onclick="performAction('guard')" class="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-blue-950 to-zinc-900 hover:from-blue-900 hover:to-zinc-800 text-cyan-200 font-cinzel font-bold text-xs border border-cyan-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate">
+          <span class="text-sm">🛡️</span>
+          <span class="truncate font-bold tracking-wide">Guard</span>
+        </button>
+      </div>
+
+      <!-- DOCK STATE C: EVENT INTERACTION CHOICES (Chest / Trader / Shrine) -->
+      <div id="eventDock" class="hidden space-y-1.5 max-w-sm mx-auto">
+        <!-- Injected event choice buttons -->
+      </div>
+
+    </div>
+
+    <!-- 4. EXPANDED READABLE COMBAT LOG (Newest Log at Top, Auto-scroll to top) -->
+    <div class="bg-zinc-950 border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[96px] flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[9px] font-mono text-amber-500 border-b border-amber-900/40 pb-0.5">
+        <span class="font-bold flex items-center gap-1">📜 Tactical Log (Latest on Top)</span>
+        <span class="text-zinc-500 text-[8px]">DR = Armor/(Armor+150)</span>
+      </div>
+      <div id="combatLog" class="h-[70px] overflow-y-auto space-y-1 font-mono text-[10px] text-zinc-300 leading-tight pr-1">
+        <div class="text-zinc-500 italic shrink-0">[Sector Exploration] You are treading carefully beneath the Balete canopy.</div>
+      </div>
+    </div>
+
+    <!-- 5. AUTHENTIC GAME NAVBAR (5 Tabs, World/Hunt active) -->
+    <nav class="bg-zinc-950/98 border-t border-amber-900/60 px-2 py-1 flex justify-around items-center shrink-0 z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.8)]">
+      <button class="flex flex-col items-center justify-center p-1 rounded-lg text-zinc-500 opacity-60 hover:opacity-80 transition min-w-[50px]">
+        <span class="text-base">🏰</span>
+        <span class="text-[9px] font-mono mt-0.5">Haven</span>
+      </button>
+      <button class="flex flex-col items-center justify-center p-1 rounded-lg bg-amber-500/20 text-amber-300 font-bold border border-amber-500/50 shadow-md min-w-[54px]">
+        <span class="text-base">🌌</span>
+        <span class="text-[9px] font-mono mt-0.5 font-bold">World</span>
+      </button>
+      <button class="flex flex-col items-center justify-center p-1 rounded-lg text-zinc-500 opacity-60 hover:opacity-80 transition min-w-[50px]">
+        <span class="text-base">🎒</span>
+        <span class="text-[9px] font-mono mt-0.5">Gear</span>
+      </button>
+      <button class="flex flex-col items-center justify-center p-1 rounded-lg text-zinc-500 opacity-60 hover:opacity-80 transition min-w-[50px]">
+        <span class="text-base">👤</span>
+        <span class="text-[9px] font-mono mt-0.5">Hero</span>
+      </button>
+      <button class="flex flex-col items-center justify-center p-1 rounded-lg text-zinc-500 opacity-60 hover:opacity-80 transition min-w-[50px]">
+        <span class="text-base">📜</span>
+        <span class="text-[9px] font-mono mt-0.5">Log</span>
+      </button>
+    </nav>
+
+    <!-- ── MODAL 1: ACTIVE SKILLS DRAWER ── -->
+    <div id="skillsModal" class="hidden absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-2 sm:p-3 select-none">
+      <div class="bg-zinc-950 border-2 border-red-700/80 rounded-2xl p-3 shadow-2xl space-y-2 anim-slide-up max-h-[85%] flex flex-col">
+        <div class="flex items-center justify-between border-b border-red-900/40 pb-1.5 shrink-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">⚡</span>
+            <h3 class="text-xs font-cinzel font-bold text-amber-200">Active Mutya Skills</h3>
+          </div>
+          <button onclick="closeSkillsModal()" class="w-6 h-6 rounded-full bg-zinc-900 text-zinc-400 hover:text-amber-200 flex items-center justify-center text-xs border border-zinc-700">
+            ✕
+          </button>
+        </div>
+        <div id="skillsList" class="space-y-1.5 overflow-y-auto flex-1 pr-1"></div>
+      </div>
+    </div>
+
+    <!-- ── MODAL 2: CONSUMABLES / ITEMS DRAWER ── -->
+    <div id="itemsModal" class="hidden absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-2 sm:p-3 select-none">
+      <div class="bg-zinc-950 border-2 border-emerald-700/80 rounded-2xl p-3 shadow-2xl space-y-2 anim-slide-up max-h-[85%] flex flex-col">
+        <div class="flex items-center justify-between border-b border-emerald-900/40 pb-1.5 shrink-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">🎒</span>
+            <h3 class="text-xs font-cinzel font-bold text-emerald-200">Field Consumables</h3>
+          </div>
+          <button onclick="closeItemsModal()" class="w-6 h-6 rounded-full bg-zinc-900 text-zinc-400 hover:text-emerald-200 flex items-center justify-center text-xs border border-zinc-700">
+            ✕
+          </button>
+        </div>
+        <div id="itemsList" class="space-y-1.5 overflow-y-auto flex-1 pr-1"></div>
+      </div>
+    </div>
+
+    <!-- ── MODAL 3: VICTORY MODAL ── -->
+    <div id="victoryModal" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+      <div class="bg-zinc-950 border-2 border-amber-500 rounded-2xl w-full max-w-xs p-4 text-center shadow-2xl space-y-3">
+        <div class="w-12 h-12 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-2xl">
+          🏆
+        </div>
+        <h2 class="text-base font-cinzel font-black text-amber-100">VICTORY ACHIEVED!</h2>
+        <p id="victorySubtitle" class="text-[10px] font-mono text-amber-400">The forest beast dissolves into fading spirit embers.</p>
+        
+        <div class="bg-zinc-900/90 rounded-lg p-2 border border-amber-900/60 text-[10px] font-mono space-y-1 text-left">
+          <div class="flex justify-between"><span class="text-zinc-400">EXP Gained:</span><span id="expReward" class="text-amber-300 font-bold">+180 EXP</span></div>
+          <div class="flex justify-between"><span class="text-zinc-400">Cowrie Shells:</span><span id="copperReward" class="text-amber-400 font-bold">+45 Shells</span></div>
+          <div class="flex justify-between"><span class="text-zinc-400">Mutya Shards:</span><span id="mutyaReward" class="text-emerald-300 font-bold">1x Balete Essence</span></div>
+        </div>
+
+        <button onclick="closeVictoryModal()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-zinc-950 font-cinzel font-black text-xs shadow-lg transition-all active:scale-95">
+          Continue Exploration
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JAVASCRIPT GAME LOGIC, WEB AUDIO SYNTH & PROCEDURAL PARTICLES -->
+  <script>
+    // Safe DOM helper utilities to prevent null errors
+    function setElText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.innerText = text;
+    }
+    function setElWidth(id, widthPct) {
+      const el = document.getElementById(id);
+      if (el) el.style.width = widthPct;
+    }
+    function setElDisabled(id, disabled) {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    }
+
+    // ─── 0. WEB AUDIO API SFX ──────────────────────────────────────────
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playSfx(type) {
+      try {
+        initAudio();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+
+        if (type === 'slash') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(650, now);
+          osc.frequency.exponentialRampToValueAtTime(140, now + 0.12);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (type === 'hit' || type === 'crit') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(type === 'crit' ? 180 : 120, now);
+          osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+          gain.gain.setValueAtTime(type === 'crit' ? 0.4 : 0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else if (type === 'guard') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.setValueAtTime(440, now + 0.06);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        } else if (type === 'heal' || type === 'chest') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(640, now + 0.25);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        }
+      } catch (e) {
+        // Audio policy ignore
+      }
+    }
+
+    // ─── 1. DATA DEFINITIONS ──────────────────────────────────────────
+    const HERO_DATA = {
+      Mandirigma: {
+        name: 'Mandirigma',
+        title: 'Battle-Hardened Warrior',
+        subtitle: 'Blade Master • Lv. 4',
+        img: './concepts/heroes/mandirigma.jpg',
+        maxHp: 280,
+        maxMp: 90,
+        armor: 14,
+        str: 14, agi: 9, int: 8, vit: 14,
+        basicSkill: { name: 'Kampilan Slash', dmgMult: 1.0, cost: 0, icon: '⚔️' },
+        skills: [
+          { id: 'cleave', name: 'Kampilan Cleave', cost: 25, icon: '🪓', desc: 'Heavy horizontal cleave dealing 175% Physical Damage.', dmgMult: 1.75, vfx: 'fire' },
+          { id: 'warcry', name: 'Ancestral War Cry', cost: 30, icon: '🛡️', desc: 'Roar of the ancients boosting Armor by +40% for 3 turns.', effect: 'buff_armor', vfx: 'buff' },
+          { id: 'rend', name: 'Kampilan Sunder', cost: 38, icon: '🩸', desc: 'Deep wound dealing 210% damage and applying Bleed.', dmgMult: 2.1, vfx: 'slash_rapid' }
+        ]
+      },
+      Bagani: {
+        name: 'Bagani',
+        title: 'Shadow Blade of the Night',
+        subtitle: 'Shadow Assassin • Lv. 4',
+        img: './concepts/heroes/bagani.jpg',
+        maxHp: 220,
+        maxMp: 120,
+        armor: 9,
+        str: 9, agi: 16, int: 10, vit: 10,
+        basicSkill: { name: 'Balisong Thrust', dmgMult: 1.0, cost: 0, icon: '🗡️' },
+        skills: [
+          { id: 'flurry', name: 'Balisong Flurry', cost: 28, icon: '⚡', desc: 'Twin rapid slashes dealing 190% Critical Damage.', dmgMult: 1.9, vfx: 'slash_rapid' },
+          { id: 'cloak', name: 'Shadow Cloak', cost: 35, icon: '🌑', desc: 'Blend into smoke, granting +40% Dodge for 2 turns.', effect: 'buff_dodge', vfx: 'shadow' },
+          { id: 'venom_strike', name: 'Night Viper Sting', cost: 40, icon: '🧪', desc: 'Lethal poison strike dealing 180% Damage + Toxic Rot.', dmgMult: 1.8, vfx: 'poison' }
+        ]
+      },
+      Mangangaso: {
+        name: 'Mangangaso',
+        title: 'Forest Hunter & Tracker',
+        subtitle: 'Canopy Sniper • Lv. 4',
+        img: './concepts/heroes/mangangaso.jpg',
+        maxHp: 230,
+        maxMp: 110,
+        armor: 10,
+        str: 10, agi: 14, int: 11, vit: 11,
+        basicSkill: { name: 'Pinaka Shot', dmgMult: 1.0, cost: 0, icon: '🏹' },
+        skills: [
+          { id: 'poison_arrow', name: 'Poison Dart Arrow', cost: 25, icon: '🌿', desc: 'Bamboo arrow dipped in swamp poison (160% Damage).', dmgMult: 1.6, vfx: 'poison' },
+          { id: 'eagle_eye', name: 'Eagle Eye Focus', cost: 30, icon: '👁️', desc: 'Heightened precision granting +35% Critical Chance.', effect: 'buff_crit', vfx: 'buff' },
+          { id: 'bamboo_barrage', name: 'Pinaka Barrage', cost: 42, icon: '🎯', desc: 'Triple arrow volley dealing 220% Physical Damage.', dmgMult: 2.2, vfx: 'slash_rapid' }
+        ]
+      },
+      Babaylan: {
+        name: 'Babaylan',
+        title: 'Spirit Shaman & Healer',
+        subtitle: 'Ancestral Shaman • Lv. 4',
+        img: './concepts/heroes/babaylan.jpg',
+        maxHp: 210,
+        maxMp: 170,
+        armor: 8,
+        str: 8, agi: 9, int: 16, vit: 11,
+        basicSkill: { name: 'Ancestral Spark', dmgMult: 1.1, cost: 0, icon: '✨' },
+        skills: [
+          { id: 'smite', name: 'Spiritual Smite', cost: 35, icon: '🔮', desc: 'Ancestral holy light that bypasses 20% enemy armor.', dmgMult: 2.1, vfx: 'spirit' },
+          { id: 'orasyon_heal', name: 'Orasyon of Life', cost: 40, icon: '🌸', desc: 'Sacred chant restoring 45% Max HP + cleanses poison.', effect: 'heal_self', vfx: 'heal' },
+          { id: 'bathala_wrath', name: 'Wrath of Bathala', cost: 55, icon: '⚡', desc: 'Sky lightning blast dealing 260% Magic Damage.', dmgMult: 2.6, vfx: 'fire' }
+        ]
+      }
+    };
+
+    const CONSUMABLE_ITEMS = [
+      { id: 'lambanog', name: 'Lambanog Brew', icon: '🍶', count: 3, desc: 'Fiery fermented coconut wine. Restores 40% Max HP.', effect: 'heal_hp', value: 0.40 },
+      { id: 'stamina_elixir', name: 'Gubat Mana Elixir', icon: '🧪', count: 2, desc: 'Brewed mountain herbs. Restores +50 MP.', effect: 'heal_mp', value: 50 },
+      { id: 'herbal_salve', name: 'Sacred Herbal Salve', icon: '🌿', count: 2, desc: 'Soothing forest poultice. Restores 25% HP & cleanses status.', effect: 'heal_cleanse', value: 0.25 },
+      { id: 'mutya_essence', name: 'Mutya Pearl Draught', icon: '✨', count: 1, desc: 'Rare divine elixir. Restores 100% HP & 100% MP.', effect: 'heal_full', value: 1.0 }
+    ];
+
+    const MONSTER_DATA = {
+      tiyanak: {
+        id: 'tiyanak',
+        name: 'Bramble Tiyanak Stalker',
+        title: 'Bushland Trickster • Lv. 1',
+        img: './concepts/act1/tiyanak.jpg',
+        hp: 90,
+        maxHp: 90,
+        armor: 4,
+        minDmg: 8,
+        maxDmg: 14,
+        isBoss: false,
+        exp: 35,
+        copper: 25
+      },
+      nuno: {
+        id: 'nuno',
+        name: 'Mound Sprite (Nuno)',
+        title: 'Earth Dweller • Lv. 3',
+        img: './concepts/act1/nuno.jpg',
+        hp: 120,
+        maxHp: 120,
+        armor: 6,
+        minDmg: 12,
+        maxDmg: 18,
+        isBoss: false,
+        exp: 65,
+        copper: 40
+      },
+      tikbalang: {
+        id: 'tikbalang',
+        name: 'Canopy Tikbalang Scout',
+        title: 'Equine Guardian • Lv. 5',
+        img: './concepts/act1/tikbalang.jpg',
+        hp: 160,
+        maxHp: 160,
+        armor: 10,
+        minDmg: 16,
+        maxDmg: 24,
+        isBoss: false,
+        exp: 110,
+        copper: 70
+      },
+      kapre: {
+        id: 'kapre',
+        name: 'The Ancient Kapre',
+        title: 'Act I Guardian • Colossus',
+        img: './concepts/act1/kapre.jpg',
+        hp: 750,
+        maxHp: 750,
+        armor: 22,
+        minDmg: 28,
+        maxDmg: 40,
+        isBoss: true,
+        exp: 450,
+        copper: 250
+      }
+    };
+
+    // ─── 2. RUNTIME STATE ──────────────────────────────────────────────
+    let currentHeroKey = 'Bagani';
+    let currentMonsterKey = 'nuno';
+
+    let hero = { ...HERO_DATA[currentHeroKey], curHp: HERO_DATA[currentHeroKey].maxHp, curMp: HERO_DATA[currentHeroKey].maxMp };
+    let items = JSON.parse(JSON.stringify(CONSUMABLE_ITEMS));
+    let monster = { ...MONSTER_DATA[currentMonsterKey], curHp: MONSTER_DATA[currentMonsterKey].hp };
+    let turn = 1;
+    let isActing = false;
+    let isDefeated = false;
+    let guardedLastTurn = false;
+    let isGuardingThisTurn = false;
+    let fleeAttempts = 0;
+    
+    // EXPLORATION STATE: 'IDLE' | 'COMBAT' | 'CHEST' | 'TRADER' | 'SHRINE'
+    let explorationState = 'IDLE';
+    let stamina = { current: 20, max: 20 };
+
+    // ─── 3. PROCEDURAL CANVAS PARTICLES ────────────────────────────────
+    const canvas = document.getElementById('vfxCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let slashArcs = [];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 50);
+
+    class Particle {
+      constructor(x, y, vx, vy, size, color, maxLife) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.size = size;
+        this.color = color;
+        this.life = maxLife;
+        this.maxLife = maxLife;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.08;
+        this.life--;
+        this.size = Math.max(0, this.size * 0.95);
+      }
+      draw(c) {
+        c.save();
+        const alpha = Math.max(0, this.life / this.maxLife);
+        c.globalAlpha = alpha;
+        c.fillStyle = this.color;
+        c.shadowColor = this.color;
+        c.shadowBlur = 8;
+        c.beginPath();
+        c.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      }
+    }
+
+    class SlashArc {
+      constructor(x, y, radius, startAngle, endAngle, color, width) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.startAngle = startAngle;
+        this.endAngle = endAngle;
+        this.color = color;
+        this.width = width;
+        this.life = 12;
+        this.maxLife = 12;
+      }
+      update() {
+        this.life--;
+        this.width = Math.max(0, this.width * 0.88);
+      }
+      draw(c) {
+        c.save();
+        const alpha = Math.max(0, this.life / this.maxLife);
+        c.globalAlpha = alpha;
+        c.strokeStyle = this.color;
+        c.lineWidth = this.width;
+        c.lineCap = 'round';
+        c.shadowColor = this.color;
+        c.shadowBlur = 14;
+        c.beginPath();
+        c.arc(this.x, this.y, this.radius, this.startAngle, this.endAngle);
+        c.stroke();
+        c.restore();
+      }
+    }
+
+    function emitSlash(targetX, targetY, color = '#f59e0b') {
+      playSfx('slash');
+      slashArcs.push(new SlashArc(targetX, targetY, 40, -Math.PI * 0.8, Math.PI * 0.2, color, 6));
+      for (let i = 0; i < 20; i++) {
+        const speed = 2 + Math.random() * 5.5;
+        const angle = -Math.PI * 0.3 + (Math.random() - 0.5) * 1.5;
+        particles.push(new Particle(
+          targetX, targetY,
+          Math.cos(angle) * speed, Math.sin(angle) * speed,
+          2.5 + Math.random() * 2.5,
+          color,
+          22 + Math.random() * 12
+        ));
+      }
+    }
+
+    function emitFireBurst(x, y) {
+      playSfx('crit');
+      for (let i = 0; i < 28; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 6.5;
+        const colors = ['#f97316', '#ef4444', '#fbbf24', '#ffffff'];
+        particles.push(new Particle(
+          x, y,
+          Math.cos(angle) * speed, Math.sin(angle) * speed - 1.2,
+          3.5 + Math.random() * 3.5,
+          colors[Math.floor(Math.random() * colors.length)],
+          26 + Math.random() * 16
+        ));
+      }
+    }
+
+    function emitPoisonSpore(x, y) {
+      for (let i = 0; i < 22; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 3.5;
+        particles.push(new Particle(
+          x, y,
+          Math.cos(angle) * speed, Math.sin(angle) * speed - 1.5,
+          3.5 + Math.random() * 3,
+          '#10b981',
+          30 + Math.random() * 16
+        ));
+      }
+    }
+
+    function emitSpiritHeal(x, y) {
+      playSfx('heal');
+      for (let i = 0; i < 24; i++) {
+        const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 1.2;
+        const speed = 1.5 + Math.random() * 4;
+        const colors = ['#06b6d4', '#67e8f9', '#a7f3d0', '#fef08a'];
+        particles.push(new Particle(
+          x, y,
+          Math.cos(angle) * speed, Math.sin(angle) * speed,
+          2.5 + Math.random() * 2.5,
+          colors[Math.floor(Math.random() * colors.length)],
+          28 + Math.random() * 16
+        ));
+      }
+    }
+
+    function emitGuardAura(x, y) {
+      playSfx('guard');
+      for (let i = 0; i < 26; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 4;
+        particles.push(new Particle(
+          x, y,
+          Math.cos(angle) * speed, Math.sin(angle) * speed,
+          3 + Math.random() * 3,
+          '#38bdf8',
+          25 + Math.random() * 10
+        ));
+      }
+    }
+
+    function vfxLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = slashArcs.length - 1; i >= 0; i--) {
+        slashArcs[i].update();
+        slashArcs[i].draw(ctx);
+        if (slashArcs[i].life <= 0) slashArcs.splice(i, 1);
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw(ctx);
+        if (particles[i].life <= 0) particles.splice(i, 1);
+      }
+
+      requestAnimationFrame(vfxLoop);
+    }
+    vfxLoop();
+
+    // ─── 4. FLOATING COMBAT TEXT ───────────────────────────────────────
+    function spawnFloatingText(text, targetEl, type = 'normal') {
+      const container = document.getElementById('floatingTextContainer');
+      if (!container || !targetEl) return;
+
+      const rect = targetEl.getBoundingClientRect();
+      const parentRect = container.getBoundingClientRect();
+
+      const el = document.createElement('div');
+      el.className = 'absolute font-cinzel font-black text-xs sm:text-sm pointer-events-none transition-all duration-700 transform z-30';
+      
+      if (type === 'crit') {
+        el.className += ' text-amber-300 drop-shadow-[0_0_12px_rgba(245,158,11,0.95)] text-sm sm:text-base';
+        el.innerHTML = `💥 CRIT ${text}!`;
+      } else if (type === 'heal') {
+        el.className += ' text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.9)]';
+        el.innerHTML = `+${text} HP`;
+      } else if (type === 'dodge') {
+        el.className += ' text-cyan-300 drop-shadow';
+        el.innerHTML = `DODGE!`;
+      } else if (type === 'parry') {
+        el.className += ' text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.9)] text-sm sm:text-base';
+        el.innerHTML = `🛡️ PARRY & RIPOSTE!`;
+      } else {
+        el.className += ' text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.9)]';
+        el.innerHTML = `-${text}`;
+      }
+
+      const x = rect.left - parentRect.left + rect.width * 0.35 + (Math.random() - 0.5) * 20;
+      const y = rect.top - parentRect.top + rect.height * 0.2;
+
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      container.appendChild(el);
+
+      requestAnimationFrame(() => {
+        el.style.transform = 'translateY(-36px) scale(1.1)';
+        el.style.opacity = '0';
+      });
+
+      setTimeout(() => el.remove(), 720);
+    }
+
+    function rumbleArena() {
+      const arena = document.getElementById('arena-box');
+      if (!arena) return;
+      arena.classList.remove('anim-rumble');
+      void arena.offsetWidth;
+      arena.classList.add('anim-rumble');
+    }
+
+    // ─── 5. SAFE UI UPDATES & TOP LOGGING ──────────────────────────────
+    function updateUI() {
+      // Stamina
+      setElText('stamina-text', `${stamina.current} / ${stamina.max}`);
+      setElDisabled('btn-venture', stamina.current < 5 || isActing);
+      setElDisabled('btn-search', stamina.current < 2 || isActing);
+
+      // Hero HP/MP
+      const heroHpPct = Math.max(0, Math.min(100, (hero.curHp / hero.maxHp) * 100));
+      const heroMpPct = Math.max(0, Math.min(100, (hero.curMp / hero.maxMp) * 100));
+      setElWidth('hero-hp-bar', `${heroHpPct}%`);
+      setElWidth('hero-mp-bar', `${heroMpPct}%`);
+      setElText('hero-hp-text', `${Math.ceil(hero.curHp)} / ${hero.maxHp}`);
+      setElText('hero-mp-text', `${Math.ceil(hero.curMp)} / ${hero.maxMp}`);
+
+      // Monster HP
+      const monHpPct = Math.max(0, Math.min(100, (monster.curHp / monster.maxHp) * 100));
+      setElWidth('monster-hp-bar', `${monHpPct}%`);
+      setElText('monster-hp-text', `${Math.ceil(monster.curHp)} / ${monster.maxHp}`);
+      setElText('monster-armor-text', monster.armor);
+
+      // Turn count & Flee
+      setElText('turn-counter', turn);
+      const fleeLeft = Math.max(0, 2 - fleeAttempts);
+      setElText('flee-attempts-hint', `${fleeLeft} Left`);
+      setElDisabled('btn-flee', fleeLeft <= 0 || isActing || isDefeated);
+
+      // Guard badge
+      const guardBadge = document.getElementById('guard-badge');
+      if (guardBadge) {
+        if (isGuardingThisTurn) guardBadge.classList.remove('hidden');
+        else guardBadge.classList.add('hidden');
+      }
+
+      // Action button states & Action Pad lock
+      const disablePad = isActing || isDefeated;
+      setElDisabled('btn-attack', disablePad);
+      setElDisabled('btn-skills-modal', disablePad);
+      setElDisabled('btn-items-modal', disablePad);
+      setElDisabled('btn-guard', guardedLastTurn || disablePad);
+      setElDisabled('btn-flee', fleeLeft <= 0 || disablePad);
+
+      const combatDock = document.getElementById('combatDock');
+      if (combatDock) {
+        if (disablePad) {
+          combatDock.classList.add('opacity-40', 'pointer-events-none');
+        } else {
+          combatDock.classList.remove('opacity-40', 'pointer-events-none');
+        }
+      }
+      const eventDock = document.getElementById('eventDock');
+
+      if (explorationState === 'COMBAT') {
+        if (combatView) combatView.classList.remove('hidden');
+        if (explorationView) explorationView.classList.add('hidden');
+
+        if (combatDock) combatDock.classList.remove('hidden');
+        if (explorationDock) explorationDock.classList.add('hidden');
+        if (eventDock) eventDock.classList.add('hidden');
+      } else if (explorationState === 'IDLE') {
+        if (combatView) combatView.classList.add('hidden');
+        if (explorationView) explorationView.classList.add('hidden');
+
+        if (explorationDock) explorationDock.classList.remove('hidden');
+        if (combatDock) combatDock.classList.add('hidden');
+        if (eventDock) eventDock.classList.add('hidden');
+      } else {
+        // Event states: CHEST, TRADER, SHRINE
+        if (combatView) combatView.classList.add('hidden');
+        if (explorationView) explorationView.classList.remove('hidden');
+
+        if (eventDock) eventDock.classList.remove('hidden');
+        if (explorationDock) explorationDock.classList.add('hidden');
+        if (combatDock) combatDock.classList.add('hidden');
+      }
+    }
+
+    // LOGGING: Newest log at the TOP, auto-scrolling to the top!
+    function logMessage(text, colorClass = 'text-zinc-300') {
+      const log = document.getElementById('combatLog');
+      if (!log) return;
+
+      const line = document.createElement('div');
+      line.className = `${colorClass} shrink-0 truncate animate-fade-in border-b border-zinc-900/60 pb-0.5 min-h-[16px]`;
+      line.innerHTML = `[T${turn}] ${text}`;
+      
+      log.insertBefore(line, log.firstChild);
+      while (log.children.length > 50) {
+        log.removeChild(log.lastChild);
+      }
+      log.scrollTop = 0;
+    }
+
+    // ─── 6. SELECTIONS ─────────────────────────────────────────────────
+    function selectHero(heroKey) {
+      if (isActing) return;
+      currentHeroKey = heroKey;
+      const base = HERO_DATA[heroKey];
+      hero = { ...base, curHp: base.maxHp, curMp: base.maxMp };
+
+      const heroImg = document.getElementById('hero-img');
+      if (heroImg) heroImg.src = base.img;
+      setElText('hero-title', base.name);
+      setElText('hero-subtitle', base.subtitle);
+
+      const heroSelect = document.getElementById('hero-select');
+      if (heroSelect) heroSelect.value = heroKey;
+
+      logMessage(`Switched to <b class="text-amber-300">${base.name}</b>`, 'text-amber-400');
+      updateUI();
+    }
+
+    function selectMonster(monsterKey) {
+      if (isActing) return;
+      currentMonsterKey = monsterKey;
+      const base = MONSTER_DATA[monsterKey];
+      monster = { ...base, curHp: base.maxHp };
+      isDefeated = false;
+      guardedLastTurn = false;
+      isGuardingThisTurn = false;
+      fleeAttempts = 0;
+
+      const monsterCard = document.getElementById('monster-card');
+      if (monsterCard) monsterCard.classList.remove('anim-faint');
+
+      const monsterImg = document.getElementById('monster-img');
+      if (monsterImg) monsterImg.src = base.img;
+      setElText('monster-name', base.name);
+
+      const bossTag = document.getElementById('monster-boss-tag');
+      const monsterFrame = document.getElementById('monster-frame');
+      if (base.isBoss) {
+        if (bossTag) bossTag.classList.remove('hidden');
+        if (monsterFrame) monsterFrame.className = "relative w-24 h-30 sm:w-26 sm:h-34 rounded-2xl overflow-hidden border-2 border-red-500 shadow-2xl bg-zinc-900 animate-idle transition-all";
+      } else {
+        if (bossTag) bossTag.classList.add('hidden');
+        if (monsterFrame) monsterFrame.className = "relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900 animate-idle transition-all";
+      }
+
+      const monSelect = document.getElementById('mon-select');
+      if (monSelect) monSelect.value = monsterKey;
+
+      turn = 1;
+      explorationState = 'COMBAT';
+      logMessage(`Encountered <b class="text-red-300">${base.name}</b>!`, 'text-red-400 font-bold');
+      updateUI();
+    }
+
+    function resetEncounter() {
+      explorationState = 'IDLE';
+      stamina.current = stamina.max;
+      selectHero(currentHeroKey);
+      monster = { ...MONSTER_DATA[currentMonsterKey], curHp: MONSTER_DATA[currentMonsterKey].hp };
+      items = JSON.parse(JSON.stringify(CONSUMABLE_ITEMS));
+      logMessage(`🔄 Reset sector exploration. Standby to Venture Forward or Search Area.`, 'text-amber-400');
+      updateUI();
+    }
+
+    // ─── 7. EXPLORATION ACTIONS: VENTURE FORWARD & SEARCH AREA ─────────
+    function handleVentureForward() {
+      if (stamina.current < 5 || isActing) return;
+      stamina.current -= 5;
+      playSfx('slash');
+
+      const roll = Math.random();
+
+      if (roll < 0.60) {
+        explorationState = 'COMBAT';
+        const monKeys = ['tiyanak', 'nuno', 'tikbalang'];
+        const randomKey = monKeys[Math.floor(Math.random() * monKeys.length)];
+        selectMonster(randomKey);
+
+      } else if (roll < 0.80) {
+        explorationState = 'CHEST';
+        const eventImg = document.getElementById('event-img');
+        if (eventImg) eventImg.src = './concepts/events/chest.jpg';
+        setElText('event-title', 'Ancient Cursed Spirit Chest');
+        setElText('event-desc', 'An obsidian chest wrapped in blood-red runes demands a sacrifice to unseal.');
+        
+        emitFireBurst(window.innerWidth * 0.5, window.innerHeight * 0.4);
+        logMessage(`🎁 <b>CURSED CHEST DISCOVERY:</b> Discovered an ancient obsidian chest pulsating with dark spirit magic!`, 'text-amber-400 font-bold');
+
+        renderEventDock([
+          { text: '❤️ Sacrifice 35 HP to Open', action: () => openChest('HP'), class: 'bg-gradient-to-r from-red-900 to-amber-950 text-red-200 border-red-700/80' },
+          { text: '✨ Sacrifice 40 MP to Open', action: () => openChest('MP'), class: 'bg-gradient-to-r from-cyan-950 to-blue-950 text-cyan-200 border-cyan-700/80' },
+          { text: '🚪 Leave Chest Alone', action: () => returnToIdle(), class: 'bg-gradient-to-r from-zinc-800 to-zinc-950 text-zinc-400 border-zinc-700' }
+        ]);
+
+      } else {
+        explorationState = 'TRADER';
+        const eventImg = document.getElementById('event-img');
+        if (eventImg) eventImg.src = './concepts/events/trader.jpg';
+        setElText('event-title', 'Wandering Babaylan Merchant');
+        setElText('event-desc', 'A traveling shaman offers a sacred Balete Spirit Amulet for 150 Cowrie Shells.');
+
+        emitSpiritHeal(window.innerWidth * 0.5, window.innerHeight * 0.4);
+        logMessage(`🧙 <b>WANDERING TRADER:</b> Encountered a traveling Babaylan Merchant offering sacred wares!`, 'text-emerald-400 font-bold');
+
+        renderEventDock([
+          { text: '💰 Buy Balete Amulet (150 Shells)', action: () => buyTraderItem(), class: 'bg-gradient-to-r from-emerald-900 to-amber-950 text-emerald-200 border-emerald-700/80' },
+          { text: '👋 Continue Journey', action: () => returnToIdle(), class: 'bg-gradient-to-r from-zinc-800 to-zinc-950 text-zinc-400 border-zinc-700' }
+        ]);
+      }
+
+      updateUI();
+    }
+
+    function handleSearchArea() {
+      if (stamina.current < 2 || isActing) return;
+      stamina.current -= 2;
+      playSfx('heal');
+
+      const roll = Math.random();
+
+      if (roll < 0.50) {
+        explorationState = 'SHRINE';
+        const eventImg = document.getElementById('event-img');
+        if (eventImg) eventImg.src = './concepts/events/shrine.jpg';
+        setElText('event-title', 'Ancestral Diwata Spirit Shrine');
+        setElText('event-desc', 'A sacred stone altar surrounded by bioluminescent flora bestows ancestral blessings.');
+
+        emitSpiritHeal(window.innerWidth * 0.5, window.innerHeight * 0.4);
+        hero.curHp = Math.min(hero.maxHp, hero.curHp + 30);
+        hero.curMp = Math.min(hero.maxMp, hero.curMp + 25);
+
+        logMessage(`🌸 <b>ANCESTRAL DIWATA SHRINE:</b> Offered incense at a spirit shrine. Restored <b class="text-emerald-400">+30 HP</b> and <b class="text-cyan-400">+25 MP</b>!`, 'text-emerald-300 font-bold');
+
+        renderEventDock([
+          { text: '🌸 Receive Blessing & Continue', action: () => returnToIdle(), class: 'bg-gradient-to-r from-emerald-900 to-teal-950 text-emerald-100 border-emerald-600/80' }
+        ]);
+
+      } else {
+        explorationState = 'SHRINE';
+        const eventImg = document.getElementById('event-img');
+        if (eventImg) eventImg.src = './concepts/events/chest.jpg';
+        setElText('event-title', 'Buried Pre-Colonial Pottery Jar');
+        setElText('event-desc', 'You uncovered an ancient clay pot filled with +60 Cowrie Shells & +1 Mutya Pearl Shard!');
+
+        emitFireBurst(window.innerWidth * 0.5, window.innerHeight * 0.4);
+        logMessage(`🔍 <b>SEARCH DISCOVERY:</b> Uncovered a buried pre-colonial pottery jar! Secured <b class="text-amber-300">+60 Shells</b> & <b class="text-emerald-300">+1 Mutya Shard</b>!`, 'text-amber-300 font-bold');
+
+        renderEventDock([
+          { text: '💰 Collect Treasures & Continue', action: () => returnToIdle(), class: 'bg-gradient-to-r from-amber-700 to-amber-950 text-amber-100 border-amber-500/80' }
+        ]);
+      }
+
+      updateUI();
+    }
+
+    function renderEventDock(choices) {
+      const container = document.getElementById('eventDock');
+      if (!container) return;
+      container.innerHTML = '';
+      choices.forEach(c => {
+        const btn = document.createElement('button');
+        btn.className = `w-full min-h-[44px] h-[44px] px-3 rounded-xl font-cinzel font-bold text-xs border shadow transition-all active:scale-98 flex items-center justify-center ${c.class}`;
+        btn.innerText = c.text;
+        btn.onclick = c.action;
+        container.appendChild(btn);
+      });
+    }
+
+    function openChest(costType) {
+      if (costType === 'HP') {
+        hero.curHp = Math.max(1, hero.curHp - 35);
+        logMessage(`❤️ Sacrificed -35 HP to unseal the Cursed Spirit Chest!`, 'text-red-400');
+      } else {
+        hero.curMp = Math.max(0, hero.curMp - 40);
+        logMessage(`✨ Sacrificed -40 MP to unseal the Cursed Spirit Chest!`, 'text-cyan-400');
+      }
+      playSfx('chest');
+      logMessage(`🎁 <b>CHEST UNSEALED!</b> Obtained <b class="text-amber-300">+150 Cowrie Shells</b> & <b class="text-emerald-300">+1 Mutya Shard</b>!`, 'text-amber-300 font-bold');
+      returnToIdle();
+    }
+
+    function buyTraderItem() {
+      playSfx('heal');
+      logMessage(`💰 <b>PURCHASE SUCCESS:</b> Bought Balete Spirit Amulet from the Babaylan Merchant for 150 Shells!`, 'text-emerald-300 font-bold');
+      returnToIdle();
+    }
+
+    function returnToIdle() {
+      explorationState = 'IDLE';
+      updateUI();
+    }
+
+    // ─── 8. MODALS: SKILLS & ITEMS ─────────────────────────────────────
+    function openSkillsModal() {
+      if (isActing || isDefeated) return;
+      const list = document.getElementById('skillsList');
+      if (!list) return;
+      list.innerHTML = '';
+
+      const skills = hero.skills || [];
+      skills.forEach(sk => {
+        const canCast = hero.curMp >= sk.cost;
+        const card = document.createElement('div');
+        card.className = `p-2 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+          canCast ? 'bg-zinc-900/90 border-red-700/60 hover:border-red-500 cursor-pointer active:scale-98' : 'bg-zinc-900/40 border-zinc-800 opacity-50 cursor-not-allowed'
+        }`;
+        card.onclick = () => {
+          if (canCast) {
+            closeSkillsModal();
+            castSkill(sk);
+          }
+        };
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2 truncate">
+            <span class="text-lg">${sk.icon}</span>
+            <div class="truncate text-left">
+              <div class="font-cinzel font-bold text-xs text-amber-200 truncate">${sk.name}</div>
+              <div class="text-[9px] font-mono text-zinc-400 truncate">${sk.desc}</div>
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            <span class="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60">${sk.cost} MP</span>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+
+      const modal = document.getElementById('skillsModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeSkillsModal() {
+      const modal = document.getElementById('skillsModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openItemsModal() {
+      if (isActing || isDefeated) return;
+      const list = document.getElementById('itemsList');
+      if (!list) return;
+      list.innerHTML = '';
+
+      items.forEach(it => {
+        const hasItem = it.count > 0;
+        const card = document.createElement('div');
+        card.className = `p-2 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+          hasItem ? 'bg-zinc-900/90 border-emerald-700/60 hover:border-emerald-500 cursor-pointer active:scale-98' : 'bg-zinc-900/40 border-zinc-800 opacity-50 cursor-not-allowed'
+        }`;
+        card.onclick = () => {
+          if (hasItem) {
+            closeItemsModal();
+            useItem(it);
+          }
+        };
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2 truncate">
+            <span class="text-lg">${it.icon}</span>
+            <div class="truncate text-left">
+              <div class="font-cinzel font-bold text-xs text-emerald-200 truncate">${it.name}</div>
+              <div class="text-[9px] font-mono text-zinc-400 truncate">${it.desc}</div>
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            <span class="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-950/90 px-2 py-0.5 rounded border border-emerald-800/60">${it.count}x</span>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+
+      const modal = document.getElementById('itemsModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeItemsModal() {
+      const modal = document.getElementById('itemsModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    // ─── 9. COMBAT ACTIONS ─────────────────────────────────────────────
+    function performAction(actionType) {
+      if (isActing || isDefeated) return;
+
+      const heroCard = document.getElementById('hero-card');
+      const monsterCard = document.getElementById('monster-card');
+      if (!heroCard || !monsterCard) return;
+
+      const heroRect = heroCard.getBoundingClientRect();
+      const monsterRect = monsterCard.getBoundingClientRect();
+      const arenaRect = canvas.getBoundingClientRect();
+
+      const heroX = heroRect.left - arenaRect.left + heroRect.width * 0.5;
+      const heroY = heroRect.top - arenaRect.top + heroRect.height * 0.5;
+      const monsterX = monsterRect.left - arenaRect.left + monsterRect.width * 0.5;
+      const monsterY = monsterRect.top - arenaRect.top + monsterRect.height * 0.5;
+
+      if (actionType === 'attack') {
+        isActing = true;
+        isGuardingThisTurn = false;
+        guardedLastTurn = false;
+        updateUI(); // Immediately lock action pad
+
+        heroCard.classList.add('anim-lunge-right');
+        setTimeout(() => heroCard.classList.remove('anim-lunge-right'), 280);
+
+        setTimeout(() => {
+          emitSlash(monsterX, monsterY, '#f59e0b');
+          monsterCard.classList.add('anim-hit');
+          setTimeout(() => monsterCard.classList.remove('anim-hit'), 360);
+
+          const isCrit = Math.random() < (hero.agi * 0.02 + 0.1);
+          let rawDmg = Math.floor(18 + hero.str * 2.2 + (Math.random() * 8));
+          if (isCrit) rawDmg = Math.floor(rawDmg * 1.75);
+
+          const dr = monster.armor / (monster.armor + 150);
+          const finalDmg = Math.max(1, Math.floor(rawDmg * (1 - dr)));
+
+          monster.curHp = Math.max(0, monster.curHp - finalDmg);
+          spawnFloatingText(finalDmg, monsterCard, isCrit ? 'crit' : 'normal');
+          logMessage(`Strike dealt <b class="${isCrit ? 'text-amber-400' : 'text-red-400'}">${finalDmg} dmg</b> (DR: ${(dr * 100).toFixed(0)}%)`);
+
+          updateUI();
+          checkCombatResolution();
+        }, 140);
+
+      } else if (actionType === 'guard') {
+        if (guardedLastTurn) {
+          logMessage(`⚠️ Guard Exhausted! Must act before guarding again.`, 'text-amber-500');
+          return;
+        }
+
+        isActing = true;
+        isGuardingThisTurn = true;
+        guardedLastTurn = true;
+        updateUI(); // Immediately lock action pad
+
+        emitGuardAura(heroX, heroY);
+        hero.curMp = Math.min(hero.maxMp, hero.curMp + 5);
+        const parryChance = Math.min(40, Math.floor(8 + hero.agi * 0.25));
+
+        logMessage(`🛡️ Raised Guard! (+5 MP, +15% DR, ${parryChance}% Parry active)`, 'text-cyan-400 font-bold');
+
+        setTimeout(enemyTurn, 650);
+
+      } else if (actionType === 'flee') {
+        if (fleeAttempts >= 2) {
+          logMessage(`❌ Escape blocked! Flee is disabled.`, 'text-red-500');
+          return;
+        }
+
+        isActing = true;
+        updateUI(); // Immediately lock action pad
+        playSfx('slash');
+
+        const fleeChance = fleeAttempts === 0 
+          ? Math.min(90, 50 + hero.agi * 1.5)
+          : Math.max(10, Math.floor(15 + hero.agi * 0.5));
+        
+        fleeAttempts++;
+        const roll = Math.random() * 100;
+
+        if (roll <= fleeChance) {
+          logMessage(`🏃 Escape Successful! Retreating from battle.`, 'text-emerald-400 font-bold');
+          setTimeout(() => {
+            explorationState = 'IDLE';
+            isActing = false;
+            updateUI();
+          }, 800);
+        } else {
+          logMessage(`❌ Flee Failed! The enemy blocked your retreat route!`, 'text-red-400 font-bold');
+          updateUI();
+          setTimeout(enemyTurn, 650);
+        }
+      }
+    }
+
+    function castSkill(sk) {
+      if (isActing || isDefeated) return;
+      isActing = true;
+      isGuardingThisTurn = false;
+      guardedLastTurn = false;
+      hero.curMp -= sk.cost;
+      updateUI(); // Immediately lock action pad
+
+      const heroCard = document.getElementById('hero-card');
+      const monsterCard = document.getElementById('monster-card');
+      if (!heroCard || !monsterCard) {
+        isActing = false;
+        updateUI();
+        return;
+      }
+
+      const heroRect = heroCard.getBoundingClientRect();
+      const monsterRect = monsterCard.getBoundingClientRect();
+      const arenaRect = canvas.getBoundingClientRect();
+
+      const heroX = heroRect.left - arenaRect.left + heroRect.width * 0.5;
+      const heroY = heroRect.top - arenaRect.top + heroRect.height * 0.5;
+      const monsterX = monsterRect.left - arenaRect.left + monsterRect.width * 0.5;
+      const monsterY = monsterRect.top - arenaRect.top + monsterRect.height * 0.5;
+
+      heroCard.classList.add('anim-lunge-right');
+      setTimeout(() => heroCard.classList.remove('anim-lunge-right'), 280);
+
+      setTimeout(() => {
+        if (sk.vfx === 'fire') {
+          emitFireBurst(monsterX, monsterY);
+          rumbleArena();
+        } else if (sk.vfx === 'poison') {
+          emitPoisonSpore(monsterX, monsterY);
+        } else if (sk.vfx === 'spirit') {
+          emitSpiritHeal(monsterX, monsterY);
+          rumbleArena();
+        } else if (sk.vfx === 'heal') {
+          emitSpiritHeal(heroX, heroY);
+        } else {
+          emitSlash(monsterX, monsterY, '#06b6d4');
+        }
+
+        if (sk.effect === 'heal_self') {
+          const healAmt = Math.floor(hero.maxHp * 0.45 + hero.int * 3);
+          hero.curHp = Math.min(hero.maxHp, hero.curHp + healAmt);
+          spawnFloatingText(healAmt, heroCard, 'heal');
+          logMessage(`🌸 Chanted <b>${sk.name}</b> restoring <b class="text-emerald-400">+${healAmt} HP</b>!`);
+          updateUI();
+          setTimeout(enemyTurn, 650);
+        } else if (sk.effect === 'buff_armor' || sk.effect === 'buff_dodge' || sk.effect === 'buff_crit') {
+          emitGuardAura(heroX, heroY);
+          logMessage(`✨ Activated <b>${sk.name}</b>!`, 'text-cyan-400');
+          updateUI();
+          setTimeout(enemyTurn, 650);
+        } else {
+          monsterCard.classList.add('anim-hit');
+          setTimeout(() => monsterCard.classList.remove('anim-hit'), 360);
+
+          const isCrit = Math.random() < 0.35;
+          let rawDmg = Math.floor((28 + hero.str * 1.8 + hero.int * 2.5) * sk.dmgMult);
+          if (isCrit) rawDmg = Math.floor(rawDmg * 1.8);
+
+          const dr = monster.armor / (monster.armor + 150);
+          const finalDmg = Math.max(1, Math.floor(rawDmg * (1 - dr)));
+
+          monster.curHp = Math.max(0, monster.curHp - finalDmg);
+          spawnFloatingText(finalDmg, monsterCard, isCrit ? 'crit' : 'normal');
+          logMessage(`⚡ <b>${sk.name}</b> dealt <b class="text-amber-400">${finalDmg} dmg</b>!`);
+
+          updateUI();
+          checkCombatResolution();
+        }
+      }, 140);
+    }
+
+    function useItem(it) {
+      if (isActing || isDefeated) return;
+      isActing = true;
+      it.count--;
+      updateUI(); // Immediately lock action pad
+
+      const heroCard = document.getElementById('hero-card');
+      if (!heroCard) {
+        isActing = false;
+        updateUI();
+        return;
+      }
+
+      const heroRect = heroCard.getBoundingClientRect();
+      const arenaRect = canvas.getBoundingClientRect();
+      const heroX = heroRect.left - arenaRect.left + heroRect.width * 0.5;
+      const heroY = heroRect.top - arenaRect.top + heroRect.height * 0.5;
+
+      emitSpiritHeal(heroX, heroY);
+
+      if (it.effect === 'heal_hp') {
+        const healAmt = Math.floor(hero.maxHp * it.value);
+        hero.curHp = Math.min(hero.maxHp, hero.curHp + healAmt);
+        spawnFloatingText(healAmt, heroCard, 'heal');
+        logMessage(`🧪 Consumed ${it.name} restoring <b class="text-emerald-400">+${healAmt} HP</b>!`);
+      } else if (it.effect === 'heal_mp') {
+        hero.curMp = Math.min(hero.maxMp, hero.curMp + it.value);
+        logMessage(`🧪 Consumed ${it.name} restoring <b class="text-cyan-400">+${it.value} MP</b>!`);
+      } else if (it.effect === 'heal_cleanse') {
+        const healAmt = Math.floor(hero.maxHp * it.value);
+        hero.curHp = Math.min(hero.maxHp, hero.curHp + healAmt);
+        spawnFloatingText(healAmt, heroCard, 'heal');
+        logMessage(`🌿 Applied ${it.name} restoring <b class="text-emerald-400">+${healAmt} HP</b> & cleansing ailments!`);
+      } else if (it.effect === 'heal_full') {
+        hero.curHp = hero.maxHp;
+        hero.curMp = hero.maxMp;
+        spawnFloatingText('FULL', heroCard, 'heal');
+        logMessage(`✨ Imbibed ${it.name} restoring <b class="text-amber-300">100% HP & MP</b>!`);
+      }
+
+      updateUI();
+      setTimeout(enemyTurn, 650);
+    }
+
+    function checkCombatResolution() {
+      if (monster.curHp <= 0) {
+        isDefeated = true;
+        isActing = true;
+        updateUI();
+        const monsterCard = document.getElementById('monster-card');
+        if (monsterCard) {
+          monsterCard.classList.add('anim-faint');
+          emitFireBurst(monsterCard.offsetLeft + monsterCard.offsetWidth * 0.5, monsterCard.offsetTop + monsterCard.offsetHeight * 0.5);
+        }
+
+        logMessage(`🏆 <b>${monster.name}</b> slain!`, 'text-amber-400 font-bold');
+        
+        setTimeout(() => {
+          showVictoryModal();
+          isActing = false;
+          updateUI();
+        }, 850);
+      } else {
+        setTimeout(enemyTurn, 650);
+      }
+    }
+
+    // ─── 10. ENEMY TURN & GUARD RESOLUTION ─────────────────────────────
+    function enemyTurn() {
+      if (isDefeated) {
+        isActing = false;
+        updateUI();
+        return;
+      }
+
+      // Action pad is strictly kept locked throughout enemy turn
+      isActing = true;
+      updateUI();
+
+      const heroCard = document.getElementById('hero-card');
+      const monsterCard = document.getElementById('monster-card');
+      if (!heroCard || !monsterCard) {
+        isActing = false;
+        updateUI();
+        return;
+      }
+
+      const heroRect = heroCard.getBoundingClientRect();
+      const arenaRect = canvas.getBoundingClientRect();
+      const heroX = heroRect.left - arenaRect.left + heroRect.width * 0.5;
+      const heroY = heroRect.top - arenaRect.top + heroRect.height * 0.5;
+
+      // 1. Monster wind-up lunge
+      monsterCard.classList.add('anim-lunge-left');
+      setTimeout(() => monsterCard.classList.remove('anim-lunge-left'), 350);
+
+      // 2. Strike lands after lunge wind-up (280ms)
+      setTimeout(() => {
+        if (isGuardingThisTurn) {
+          const parryChance = Math.min(40, Math.floor(8 + hero.agi * 0.25));
+          const parryRoll = Math.random() * 100;
+
+          if (parryRoll <= parryChance) {
+            emitGuardAura(heroX, heroY);
+            spawnFloatingText('Parry', heroCard, 'parry');
+
+            const riposteDmg = Math.floor(15 + hero.str * 1.5);
+            monster.curHp = Math.max(0, monster.curHp - riposteDmg);
+            logMessage(`🛡️ <b>PARRIED & RIPOSTED!</b> Reflected strike for <b class="text-amber-400">${riposteDmg} counter damage</b>!`, 'text-amber-300 font-bold');
+
+            updateUI(); // Keeps pad locked
+
+            if (monster.curHp <= 0) {
+              checkCombatResolution();
+              return;
+            }
+
+            // Wait for parry floater and counter-strike to finish before re-enabling Action Pad
+            setTimeout(() => {
+              turn++;
+              isGuardingThisTurn = false;
+              isActing = false;
+              updateUI(); // RE-ENABLE PAD
+            }, 600);
+            return;
+          }
+        }
+
+        const dodgeChance = Math.min(0.5, hero.agi * 0.015);
+        if (Math.random() < dodgeChance) {
+          spawnFloatingText('Dodge', heroCard, 'dodge');
+          logMessage(`💨 Dodged <b>${monster.name}</b>'s attack!`, 'text-cyan-400');
+          
+          // Wait for dodge animation to finish before re-enabling Action Pad
+          setTimeout(() => {
+            turn++;
+            isGuardingThisTurn = false;
+            isActing = false;
+            updateUI(); // RE-ENABLE PAD
+          }, 550);
+        } else {
+          heroCard.classList.add('anim-hit');
+          setTimeout(() => heroCard.classList.remove('anim-hit'), 400);
+
+          if (monster.isBoss) {
+            emitFireBurst(heroX, heroY);
+            rumbleArena();
+          } else {
+            emitSlash(heroX, heroY, '#ef4444');
+          }
+
+          const rawDmg = Math.floor(monster.minDmg + Math.random() * (monster.maxDmg - monster.minDmg));
+          let dr = hero.armor / (hero.armor + 150);
+          
+          if (isGuardingThisTurn) {
+            dr = Math.min(0.85, dr + 0.15);
+          }
+
+          const finalDmg = Math.max(1, Math.floor(rawDmg * (1 - dr)));
+          hero.curHp = Math.max(0, hero.curHp - finalDmg);
+          spawnFloatingText(finalDmg, heroCard, 'normal');
+
+          if (isGuardingThisTurn) {
+            logMessage(`🛡️ <b>GUARDED!</b> Mitigated strike to <b class="text-amber-400">${finalDmg} dmg</b> (DR: ${(dr * 100).toFixed(0)}%)`);
+          } else {
+            logMessage(`💥 <b>${monster.name}</b> hit you for <b class="text-red-400">${finalDmg} dmg</b>!`);
+          }
+
+          updateUI(); // Keep pad locked while hero is animating hit
+
+          if (hero.curHp <= 0) {
+            logMessage(`☠️ Fallen in combat! Resting...`, 'text-red-500 font-black');
+            setTimeout(resetEncounter, 1400);
+            return;
+          }
+
+          // STRICT GATE: Action Pad ONLY re-enables AFTER enemy attack, hit flash, and floating text finish!
+          setTimeout(() => {
+            turn++;
+            isGuardingThisTurn = false;
+            isActing = false;
+            updateUI(); // RE-ENABLE PAD
+          }, 650);
+        }
+      }, 280);
+    }
+
+    // ─── 11. VICTORY MODAL ─────────────────────────────────────────────
+    function showVictoryModal() {
+      setElText('expReward', `+${monster.exp} EXP`);
+      setElText('copperReward', `+${monster.copper} Shells`);
+      setElText('victorySubtitle', `${monster.name} has been vanquished.`);
+      const modal = document.getElementById('victoryModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeVictoryModal() {
+      const modal = document.getElementById('victoryModal');
+      if (modal) modal.classList.add('hidden');
+      explorationState = 'IDLE';
+      updateUI();
+    }
+
+    // Initial setup in IDLE exploration mode
+    selectHero('Bagani');
+    explorationState = 'IDLE';
+    updateUI();
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
@@ -11,6 +11,7 @@ import ActStoryOverlayModal from './ActStoryOverlayModal';
 import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
 import { broadcastSystemAnnouncement } from '../utils/supabase';
+import { TactileCombatStage, TactileCombatStageRef } from './TactileCombatStage';
 
 export interface InteractiveEncounter {
   id: string;
@@ -91,8 +92,19 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [explorationEvent, setExplorationEvent] = useState<string | null>(null);
   const [activeInteractiveEncounter, setActiveInteractiveEncounter] = useState<InteractiveEncounter | null>(null);
   const [activeBossVictoryReward, setActiveBossVictoryReward] = useState<BossVictoryRewardData | null>(null);
+  const [isCombatBusy, setIsCombatBusy] = useState<boolean>(false);
+  const [heroAnim, setHeroAnim] = useState<string>('');
+  const [monsterAnim, setMonsterAnim] = useState<string>('');
+  const stageRef = useRef<TactileCombatStageRef>(null);
 
-  // Play Lore theme when Act Story or Boss Discovery modal is active
+  // Reset busy state when exiting combat
+  useEffect(() => {
+    if (!battle.inCombat) {
+      setIsCombatBusy(false);
+      setHeroAnim('');
+      setMonsterAnim('');
+    }
+  }, [battle.inCombat]);
   useEffect(() => {
     if (showActStoryModal || showBossDiscoveryModal) {
       bgmManager.playTrack('LORE');
@@ -125,6 +137,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       narratorLogs: updatedNarratorLogs,
     });
     setActiveInteractiveEncounter(null);
+    setExplorationEvent(null);
   };
 
   const handleOpenCursedChest = (costType: 'HP' | 'MP') => {
@@ -221,6 +234,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     setActiveInteractiveEncounter(null);
+    setExplorationEvent(null);
   };
 
   const handlePassEncounter = () => {
@@ -236,6 +250,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       narratorLogs: updatedNarratorLogs,
     });
     setActiveInteractiveEncounter(null);
+    setExplorationEvent(null);
   };
 
   useEffect(() => {
@@ -589,6 +604,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ? `⚡ CELESTIAL TITAN APPROACHING! Wave Tier #${waveTier} Boss ${monster.name} emerges!`
         : `⚠️ ENEMY AMBUSH: A level ${monster.level} ${monster.name} (${monster.title}) lunges from the shadow thicket!`;
       soundFX.playCritSound();
+      setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
 
       onUpdatePlayer({
         ...player,
@@ -635,6 +652,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             originalCostCC: offer.originalCostCC,
             discountPercent: offer.discountPercent,
           };
+          setExplorationEvent(null);
           setActiveInteractiveEncounter(encounter);
           soundFX.playCoinSound();
           onUpdatePlayer({
@@ -657,6 +675,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             chestRewardCC: rewardCC,
             chestRewardMutya: 1,
           };
+          setExplorationEvent(null);
           setActiveInteractiveEncounter(encounter);
           soundFX.playPotionSound();
           onUpdatePlayer({
@@ -720,6 +739,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         }
       }
 
+      setExplorationEvent(enc.text);
+      setActiveInteractiveEncounter(null);
+
       onUpdatePlayer({
         ...player,
         stamina: newStamina,
@@ -738,6 +760,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       ];
       const selectedEvent = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
       soundFX.playPotionSound();
+      setExplorationEvent(null);
 
       onUpdatePlayer({
         ...player,
@@ -785,13 +808,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       const logText = `🎁 SEARCH DISCOVERY: Uncovered a buried pre-colonial pottery jar! Secured +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`;
 
+      setExplorationEvent(`Uncovered a buried pre-colonial pottery jar! Secured +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`);
+      setActiveInteractiveEncounter(null);
+
       onUpdatePlayer({
         ...player,
         stamina: newStamina,
         wallet: updatedWallet,
         narratorLogs: addNarratorLog(logText),
       });
-      notify(`🎁 Uncovered Ancient Artifact Cache! (+${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya)`, 'success', '🎁');
       return;
     }
 
@@ -819,6 +844,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         shrineMsg = `🔥 EMPOWERED SPIRIT AURA: Communed with ancestral spirits. Gained Empowered aura (+50% bonus strike DMG for next battle)!`;
       }
 
+      setExplorationEvent(shrineMsg);
+      setActiveInteractiveEncounter(null);
+
       onUpdatePlayer({
         ...player,
         stamina: Math.min(maxStamina, newStamina + staminaBonus),
@@ -827,7 +855,6 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         isEmpoweredNextTurn: isEmpowered,
         narratorLogs: addNarratorLog(shrineMsg),
       });
-      notify(shrineMsg, 'success', '✨');
       return;
     }
 
@@ -848,6 +875,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       const logText = `⚔️ SURPRISE AMBUSH: Successfully tracked down ${monster.name}! Caught the enemy unaware — you strike first!`;
       soundFX.playCritSound();
+      setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
 
       onUpdatePlayer({
         ...player,
@@ -891,6 +920,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         originalCostCC: offer.originalCostCC,
         discountPercent: offer.discountPercent,
       };
+      setExplorationEvent(null);
       setActiveInteractiveEncounter(encounter);
       soundFX.playCoinSound();
 
@@ -914,6 +944,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         chestRewardCC: rewardCC,
         chestRewardMutya: 1,
       };
+      setExplorationEvent(null);
       setActiveInteractiveEncounter(encounter);
       soundFX.playPotionSound();
 
@@ -963,86 +994,109 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   // COMBAT ACTION 1: Basic Attack (Restores +5 MP on hit!)
   const handleAttack = () => {
-    if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
+    if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
+    setIsCombatBusy(true);
     soundFX.playAttackSound();
-    let logs = battle.logs;
-    const enemy = { ...battle.enemy };
+    setHeroAnim('anim-lunge-right');
+    setTimeout(() => setHeroAnim(''), 280);
 
-    const activeWeapon = player.equipment.weapon || player.equipment.primaryWeapon;
-    const minDmg = activeWeapon?.baseDamageMin || 10;
-    const maxDmg = activeWeapon?.baseDamageMax || 18;
-    const weaponCategory = activeWeapon?.category;
+    setTimeout(() => {
+      if (!battle.enemy) {
+        setIsCombatBusy(false);
+        return;
+      }
 
-    // Pick class/weapon attribute damage scaling
-    let statBonus = derived.meleeDamage * 0.5;
-    if (weaponCategory === 'BOW' || weaponCategory === 'DAGGER' || player.heroClass === 'Mangangaso' || player.heroClass === 'Bagani') {
-      statBonus = derived.rangedDamage * 0.5;
-    } else if (weaponCategory === 'STAFF' || player.heroClass === 'Babaylan') {
-      statBonus = derived.magicDamage * 0.5;
-    }
+      let logs = battle.logs;
+      const enemy = { ...battle.enemy };
 
-    const weaponRoll = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1));
-    const baseDmg = weaponRoll + Math.floor(statBonus);
+      const activeWeapon = player.equipment.weapon || player.equipment.primaryWeapon;
+      const minDmg = activeWeapon?.baseDamageMin || 10;
+      const maxDmg = activeWeapon?.baseDamageMax || 18;
+      const weaponCategory = activeWeapon?.category;
 
-    // Basic Attack restores +5 MP per strike
-    const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
+      let statBonus = derived.meleeDamage * 0.5;
+      if (weaponCategory === 'BOW' || weaponCategory === 'DAGGER' || player.heroClass === 'Mangangaso' || player.heroClass === 'Bagani') {
+        statBonus = derived.rangedDamage * 0.5;
+      } else if (weaponCategory === 'STAFF' || player.heroClass === 'Babaylan') {
+        statBonus = derived.magicDamage * 0.5;
+      }
 
-    // Class/weapon-aware armor DR (fixes Babaylan always using physical formula)
-    const enemyDR = getEnemyDR(enemy.armor, 'PHYSICAL', player.heroClass, weaponCategory);
-    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
+      const weaponRoll = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1));
+      const baseDmg = weaponRoll + Math.floor(statBonus);
+      const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
+      const enemyDR = getEnemyDR(enemy.armor, 'PHYSICAL', player.heroClass, weaponCategory);
+      const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
 
-    const isCrit = Math.random() * 100 < derived.critChancePercent;
-    if (isCrit) {
-      // Crit: 2.0x applied to post-DR finalDmg for consistent feel regardless of enemy armor
-      const critDmg = Math.floor(finalDmg * 2.0);
-      enemy.currentHp -= critDmg;
-      soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL STRIKE! ${activeWeapon?.name || 'Strike'} devastated ${enemy.name} for ${critDmg} damage! (+5 MP)`, 'CRIT', 'PLAYER');
-      // Guaranteed Bleed proc on critical hits
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
-      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
-    } else {
-      enemy.currentHp -= finalDmg;
-      logs = addLog(logs, `⚔️ ${activeWeapon?.name || 'Basic Strike'} hit ${enemy.name} for ${finalDmg} damage! (+5 MP)`, 'DAMAGE', 'PLAYER');
-    }
+      const isCrit = Math.random() * 100 < derived.critChancePercent;
+      let appliedDmg = finalDmg;
 
-    // Player Weapon Affix Status Infliction Proc Check
-    for (const affix of activeWeapon?.affixes || []) {
-      if (affix.statusInfliction) {
-        const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
-        if (Math.random() * 100 < chancePercent) {
-          const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
-          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
-          logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+      stageRef.current?.triggerSlash('MONSTER', isCrit ? '#f59e0b' : '#38bdf8');
+      setMonsterAnim('anim-hit');
+      setTimeout(() => setMonsterAnim(''), 360);
+
+      if (isCrit) {
+        appliedDmg = Math.floor(finalDmg * 2.0);
+        enemy.currentHp -= appliedDmg;
+        soundFX.playCritSound();
+        logs = addLog(logs, `⚡ CRITICAL STRIKE! ${activeWeapon?.name || 'Strike'} devastated ${enemy.name} for ${appliedDmg} damage! (+5 MP)`, 'CRIT', 'PLAYER');
+        const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+        logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+      } else {
+        enemy.currentHp -= appliedDmg;
+        logs = addLog(logs, `⚔️ ${activeWeapon?.name || 'Basic Strike'} hit ${enemy.name} for ${appliedDmg} damage! (+5 MP)`, 'DAMAGE', 'PLAYER');
+      }
+
+      stageRef.current?.addFloater(appliedDmg, 'MONSTER', isCrit ? 'crit' : 'normal');
+
+      // Player Weapon Affix Status Infliction Proc Check
+      for (const affix of activeWeapon?.affixes || []) {
+        if (affix.statusInfliction) {
+          const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
+          if (Math.random() * 100 < chancePercent) {
+            const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
+            enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
+            logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+          }
         }
       }
-    }
 
-    const updatedPlayer = { ...player, currentMp: regenedMp };
-    onUpdatePlayer(updatedPlayer);
+      const updatedPlayer = { ...player, currentMp: regenedMp };
+      onUpdatePlayer(updatedPlayer);
 
-    if (enemy.currentHp <= 0) {
-      enemy.currentHp = 0;
-      handleVictory(enemy, logs);
-      return;
-    }
+      if (enemy.currentHp <= 0) {
+        enemy.currentHp = 0;
+        setMonsterAnim('anim-faint');
+        stageRef.current?.triggerFireBurst('MONSTER');
+        stageRef.current?.triggerRumble();
+        onUpdateBattle({ ...battle, enemy, logs });
+        setTimeout(() => {
+          handleVictory(enemy, logs);
+          setIsCombatBusy(false);
+        }, 850);
+        return;
+      }
 
-    const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
-    if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: false });
+      onUpdateBattle({ ...battle, enemy, logs });
+
+      // Monster counter-attack after player hit settles
+      setTimeout(() => {
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+      }, 650);
+    }, 140);
   };
 
   // COMBAT ACTION 2: Skill Execution (Dynamic from player equipped skills)
   const handleExecuteSkill = (skill: Skill) => {
-    if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
+    if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
     if (player.currentMp < skill.mpCost) {
       notify(`Not enough MP to execute ${skill.name}! Costs ${skill.mpCost} MP.`, 'warning', '⚡');
       return;
     }
 
+    setIsCombatBusy(true);
     setShowSpellPicker(false);
     let logs = battle.logs;
     const enemy = { ...battle.enemy };
@@ -1058,6 +1112,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       const scaledHeal = getScaledSkillHeal(skill, skillRank) || (skill.healsPercent ?? 0.25);
       const healHp = Math.floor(derived.maxHp * scaledHeal);
       updatedPlayer.currentHp = Math.min(derived.maxHp, player.currentHp + healHp);
+      stageRef.current?.triggerSpiritHeal('HERO');
+      stageRef.current?.addFloater(`+${healHp}`, 'HERO', 'heal');
       logs = addLog(logs, `${skill.icon} Used [${skill.name}]${rankLabel}! Restored +${healHp} HP!`, 'BUFF', 'PLAYER');
 
       if (skill.effectType) {
@@ -1065,100 +1121,136 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       onUpdatePlayer(updatedPlayer);
-      const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
-      if (enemyTurnResult.isDefeated) return;
-      onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+      onUpdateBattle({ ...battle, logs });
+
+      setTimeout(() => {
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+      }, 650);
       return;
     }
 
     // --- DAMAGE / UTILITY SKILLS ---
-    soundFX.playAttackSound();
-    const activeWeapon = player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
-    const weaponMin = activeWeapon?.baseDamageMin ?? 8;
-    const weaponMax = activeWeapon?.baseDamageMax ?? 14;
-    const weaponRoll = Math.floor(weaponMin + Math.random() * (weaponMax - weaponMin + 1));
+    setHeroAnim('anim-lunge-right');
+    setTimeout(() => setHeroAnim(''), 280);
 
-    let derivedBonus = derived.meleeDamage;
-    if (['MAGIC', 'LIGHTNING', 'SHADOW', 'RADIANT'].includes(skill.damageType)) {
-      derivedBonus = derived.magicDamage;
-    } else if (['FIRE', 'FROST'].includes(skill.damageType)) {
-      derivedBonus = derived.magicDamage * 0.8 + derived.rangedDamage * 0.2;
-    } else if (skill.classReq === 'Mangangaso' || skill.classReq === 'Bagani') {
-      derivedBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
-    }
+    setTimeout(() => {
+      soundFX.playAttackSound();
+      const activeWeapon = player.equipment.weapon ?? player.equipment.primaryWeapon ?? null;
+      const weaponMin = activeWeapon?.baseDamageMin ?? 8;
+      const weaponMax = activeWeapon?.baseDamageMax ?? 14;
+      const weaponRoll = Math.floor(weaponMin + Math.random() * (weaponMax - weaponMin + 1));
 
-    const scaledMult = getScaledSkillDamageMult(skill, skillRank) || skill.baseDamageMultiplier || 1.0;
-    let baseDmg = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * scaledMult);
+      let derivedBonus = derived.meleeDamage;
+      if (['MAGIC', 'LIGHTNING', 'SHADOW', 'RADIANT'].includes(skill.damageType)) {
+        derivedBonus = derived.magicDamage;
+      } else if (['FIRE', 'FROST'].includes(skill.damageType)) {
+        derivedBonus = derived.magicDamage * 0.8 + derived.rangedDamage * 0.2;
+      } else if (skill.classReq === 'Mangangaso' || skill.classReq === 'Bagani') {
+        derivedBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
+      }
 
-    if (player.isEmpoweredNextTurn) {
-      baseDmg = Math.floor(baseDmg * 1.5);
-      updatedPlayer.isEmpoweredNextTurn = false;
-      logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage applied!`, 'BUFF', 'PLAYER');
-    }
+      const scaledMult = getScaledSkillDamageMult(skill, skillRank) || skill.baseDamageMultiplier || 1.0;
+      let baseDmg = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * scaledMult);
 
-    // Crit check (must happen after finalDmg is computed so 2.0x applies post-armor)
-    const enemyDR = getEnemyDR(enemy.armor, skill.damageType);
-    const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
+      if (player.isEmpoweredNextTurn) {
+        baseDmg = Math.floor(baseDmg * 1.5);
+        updatedPlayer.isEmpoweredNextTurn = false;
+        logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage applied!`, 'BUFF', 'PLAYER');
+      }
 
-    const isCrit = Math.random() * 100 < derived.critChancePercent;
-    if (isCrit) {
-      const critDmg = Math.floor(finalDmg * 2.0);
-      enemy.currentHp -= critDmg;
-      soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
-      // Guaranteed Bleed proc on critical hits
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
-      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
-    } else {
-      enemy.currentHp -= finalDmg;
-      logs = addLog(logs, `${skill.icon} [${skill.name}]${rankLabel} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
-    }
+      const enemyDR = getEnemyDR(enemy.armor, skill.damageType);
+      const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
 
-    if (skill.effectType) {
-      const newEffect = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
-      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newEffect];
-      logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
-    }
+      const isCrit = Math.random() * 100 < derived.critChancePercent;
+      let appliedDmg = finalDmg;
 
-    // Player Weapon Affix Status Infliction Proc Check
-    for (const affix of activeWeapon?.affixes || []) {
-      if (affix.statusInfliction) {
-        const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
-        if (Math.random() * 100 < chancePercent) {
-          const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
-          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
-          logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+      setMonsterAnim('anim-hit');
+      setTimeout(() => setMonsterAnim(''), 360);
+
+      if (skill.element === 'FIRE') {
+        stageRef.current?.triggerFireBurst('MONSTER');
+        stageRef.current?.triggerRumble();
+      } else if (skill.element === 'POISON') {
+        stageRef.current?.triggerPoisonSpore('MONSTER');
+      } else {
+        stageRef.current?.triggerSlash('MONSTER', '#06b6d4');
+      }
+
+      if (isCrit) {
+        appliedDmg = Math.floor(finalDmg * 2.0);
+        enemy.currentHp -= appliedDmg;
+        soundFX.playCritSound();
+        logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
+        const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+        logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+      } else {
+        enemy.currentHp -= appliedDmg;
+        logs = addLog(logs, `${skill.icon} [${skill.name}]${rankLabel} dealt ${appliedDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      }
+
+      stageRef.current?.addFloater(appliedDmg, 'MONSTER', isCrit ? 'crit' : 'normal');
+
+      if (skill.effectType) {
+        const newEffect = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newEffect];
+        logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+      }
+
+      for (const affix of activeWeapon?.affixes || []) {
+        if (affix.statusInfliction) {
+          const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
+          if (Math.random() * 100 < chancePercent) {
+            const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
+            enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
+            logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+          }
         }
       }
-    }
 
-    if (enemy.currentHp <= 0) {
-      enemy.currentHp = 0;
       onUpdatePlayer(updatedPlayer);
-      handleVictory(enemy, logs);
-      return;
-    }
 
-    onUpdatePlayer(updatedPlayer);
-    const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
-    if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: false });
+      if (enemy.currentHp <= 0) {
+        enemy.currentHp = 0;
+        setMonsterAnim('anim-faint');
+        stageRef.current?.triggerFireBurst('MONSTER');
+        onUpdateBattle({ ...battle, enemy, logs });
+        setTimeout(() => {
+          handleVictory(enemy, logs);
+          setIsCombatBusy(false);
+        }, 850);
+        return;
+      }
+
+      onUpdateBattle({ ...battle, enemy, logs });
+      setTimeout(() => {
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+      }, 650);
+    }, 140);
   };
 
   // COMBAT ACTION 3: Use Consumable Item
   const handleUseConsumable = (item: ConsumableItem, itemIndexInBag: number) => {
-    if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
+    if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
+    setIsCombatBusy(true);
     soundFX.playPotionSound();
     setShowItemPicker(false);
+    stageRef.current?.triggerSpiritHeal('HERO');
+
     let logs = battle.logs;
 
     let updatedHp = player.currentHp;
     let updatedMp = player.currentMp;
 
-    if (item.hpRestore) updatedHp = Math.min(derived.maxHp, player.currentHp + item.hpRestore);
-    if (item.mpRestore) updatedMp = Math.min(derived.maxMp, player.currentMp + item.mpRestore);
+    if (item.hpRestore) {
+      updatedHp = Math.min(derived.maxHp, player.currentHp + item.hpRestore);
+      stageRef.current?.addFloater(`+${item.hpRestore}`, 'HERO', 'heal');
+    }
+    if (item.mpRestore) {
+      updatedMp = Math.min(derived.maxMp, player.currentMp + item.mpRestore);
+      stageRef.current?.addFloater(`+${item.mpRestore}`, 'HERO', 'heal');
+    }
 
     const restoreSummary = [
       item.hpRestore ? `+${item.hpRestore} HP` : null,
@@ -1178,27 +1270,28 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     onUpdatePlayer(updatedPlayer);
     const enemy = { ...battle.enemy };
-    const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
-    if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs });
+    onUpdateBattle({ ...battle, logs });
+
+    setTimeout(() => {
+      executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+    }, 650);
   };
 
   // COMBAT ACTION 4: Guard / Parry
   const handleGuard = () => {
-    if (!battle.enemy || !battle.inCombat || battle.winner !== null) return;
+    if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
-    // Guard Exhaustion: cannot guard 2 turns in a row
     if (battle.guardedLastTurn) {
       notify('⚔️ Guard Exhausted! You must act offensively before raising your guard again.', 'warning', '🛡️');
       return;
     }
 
+    setIsCombatBusy(true);
     soundFX.playPotionSound();
-    let logs = battle.logs;
+    stageRef.current?.triggerGuardAura('HERO');
 
-    // Guarding restores +5 MP (reduced from +10) and grants a modest Defensive Stance
+    let logs = battle.logs;
     const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
-    // Parry: 8% base + AGI×0.25, capped at 40% — rewards AGI-focused classes
     const parryChance = Math.min(40, Math.floor(8 + player.attributes.agi * 0.25));
 
     logs = addLog(
@@ -1216,14 +1309,16 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     onUpdatePlayer(updatedPlayer);
     const enemy = { ...battle.enemy };
-    const enemyTurnResult = executeEnemyTurn(enemy, logs, updatedPlayer);
-    if (enemyTurnResult.isDefeated) return;
-    onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs: enemyTurnResult.logs, guardedLastTurn: true });
+    onUpdateBattle({ ...battle, logs, guardedLastTurn: true });
+
+    setTimeout(() => {
+      executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+    }, 650);
   };
 
-  // COMBAT ACTION 5: Flee (Max 2 attempts per battle; 2nd attempt has significantly higher fail chance)
+  // COMBAT ACTION 5: Flee
   const handleFlee = () => {
-    if (!battle.inCombat) return;
+    if (!battle.inCombat || isCombatBusy) return;
 
     const attempts = battle.fleeAttempts ?? 0;
     if (attempts >= 2) {
@@ -1231,8 +1326,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return;
     }
 
-    // 1st attempt: standard flee chance (50 + AGI * 1.5)%
-    // 2nd attempt: heavy penalty flee chance (15 + AGI * 0.5)% -> much higher fail chance!
+    setIsCombatBusy(true);
+    soundFX.playFleeSound();
+
     const baseChance = Math.min(90, 50 + player.attributes.agi * 1.5);
     const fleeChance = attempts === 0 ? baseChance : Math.max(10, Math.floor(15 + player.attributes.agi * 0.5));
     const roll = Math.random() * 100;
@@ -1262,6 +1358,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         winner: null,
         fleeAttempts: 0,
       });
+
+      setTimeout(() => {
+        setIsCombatBusy(false);
+      }, 750);
     } else {
       const nextAttempts = attempts + 1;
       let logs = battle.logs;
@@ -1274,206 +1374,268 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       const enemy = { ...battle.enemy! };
-      const enemyTurnResult = executeEnemyTurn(enemy, logs);
-      if (enemyTurnResult.isDefeated) return;
-      onUpdateBattle({
-        ...battle,
-        turnNumber: battle.turnNumber + 1,
-        enemy,
-        logs: enemyTurnResult.logs,
-        fleeAttempts: nextAttempts,
-      });
+      onUpdateBattle({ ...battle, logs, fleeAttempts: nextAttempts });
+
+      setTimeout(() => {
+        executeEnemyTurnAnimated(enemy, logs);
+      }, 650);
     }
   };
 
-  // Enemy Turn Resolution (Preserves active player state & deducted MP)
-  const executeEnemyTurn = (
+  // Enemy Turn Resolution with Sequential Animation & Pad Lock
+  const executeEnemyTurnAnimated = (
     enemy: EnemyMonster,
     currentLogs: BattleLogEntry[],
     activePlayerState?: PlayerCharacter
-  ): { logs: BattleLogEntry[]; isDefeated: boolean } => {
+  ) => {
     const p = activePlayerState || player;
     let logs = currentLogs;
 
-    // ── Enemy Status DoT ticks (Bleed, Poison, Burn from player strikes & affixes) ────
-    const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon ?? null;
-    const wpnRoll = activeWpn?.baseDamageMin || 25;
-    const physBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
+    // Monster lunge
+    setMonsterAnim('anim-lunge-left');
+    setTimeout(() => setMonsterAnim(''), 350);
 
-    // 1. Bleed Tick
-    const enemyBleed = (enemy.activeEffects || []).find(e => e.type === 'BLEED');
-    if (enemyBleed && enemyBleed.durationTurnsLeft > 0) {
-      const bleedDmg = calculateStatDrivenDoTDamage('BLEED', p.level, physBonus, wpnRoll);
-      enemy.currentHp = Math.max(0, enemy.currentHp - bleedDmg);
-      logs = addLog(logs, `🩸 ${enemy.name} suffers ${bleedDmg} Bleed damage from rending wounds!`, 'DAMAGE', 'SYSTEM');
-      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
-        e.type === 'BLEED' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
-      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BLEED');
-      if (enemy.currentHp <= 0) {
-        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-        handleVictory(enemy, logs);
-        return { logs, isDefeated: true };
-      }
-    }
+    setTimeout(() => {
+      // 1. Enemy DoT checks
+      const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon ?? null;
+      const wpnRoll = activeWpn?.baseDamageMin || 25;
+      const physBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
 
-    // 2. Poison Tick
-    const enemyPoison = (enemy.activeEffects || []).find(e => e.type === 'POISON');
-    if (enemyPoison && enemyPoison.durationTurnsLeft > 0) {
-      const poisonDmg = calculateStatDrivenDoTDamage('POISON', p.level, derived.rangedDamage, wpnRoll);
-      enemy.currentHp = Math.max(0, enemy.currentHp - poisonDmg);
-      logs = addLog(logs, `🤢 ${enemy.name} suffers ${poisonDmg} Poison damage from caustic venom!`, 'DAMAGE', 'SYSTEM');
-      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
-        e.type === 'POISON' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
-      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'POISON');
-      if (enemy.currentHp <= 0) {
-        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-        handleVictory(enemy, logs);
-        return { logs, isDefeated: true };
-      }
-    }
-
-    // 3. Burn Tick
-    const enemyBurn = (enemy.activeEffects || []).find(e => e.type === 'BURN');
-    if (enemyBurn && enemyBurn.durationTurnsLeft > 0) {
-      const burnDmg = calculateStatDrivenDoTDamage('BURN', p.level, derived.magicDamage, wpnRoll);
-      enemy.currentHp = Math.max(0, enemy.currentHp - burnDmg);
-      logs = addLog(logs, `🔥 ${enemy.name} suffers ${burnDmg} Burn damage from searing embers!`, 'DAMAGE', 'SYSTEM');
-      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
-        e.type === 'BURN' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
-      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BURN');
-      if (enemy.currentHp <= 0) {
-        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-        handleVictory(enemy, logs);
-        return { logs, isDefeated: true };
-      }
-    }
-
-    const enemyDmg = Math.floor(enemy.attackMin + Math.random() * (enemy.attackMax - enemy.attackMin + 1));
-
-    // ── Dodge check ──────────────────────────────────────────────────────
-    if (Math.random() * 100 < derived.dodgeChancePercent) {
-      // AGI counter-dodge: Bagani/Mangangaso at sufficient AGI get a counter-attack proc
-      const isAgiClass = player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso';
-      const counterChance = isAgiClass ? Math.min(40, Math.floor(p.attributes.agi * 0.4)) : 0;
-      if (isAgiClass && Math.random() * 100 < counterChance) {
-        const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
-        const counterDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.6));
-        enemy.currentHp -= counterDmg;
-        logs = addLog(logs, `💨 EVASION COUNTER! Evaded ${enemy.name}'s strike — riposted for ${counterDmg}!`, 'CRIT', 'PLAYER');
-      } else {
-        logs = addLog(logs, `💨 Evaded ${enemy.name}'s strike! No damage taken.`, 'INFO', 'PLAYER');
-      }
-      onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-      return { logs, isDefeated: false };
-    }
-
-    // ── Parry & Riposte check when Guarding ──────────────────────────────
-    if (p.isCoveredNextTurn) {
-      // Parry: 8% base + AGI×0.25, capped at 40% — rewards AGI builds
-      const parryChance = Math.min(40, Math.floor(8 + p.attributes.agi * 0.25));
-      const isParried = Math.random() * 100 < parryChance;
-
-      if (isParried) {
-        soundFX.playCritSound();
-        // Riposte = 50% of player's weapon baseDamageMin (class-appropriate, not inflated by enemy roll)
-        const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
-        const riposteDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.5));
-        enemy.currentHp = Math.max(0, enemy.currentHp - riposteDmg);
-
-        logs = addLog(
-          logs,
-          `⚔️ PARRY! Deflected ${enemy.name}'s strike — countered for ${riposteDmg}!`,
-          'CRIT',
-          'PLAYER'
-        );
-
+      // Bleed Tick
+      const enemyBleed = (enemy.activeEffects || []).find(e => e.type === 'BLEED');
+      if (enemyBleed && enemyBleed.durationTurnsLeft > 0) {
+        const bleedDmg = calculateStatDrivenDoTDamage('BLEED', p.level, physBonus, wpnRoll);
+        enemy.currentHp = Math.max(0, enemy.currentHp - bleedDmg);
+        logs = addLog(logs, `🩸 ${enemy.name} suffers ${bleedDmg} Bleed damage from rending wounds!`, 'DAMAGE', 'SYSTEM');
+        stageRef.current?.addFloater(bleedDmg, 'MONSTER', 'normal');
+        enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+          e.type === 'BLEED' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+        ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BLEED');
         if (enemy.currentHp <= 0) {
+          enemy.currentHp = 0;
+          setMonsterAnim('anim-faint');
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-          handleVictory(enemy, logs);
-          return { logs, isDefeated: true };
+          setTimeout(() => {
+            handleVictory(enemy, logs);
+            setIsCombatBusy(false);
+          }, 800);
+          return;
         }
-
-        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-        return { logs, isDefeated: false };
       }
-    }
 
-    let playerDR = derived.damageReductionPercent / 100;
-    if (p.isCoveredNextTurn) {
-      playerDR = Math.min(0.85, playerDR + 0.15);
-    }
-
-    const finalEnemyDmg = Math.max(1, Math.floor(enemyDmg * (1 - playerDR)));
-    const newPlayerHp = Math.max(0, p.currentHp - finalEnemyDmg);
-
-    if (p.isCoveredNextTurn) {
-      logs = addLog(logs, `🛡️ GUARDED! Blocked ${enemy.name}'s strike (took ${finalEnemyDmg} damage).`, 'DAMAGE', 'ENEMY');
-    } else {
-      logs = addLog(logs, `⚔️ ${enemy.name} attacked you for ${finalEnemyDmg} damage!`, 'DAMAGE', 'ENEMY');
-    }
-
-    if (newPlayerHp <= 0) {
-      const lostCowries = Math.floor((p.wallet.cowrieShells || 0) * 0.25);
-      const lostSilver = Math.floor((p.wallet.silverPieces || 0) * 0.25);
-      const newCowries = Math.max(0, (p.wallet.cowrieShells || 0) - lostCowries);
-      const newSilver = Math.max(0, (p.wallet.silverPieces || 0) - lostSilver);
-
-      const updatedWallet = {
-        ...p.wallet,
-        cowrieShells: newCowries,
-        silverPieces: newSilver,
-        copperCoins: newCowries,
-        silverShillings: newSilver,
-      };
-
-      const resHp = Math.max(1, Math.floor(derived.maxHp * 0.01));
-      const resMp = Math.max(1, Math.floor(derived.maxMp * 0.01));
-      const resStamina = Math.max(1, Math.floor(calcMaxStamina(p.level) * 0.01));
-
-      const defeatLog = `💀 SPIRIT SEVERANCE: Banished to Poblacion Sanctuary! Resurrected at 1% HP (${resHp}), 1% MP (${resMp}), 1% ST (${resStamina}) & lost ${lostCowries} Cowries, ${lostSilver} Silver.`;
-      logs = addLog(logs, defeatLog, 'DEBUFF', 'SYSTEM');
-      notify(`💀 Slain in Battle! Resurrected at 1% HP/MP/ST. Lost ${lostCowries} Cowries & ${lostSilver} Silver.`, 'error', '💀');
-
-      let highestWave = p.highestSurvivalWave || 0;
-      if (selectedLocation.id === 'loc_act_infinite') {
-        const reachedWave = battle.survivalWaveTier ?? 1;
-        if (reachedWave > highestWave) {
-          highestWave = reachedWave;
-          notify(`🏆 NEW PERSONAL BEST RECORD! Logged highest wave reached: Tier #${reachedWave}!`, 'success', '🏆');
+      // Poison Tick
+      const enemyPoison = (enemy.activeEffects || []).find(e => e.type === 'POISON');
+      if (enemyPoison && enemyPoison.durationTurnsLeft > 0) {
+        const poisonDmg = calculateStatDrivenDoTDamage('POISON', p.level, derived.rangedDamage, wpnRoll);
+        enemy.currentHp = Math.max(0, enemy.currentHp - poisonDmg);
+        logs = addLog(logs, `🤢 ${enemy.name} suffers ${poisonDmg} Poison damage from caustic venom!`, 'DAMAGE', 'SYSTEM');
+        stageRef.current?.addFloater(poisonDmg, 'MONSTER', 'normal');
+        enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+          e.type === 'POISON' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+        ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'POISON');
+        if (enemy.currentHp <= 0) {
+          enemy.currentHp = 0;
+          setMonsterAnim('anim-faint');
+          onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+          setTimeout(() => {
+            handleVictory(enemy, logs);
+            setIsCombatBusy(false);
+          }, 800);
+          return;
         }
+      }
+
+      // Burn Tick
+      const enemyBurn = (enemy.activeEffects || []).find(e => e.type === 'BURN');
+      if (enemyBurn && enemyBurn.durationTurnsLeft > 0) {
+        const burnDmg = calculateStatDrivenDoTDamage('BURN', p.level, derived.magicDamage, wpnRoll);
+        enemy.currentHp = Math.max(0, enemy.currentHp - burnDmg);
+        logs = addLog(logs, `🔥 ${enemy.name} suffers ${burnDmg} Burn damage from searing embers!`, 'DAMAGE', 'SYSTEM');
+        stageRef.current?.addFloater(burnDmg, 'MONSTER', 'normal');
+        enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+          e.type === 'BURN' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+        ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BURN');
+        if (enemy.currentHp <= 0) {
+          enemy.currentHp = 0;
+          setMonsterAnim('anim-faint');
+          onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+          setTimeout(() => {
+            handleVictory(enemy, logs);
+            setIsCombatBusy(false);
+          }, 800);
+          return;
+        }
+      }
+
+      const enemyDmg = Math.floor(enemy.attackMin + Math.random() * (enemy.attackMax - enemy.attackMin + 1));
+
+      // ── Dodge check ──────────────────────────────────────────────────────
+      if (Math.random() * 100 < derived.dodgeChancePercent) {
+        stageRef.current?.addFloater('Dodge', 'HERO', 'dodge');
+        const isAgiClass = player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso';
+        const counterChance = isAgiClass ? Math.min(40, Math.floor(p.attributes.agi * 0.4)) : 0;
+        if (isAgiClass && Math.random() * 100 < counterChance) {
+          const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
+          const counterDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.6));
+          enemy.currentHp -= counterDmg;
+          stageRef.current?.triggerSlash('MONSTER', '#38bdf8');
+          stageRef.current?.addFloater(counterDmg, 'MONSTER', 'crit');
+          logs = addLog(logs, `💨 EVASION COUNTER! Evaded ${enemy.name}'s strike — riposted for ${counterDmg}!`, 'CRIT', 'PLAYER');
+        } else {
+          logs = addLog(logs, `💨 Evaded ${enemy.name}'s strike! No damage taken.`, 'INFO', 'PLAYER');
+        }
+        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+        onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false });
+        setTimeout(() => {
+          setIsCombatBusy(false);
+        }, 550);
+        return;
+      }
+
+      // ── Parry & Riposte check when Guarding ──────────────────────────────
+      if (p.isCoveredNextTurn) {
+        const parryChance = Math.min(40, Math.floor(8 + p.attributes.agi * 0.25));
+        const isParried = Math.random() * 100 < parryChance;
+
+        if (isParried) {
+          soundFX.playCritSound();
+          stageRef.current?.triggerGuardAura('HERO');
+          stageRef.current?.addFloater('Parry', 'HERO', 'parry');
+
+          const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
+          const riposteDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.5));
+          enemy.currentHp = Math.max(0, enemy.currentHp - riposteDmg);
+          stageRef.current?.triggerSlash('MONSTER', '#f59e0b');
+          stageRef.current?.addFloater(riposteDmg, 'MONSTER', 'crit');
+
+          logs = addLog(
+            logs,
+            `⚔️ PARRY! Deflected ${enemy.name}'s strike — countered for ${riposteDmg}!`,
+            'CRIT',
+            'PLAYER'
+          );
+
+          if (enemy.currentHp <= 0) {
+            enemy.currentHp = 0;
+            setMonsterAnim('anim-faint');
+            onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+            setTimeout(() => {
+              handleVictory(enemy, logs);
+              setIsCombatBusy(false);
+            }, 800);
+            return;
+          }
+
+          onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+          onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false });
+          setTimeout(() => {
+            setIsCombatBusy(false);
+          }, 600);
+          return;
+        }
+      }
+
+      setHeroAnim('anim-hit');
+      setTimeout(() => setHeroAnim(''), 400);
+
+      if (enemy.isBoss) {
+        stageRef.current?.triggerFireBurst('HERO');
+        stageRef.current?.triggerRumble();
+      } else {
+        stageRef.current?.triggerSlash('HERO', '#ef4444');
+      }
+
+      let playerDR = derived.damageReductionPercent / 100;
+      if (p.isCoveredNextTurn) {
+        playerDR = Math.min(0.85, playerDR + 0.15);
+      }
+
+      const finalEnemyDmg = Math.max(1, Math.floor(enemyDmg * (1 - playerDR)));
+      const newPlayerHp = Math.max(0, p.currentHp - finalEnemyDmg);
+      stageRef.current?.addFloater(finalEnemyDmg, 'HERO', 'normal');
+
+      if (p.isCoveredNextTurn) {
+        logs = addLog(logs, `🛡️ GUARDED! Blocked ${enemy.name}'s strike (took ${finalEnemyDmg} damage).`, 'DAMAGE', 'ENEMY');
+      } else {
+        logs = addLog(logs, `⚔️ ${enemy.name} attacked you for ${finalEnemyDmg} damage!`, 'DAMAGE', 'ENEMY');
+      }
+
+      if (newPlayerHp <= 0) {
+        const lostCowries = Math.floor((p.wallet.cowrieShells || 0) * 0.25);
+        const lostSilver = Math.floor((p.wallet.silverPieces || 0) * 0.25);
+        const newCowries = Math.max(0, (p.wallet.cowrieShells || 0) - lostCowries);
+        const newSilver = Math.max(0, (p.wallet.silverPieces || 0) - lostSilver);
+
+        const updatedWallet = {
+          ...p.wallet,
+          cowrieShells: newCowries,
+          silverPieces: newSilver,
+          copperCoins: newCowries,
+          silverShillings: newSilver,
+        };
+
+        const resHp = Math.max(1, Math.floor(derived.maxHp * 0.01));
+        const resMp = Math.max(1, Math.floor(derived.maxMp * 0.01));
+        const resStamina = Math.max(1, Math.floor(calcMaxStamina(p.level) * 0.01));
+
+        const defeatLog = `💀 SPIRIT SEVERANCE: Banished to Poblacion Sanctuary! Resurrected at 1% HP (${resHp}), 1% MP (${resMp}), 1% ST (${resStamina}) & lost ${lostCowries} Cowries, ${lostSilver} Silver.`;
+        logs = addLog(logs, defeatLog, 'DEBUFF', 'SYSTEM');
+        notify(`💀 Slain in Battle! Resurrected at 1% HP/MP/ST. Lost ${lostCowries} Cowries & ${lostSilver} Silver.`, 'error', '💀');
+
+        let highestWave = p.highestSurvivalWave || 0;
+        if (selectedLocation.id === 'loc_act_infinite') {
+          const reachedWave = battle.survivalWaveTier ?? 1;
+          if (reachedWave > highestWave) {
+            highestWave = reachedWave;
+            notify(`🏆 NEW PERSONAL BEST RECORD! Logged highest wave reached: Tier #${reachedWave}!`, 'success', '🏆');
+          }
+        }
+
+        onUpdatePlayer({
+          ...p,
+          currentHp: resHp,
+          currentMp: resMp,
+          stamina: resStamina,
+          wallet: updatedWallet,
+          highestSurvivalWave: highestWave,
+          isCoveredNextTurn: false,
+        });
+
+        onUpdateBattle({
+          inCombat: false,
+          turnNumber: 0,
+          playerActionGauge: 100,
+          enemyActionGauge: 0,
+          enemy: null,
+          logs: [],
+          winner: 'ENEMY',
+        });
+
+        setTimeout(() => {
+          setIsCombatBusy(false);
+          onNavigateToHaven();
+        }, 1200);
+        return;
       }
 
       onUpdatePlayer({
         ...p,
-        currentHp: resHp,
-        currentMp: resMp,
-        stamina: resStamina,
-        wallet: updatedWallet,
-        highestSurvivalWave: highestWave,
+        currentHp: newPlayerHp,
         isCoveredNextTurn: false,
       });
 
       onUpdateBattle({
-        inCombat: false,
-        turnNumber: 0,
-        playerActionGauge: 100,
-        enemyActionGauge: 0,
-        enemy: null,
-        logs: [],
-        winner: 'ENEMY',
+        ...battle,
+        turnNumber: battle.turnNumber + 1,
+        enemy,
+        logs,
+        guardedLastTurn: false,
       });
 
-      onNavigateToHaven();
-      return { logs, isDefeated: true };
-    }
-
-    onUpdatePlayer({
-      ...p,
-      currentHp: newPlayerHp,
-      isCoveredNextTurn: false,
-    });
-
-    return { logs, isDefeated: false };
+      setTimeout(() => {
+        setIsCombatBusy(false);
+      }, 650);
+    }, 280);
   };
 
   // Victory Resolution
@@ -1815,24 +1977,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-transparent text-amber-100 p-1.5 md:p-6 space-y-1.5 md:space-y-4 overflow-y-auto">
-      {/* Sector Header & Location Selector */}
-      {!battle.inCombat && (
-        <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/50 rounded-lg md:rounded-xl p-2 md:p-4 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 md:gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="text-[8px] md:text-[10px] font-mono uppercase text-amber-500 tracking-widest font-semibold">ACTIVE EXPEDITION ZONE</div>
-            <h2 className="text-base md:text-2xl font-bold font-serif text-amber-200 truncate">{selectedLocation.name}</h2>
-            <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 line-clamp-1 md:line-clamp-none hidden sm:block">{selectedLocation.description}</p>
-          </div>
-
-          <div className="flex items-center space-x-2 w-full sm:w-auto shrink-0">
+    <div className="flex flex-col h-full max-w-xl md:max-w-2xl mx-auto w-full bg-zinc-950/95 border border-amber-900/60 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
+      {/* 1. COMPACT TOP HEADER */}
+      <header className="bg-zinc-950/95 border-b border-amber-900/80 px-2.5 py-1.5 z-30 shrink-0 shadow-lg">
+        <div className="flex items-center justify-between gap-2">
+          {/* Location / Act selector dropdown */}
+          <div className="relative flex-1 min-w-0">
             <select
               value={selectedLocation.id}
+              disabled={battle.inCombat}
               onChange={(e) => {
                 const loc = GAME_LOCATIONS.find((l) => l.id === e.target.value);
                 if (loc) handleSelectLocation(loc);
               }}
-              className="w-full sm:w-auto bg-zinc-950 border border-amber-500/40 text-amber-200 rounded px-2 py-1 md:px-3 md:py-1.5 text-[10px] md:text-xs font-mono font-bold cursor-pointer truncate"
+              className="w-full bg-zinc-900/95 border border-amber-700/60 text-amber-200 text-xs font-cinzel font-bold rounded-lg px-2 py-1 appearance-none focus:outline-none focus:border-amber-400 shadow-inner pr-6 truncate cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {GAME_LOCATIONS.map((loc, idx) => {
                 const isInfinite = loc.id === 'loc_act_infinite';
@@ -1848,15 +2006,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 let lockLabel = '';
                 if (isLocked) {
                   if (isInfinite) {
-                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII' : `${reqPower} Power`})`;
+                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII' : `${reqPower} Pwr`})`;
                   } else {
-                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `${reqPower} Power`})`;
+                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `${reqPower} Pwr`})`;
                   }
                 } else {
                   if (isInfinite) {
-                    lockLabel = `🌌 ${loc.name} (Survival Realm)`;
+                    lockLabel = `🌌 ${loc.name}`;
                   } else {
-                    lockLabel = `✅ ${loc.name} (${reqPower > 0 ? `${reqPower} Power` : 'Unlocked'})`;
+                    lockLabel = `Act ${actRoman}: ${loc.name}`;
                   }
                 }
 
@@ -1867,325 +2025,314 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 );
               })}
             </select>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-amber-500 text-[9px] pointer-events-none">▼</span>
           </div>
-        </div>
-      )}
 
-      {/* Act Boss & Regional Quests Status Bar (When NOT in combat) */}
-      {!battle.inCombat && (
-        <div className="bg-zinc-950/80 border border-zinc-800 p-1.5 md:p-3 rounded-lg md:rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 md:gap-2 text-[9px] md:text-xs font-mono">
-          <div className="flex items-center space-x-1.5 md:space-x-2 flex-wrap gap-y-0.5">
-            <span className="text-red-400 font-bold">👑 Guardian:</span>
-            <span className="text-zinc-200 truncate">
-              {isBossDefeated || !isBossLevelLocked || (player.discoveredBossIds || []).includes(selectedLocation.bossId || '')
-                ? (selectedLocation.name.split(':')[1]?.trim() || 'Act Guardian')
-                : '??? Undiscovered'}
+          {/* Header Right Status & Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Boss Status / Confront Button (when not in combat) */}
+            {!battle.inCombat && (
+              <button
+                onClick={handleInitiateBossChallenge}
+                disabled={isBossLevelLocked || !!activeInteractiveEncounter}
+                title={
+                  isBossLevelLocked
+                    ? `Act Guardian Locked (Req ${bossPowerReq} Power)`
+                    : isBossDefeated
+                    ? 'Re-challenge Act Guardian'
+                    : `Confront Act Guardian (${bossCost} Stamina)`
+                }
+                className={`px-2 py-0.5 rounded-full font-mono text-[9px] font-bold border transition-all active:scale-95 flex items-center gap-1 ${
+                  isBossLevelLocked || activeInteractiveEncounter
+                    ? 'bg-zinc-900 border-zinc-700 text-zinc-500 cursor-not-allowed opacity-60'
+                    : isBossDefeated
+                    ? 'bg-emerald-950/90 border-emerald-600/70 text-emerald-300 hover:bg-emerald-900'
+                    : 'bg-red-950/90 border-red-500/80 text-red-200 hover:bg-red-900 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                }`}
+              >
+                <span>{isBossLevelLocked ? '🔒' : '👑'}</span>
+                <span>
+                  {isBossLevelLocked
+                    ? `Req ${bossPowerReq} Pwr`
+                    : isBossDefeated
+                    ? 'Conquered ✓'
+                    : 'Confront Boss'}
+                </span>
+              </button>
+            )}
+
+            {/* Stamina Pill */}
+            <span className="bg-black/80 px-2 py-0.5 rounded-full border border-amber-900/60 text-amber-200 font-mono text-[10px] flex items-center gap-1">
+              <span>⚡</span>
+              <span className="font-bold text-amber-400">{player.stamina ?? maxStamina}/{maxStamina}</span>
             </span>
-            {(() => {
-              const tmpl = MONSTER_TEMPLATES.find((m) => m.id === selectedLocation.bossId);
-              const pwr = tmpl ? calcMonsterPowerRating(tmpl, selectedLocation.minLevel, player.ngPlusLevel || 0) : 0;
-              return pwr > 0 ? (
-                <span className="text-[8px] md:text-[10px] text-amber-300 font-bold font-mono">⚡ {pwr} Power</span>
-              ) : null;
-            })()}
-            {isBossDefeated ? (
-              <span className="bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase">
-                Conquered ✓
-              </span>
-            ) : isBossLevelLocked ? (
-              <span className="bg-zinc-900 text-zinc-400 border border-zinc-700 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase">
-                Locked
+
+            {/* Combat Turn counter or Replay Lore button */}
+            {battle.inCombat ? (
+              <span className="bg-black/80 px-1.5 py-0.5 rounded-full border border-amber-900/60 text-amber-300 font-mono text-[9px] font-bold">
+                T<span className="text-amber-400">{battle.turnNumber}</span>
               </span>
             ) : (
-              <span className="bg-red-950 text-red-300 border border-red-500/60 text-[8px] md:text-[9px] px-1 py-0.2 rounded font-bold uppercase animate-pulse">
-                Ready
-              </span>
+              <button
+                onClick={() => setShowActStoryModal(true)}
+                title="Replay Act Lore"
+                className="bg-amber-950/90 hover:bg-amber-900 text-amber-200 border border-amber-700/60 px-1.5 py-0.5 rounded-full font-mono text-[9px] transition-all active:scale-95 flex items-center gap-0.5"
+              >
+                <span>📜</span>
+              </button>
             )}
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-zinc-400">
-              Quests: <strong className={actQuestsCompleted >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{actQuestsCompleted}/3 Done</strong> ({actQuestsDiscovered}/3 Discovered)
-            </span>
-          </div>
         </div>
-      )}
+      </header>
 
-      {/* DEDICATED ACT GUARDIAN BOSS BUTTON (Above Sector Narrative Feed) */}
-      {!battle.inCombat && (
-        <button
-          onClick={handleInitiateBossChallenge}
-          disabled={isBossLevelLocked || !!activeInteractiveEncounter}
-          className={`w-full py-1.5 px-2 md:p-3.5 border font-bold font-mono text-[10px] md:text-xs uppercase tracking-wider rounded-lg md:rounded-xl shadow-xl transition-all flex items-center justify-center space-x-1.5 md:space-x-2 min-h-[32px] md:min-h-[44px] ${
-            isBossLevelLocked || activeInteractiveEncounter
-              ? 'bg-zinc-950/90 border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
-              : isBossDefeated
-              ? 'bg-zinc-900 border-amber-600/50 text-amber-300 hover:bg-zinc-850'
-              : 'bg-gradient-to-r from-red-950 via-red-900 to-red-950 hover:from-red-900 hover:to-red-850 border-2 border-red-500 text-red-100 ring-2 ring-red-500/30 animate-pulse'
-          }`}
-        >
-          <span className="text-xs md:text-base">{isBossLevelLocked ? '🔒' : '👑'}</span>
-          <span className="truncate">
-            {isBossLevelLocked
-              ? `[ ACT GUARDIAN LOCKED — REQ ${bossPowerReq} POWER ]`
-              : isBossDefeated
-              ? `[ RE-CHALLENGE ${selectedLocation.name.split(':')[1]?.trim() || 'ACT GUARDIAN'} ]`
-              : `[ CONFRONT ACT GUARDIAN ] (${bossCost} STAMINA)`}
-          </span>
-        </button>
-      )}
+      {/* 2. DYNAMIC ARENA CONTENT (TactileCombatStage flex-1) */}
+      <section className="relative flex-1 min-h-[280px] sm:min-h-[310px] flex flex-col justify-between overflow-hidden bg-black select-none">
+        <TactileCombatStage
+          ref={stageRef}
+          inCombat={battle.inCombat}
+          player={player}
+          monster={battle.enemy}
+          locationId={selectedLocation.id}
+          locationName={selectedLocation.name}
+          locationSubtitle={selectedLocation.subtitle}
+          activeEncounter={activeInteractiveEncounter}
+          explorationEvent={explorationEvent}
+          heroAnimClass={heroAnim}
+          monsterAnimClass={monsterAnim}
+          isGuarding={player.isGuarding}
+        />
 
-      {/* Exploration Event Feed (When NOT in combat) */}
-      {!battle.inCombat && (
-        <div className="bg-zinc-900/85 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3.5 flex flex-col justify-between shadow-xl min-h-[105px] md:min-h-[220px]">
-          <div>
-            <div className="text-[10px] md:text-xs font-mono uppercase text-amber-500 font-bold mb-1 flex justify-between items-center border-b border-zinc-800/80 pb-0.5">
-              <div className="flex items-center space-x-2">
-                <span>SECTOR NARRATIVE FEED</span>
+        {/* VICTORY & LOOT REWARD CARD OVERLAY (When Battle Winner === 'PLAYER') */}
+        {battle.inCombat && battle.winner === 'PLAYER' && battle.enemy && (
+          <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center text-center space-y-2.5 animate-fade-in border-2 border-amber-500/80 shadow-2xl">
+            <div className="text-3xl animate-bounce">🎉</div>
+            <h3 className="text-base sm:text-xl font-bold font-serif text-amber-200">
+              VICTORY &amp; LOOT SECURED!
+            </h3>
+            <p className="text-xs font-mono text-zinc-300 max-w-sm">
+              Defeated <strong className="text-amber-300">{battle.enemy.name}</strong>! Earned <strong className="text-emerald-400">+{battle.enemy.expReward} EXP</strong> and <strong className="text-yellow-400">+{battle.enemy.copperReward} Cowrie Shells</strong>.
+            </p>
+
+            {/* Live Active Contract Progress Badge */}
+            {player.bounties.filter((b) => {
+              if (!b.isAccepted || b.isClaimed) return false;
+              if (b.isCompleted) return true;
+              const cleanEnemyName = (battle.enemy?.name || '').replace(/^Elite\s+/, '').trim().toLowerCase();
+              const cleanEnemyId = (battle.enemy?.id || '').toLowerCase();
+              const cleanTargetName = b.targetMonsterName.toLowerCase();
+              const cleanTargetId = b.targetMonsterId.toLowerCase();
+              return cleanEnemyName.includes(cleanTargetName) || cleanTargetName.includes(cleanEnemyName) || cleanEnemyId.includes(cleanTargetId);
+            }).map((b) => (
+              <div key={b.id} className="bg-purple-950/80 border border-purple-500/60 px-2.5 py-1 rounded-lg text-[10px] font-mono text-purple-200 flex justify-between items-center max-w-xs w-full">
+                <span>🎯 Contract: <strong>{b.title}</strong></span>
+                <span className={`font-bold ${b.isCompleted ? 'text-emerald-400' : 'text-amber-300'}`}>
+                  {b.isCompleted ? '✅ DONE!' : `${b.currentCount} / ${b.targetCount}`}
+                </span>
+              </div>
+            ))}
+
+            <button
+              onClick={handleClaimRewardsAndExit}
+              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-xs uppercase px-5 py-2 rounded-xl shadow-lg transition-all active:scale-95"
+            >
+              [ Claim Rewards &amp; Continue ]
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* 3. TACTILE ACTION DOCK (Exploration vs Combat vs Active Encounter) */}
+      <div className="bg-zinc-950/98 border-t border-amber-900/80 p-2 z-30 shrink-0 shadow-2xl backdrop-blur-md">
+        {activeInteractiveEncounter ? (
+          /* DOCK STATE C: INTERACTIVE ENCOUNTER ACTIONS (Chest / Trader) */
+          <div className="space-y-1.5 max-w-sm mx-auto animate-fade-in font-mono">
+            {activeInteractiveEncounter.type === 'CURSED_CHEST' && (
+              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                 <button
-                  onClick={() => setShowActStoryModal(true)}
-                  className="text-[9px] md:text-[10px] text-amber-300 hover:text-amber-200 font-mono font-bold bg-amber-950/70 border border-amber-500/50 px-2 py-0.5 rounded transition-colors flex items-center space-x-1"
+                  onClick={() => handleOpenCursedChest('HP')}
+                  className="bg-red-950 hover:bg-red-900 border border-red-500/70 text-red-100 p-2 rounded-xl text-center transition-all active:scale-95 flex flex-col items-center justify-center min-h-[44px]"
                 >
-                  <span>📜</span>
-                  <span>Replay Act Lore</span>
+                  <span className="font-bold">🩸 Pay HP</span>
+                  <span className="text-[8px] text-zinc-400">-{activeInteractiveEncounter.chestHpCost} HP</span>
+                </button>
+                <button
+                  onClick={() => handleOpenCursedChest('MP')}
+                  className="bg-purple-950 hover:bg-purple-900 border border-purple-500/70 text-purple-100 p-2 rounded-xl text-center transition-all active:scale-95 flex flex-col items-center justify-center min-h-[44px]"
+                >
+                  <span className="font-bold">✨ Pay MP</span>
+                  <span className="text-[8px] text-zinc-400">-{activeInteractiveEncounter.chestMpCost} MP</span>
+                </button>
+                <button
+                  onClick={handlePassEncounter}
+                  className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 p-2 rounded-xl text-center transition-all active:scale-95 flex items-center justify-center font-bold min-h-[44px]"
+                >
+                  <span>✕ Leave</span>
                 </button>
               </div>
-              <span className="text-[9px] md:text-[10px] text-zinc-500 font-normal hidden sm:inline">PERSISTED LORE LOG</span>
-            </div>
-            <div className="space-y-1 md:space-y-2 max-h-28 md:max-h-48 overflow-y-auto pr-1">
-              {(player.narratorLogs && player.narratorLogs.length > 0) ? (
-                player.narratorLogs.map((log, idx) => (
-                  <p key={idx} className={`text-[10px] md:text-xs font-mono leading-snug md:leading-relaxed ${idx === 0 ? 'text-amber-200 font-bold border-l-2 border-amber-500 pl-2 bg-amber-950/20 py-0.5 rounded-r' : 'text-zinc-400 pl-2 opacity-85'}`}>
-                    {log}
-                  </p>
-                ))
-              ) : (
-                <p className="text-[10px] md:text-xs font-mono text-amber-200/90 leading-snug md:leading-relaxed border-l-2 border-amber-500 pl-2 py-0.5 bg-amber-950/20 rounded-r">
-                  {`You are treading carefully through ${selectedLocation.name}. Ambient Aether hums in the stone. Venture forward to scout the sector.`}
-                </p>
-              )}
-            </div>
-          </div>
+            )}
 
-          <div className="text-[9.5px] md:text-xs font-mono text-zinc-400 border-t border-zinc-800 pt-1 mt-1 flex justify-between">
-            <span>Danger: <strong className="text-amber-300">Level {selectedLocation.minLevel}+</strong></span>
-            <span>Stamina: <strong className="text-emerald-400">{player.stamina ?? maxStamina}/{maxStamina}</strong></span>
-          </div>
-        </div>
-      )}
-
-      {/* INTERACTIVE SECTOR ENCOUNTER CARD */}
-      {!battle.inCombat && activeInteractiveEncounter && (
-        <div className="bg-gradient-to-r from-amber-950/80 via-zinc-900 to-amber-950/80 border-2 border-amber-500/70 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-2xl space-y-2 md:space-y-3 animate-fade-in">
-          <div className="flex justify-between items-start border-b border-amber-500/30 pb-1.5 md:pb-2">
-            <div>
-              <span className="text-[9px] md:text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">SPECIAL SECTOR ENCOUNTER</span>
-              <h3 className="text-base md:text-lg font-bold font-serif text-amber-200">{activeInteractiveEncounter.title}</h3>
-            </div>
-            <button onClick={handlePassEncounter} className="text-[10px] md:text-xs text-zinc-400 hover:text-white font-mono px-2 py-0.5 md:py-1 bg-zinc-900 rounded border border-zinc-700">✕ Dismiss</button>
-          </div>
-
-          <p className="text-[10px] md:text-xs text-zinc-300 font-mono leading-snug md:leading-relaxed">
-            {activeInteractiveEncounter.description}
-          </p>
-
-          {activeInteractiveEncounter.type === 'TRADER' && activeInteractiveEncounter.traderItem && (
-            <div className="bg-zinc-950/90 border border-amber-500/40 p-2.5 md:p-3.5 rounded-lg flex flex-col space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center space-x-2.5 md:space-x-3">
-                  <span className="text-2xl md:text-3xl">{activeInteractiveEncounter.traderItem.icon || '⚔️'}</span>
-                  <div>
-                    <div className="text-xs md:text-sm font-bold text-amber-300 font-serif flex items-center gap-1.5 flex-wrap">
-                      <span>{activeInteractiveEncounter.traderItem.name}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold border ${
-                        activeInteractiveEncounter.traderItem.rarity === 'COMMON' ? 'bg-zinc-800 text-zinc-300 border-zinc-600' :
-                        activeInteractiveEncounter.traderItem.rarity === 'UNCOMMON' ? 'bg-emerald-950 text-emerald-300 border-emerald-700' :
-                        activeInteractiveEncounter.traderItem.rarity === 'RARE' ? 'bg-blue-950 text-blue-300 border-blue-700' :
-                        activeInteractiveEncounter.traderItem.rarity === 'EPIC' ? 'bg-purple-950 text-purple-300 border-purple-700' :
-                        activeInteractiveEncounter.traderItem.rarity === 'LEGENDARY' ? 'bg-amber-950 text-amber-300 border-amber-600' :
-                        'bg-red-950 text-red-300 border-red-600'
-                      }`}>
-                        {activeInteractiveEncounter.traderItem.rarity}
-                      </span>
-                    </div>
-                    <div className="text-[9px] md:text-[10px] font-mono text-zinc-400 mt-0.5">
-                      {activeInteractiveEncounter.traderItem.category} • Req Lv {activeInteractiveEncounter.traderItem.levelReq}
-                      {activeInteractiveEncounter.traderItem.baseDamageMax ? ` • Dmg ${activeInteractiveEncounter.traderItem.baseDamageMin}-${activeInteractiveEncounter.traderItem.baseDamageMax}` : ''}
-                      {activeInteractiveEncounter.traderItem.baseDefense !== undefined ? ` • Def +${activeInteractiveEncounter.traderItem.baseDefense}` : ''}
+            {activeInteractiveEncounter.type === 'TRADER' && activeInteractiveEncounter.traderItem && (
+              <div className="space-y-1.5">
+                <div className="bg-zinc-900/95 border border-amber-500/40 p-2 rounded-xl flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="text-xl">{activeInteractiveEncounter.traderItem.icon || '⚔️'}</span>
+                    <div className="truncate">
+                      <span className="font-bold text-amber-200 truncate">{activeInteractiveEncounter.traderItem.name}</span>
+                      <div className="text-[8px] text-zinc-400">
+                        Req Lv.{activeInteractiveEncounter.traderItem.levelReq} • {activeInteractiveEncounter.traderItem.rarity}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {activeInteractiveEncounter.discountPercent && (
-                  <span className="text-[9px] md:text-[10px] font-bold font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-600/60 px-2 py-0.5 rounded-full shrink-0">
-                    {activeInteractiveEncounter.discountPercent}% OFF
-                  </span>
-                )}
-              </div>
-
-              {/* Affixes if present */}
-              {activeInteractiveEncounter.traderItem.affixes && activeInteractiveEncounter.traderItem.affixes.length > 0 && (
-                <div className="flex flex-wrap gap-1 text-[9px] font-mono pt-1 border-t border-zinc-800">
-                  {activeInteractiveEncounter.traderItem.affixes.map((affix, idx) => {
-                    let detailText = '';
-                    if (affix.statusInfliction) {
-                      detailText = `🩸 ${affix.statusInfliction.type} (${affix.statusInfliction.chancePercent}%)`;
-                    } else if (affix.statusMitigation) {
-                      detailText = affix.statusMitigation.isImmune
-                        ? `🛡️ ${affix.statusMitigation.type} IMMUNE`
-                        : `🛡️ ${affix.statusMitigation.resistancePercent}% ${affix.statusMitigation.type} RESIST`;
-                    }
-                    return (
-                      <span key={idx} className="bg-amber-950/60 border border-amber-600/40 text-amber-200 px-1.5 py-0.5 rounded">
-                        ✨ {affix.name} {detailText ? `• ${detailText}` : ''}
+                  <div className="text-right shrink-0">
+                    <div className="text-amber-400 font-bold font-mono">
+                      {formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)}
+                    </div>
+                    {activeInteractiveEncounter.discountPercent && (
+                      <span className="text-[8px] text-emerald-400 font-bold">
+                        {activeInteractiveEncounter.discountPercent}% OFF
                       </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Price & Action Row */}
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-1 border-t border-amber-500/20">
-                <div className="text-[10px] md:text-xs font-mono text-zinc-300 flex items-center space-x-2 w-full sm:w-auto">
-                  <span>Price:</span>
-                  <strong className="text-amber-400 font-bold">
-                    {formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)}
-                  </strong>
-                  {activeInteractiveEncounter.originalCostCC && (
-                    <span className="text-zinc-500 line-through text-[9px]">
-                      {formatCostInCowries(activeInteractiveEncounter.originalCostCC)}
-                    </span>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleBuyTraderItem}
-                    className="flex-1 sm:flex-none bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-4 py-1.5 md:py-2 rounded text-[10px] md:text-xs uppercase font-mono shadow-md active:scale-95 transition-all"
+                    className="min-h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-zinc-950 font-cinzel font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1"
                   >
-                    Buy ({formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)})
+                    <span>💰 Buy Item</span>
                   </button>
                   <button
                     onClick={handlePassEncounter}
-                    className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold px-3 py-1.5 md:py-2 rounded text-[10px] md:text-xs uppercase font-mono border border-zinc-700"
+                    className="min-h-[44px] px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-cinzel font-bold text-xs border border-zinc-700 transition-all active:scale-95 flex items-center justify-center gap-1"
                   >
-                    Pass
+                    <span>✕ Pass</span>
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {activeInteractiveEncounter.type === 'CURSED_CHEST' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[10px] md:text-xs">
-              <button
-                onClick={() => handleOpenCursedChest('HP')}
-                className="bg-red-950/90 hover:bg-red-900 border border-red-500/60 text-red-200 p-2 md:p-2.5 rounded-lg text-center space-y-0.5 transition-all active:scale-95"
-              >
-                <div className="font-bold text-red-400">🩸 Sacrifice Health</div>
-                <div className="text-[9px] md:text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestHpCost} HP</div>
-              </button>
-              <button
-                onClick={() => handleOpenCursedChest('MP')}
-                className="bg-purple-950/90 hover:bg-purple-900 border border-purple-500/60 text-purple-200 p-2 md:p-2.5 rounded-lg text-center space-y-0.5 transition-all active:scale-95"
-              >
-                <div className="font-bold text-purple-300">✨ Sacrifice Mana</div>
-                <div className="text-[9px] md:text-[10px] text-zinc-400">Pay -{activeInteractiveEncounter.chestMpCost} MP</div>
-              </button>
-              <button
-                onClick={handlePassEncounter}
-                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 p-2 md:p-2.5 rounded-lg text-center flex items-center justify-center font-bold"
-              >
-                🚶 Leave Chest Alone
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* IN-LINE COMBAT VIEWPORT (When in combat) */}
-      {battle.inCombat && battle.enemy && (
-        <div className="flex-1 space-y-2 md:space-y-3 pt-1 md:pt-2">
-          {/* Target Enemy Display Card */}
-          <div className="bg-zinc-900/90 border border-red-900/60 rounded-lg md:rounded-xl p-2.5 md:p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-2 md:gap-4">
-            <div className="flex items-center space-x-3 md:space-x-4">
-              <div className="w-11 h-11 md:w-16 md:h-16 bg-zinc-950 border border-amber-500/40 rounded-lg md:rounded-xl flex items-center justify-center text-2xl md:text-4xl shadow-inner shrink-0">
-                {battle.winner === 'PLAYER' ? '💀' : battle.enemy.spriteIcon}
-              </div>
-              <div>
-                <div className="text-[9px] md:text-[10px] font-mono text-amber-500 uppercase tracking-widest font-bold">
-                  {battle.winner === 'PLAYER' ? 'TARGET DEFEATED' : `BATTLE TARGET • LEVEL ${battle.enemy.level}`}
-                </div>
-                <h3 className="text-base md:text-2xl font-bold font-serif text-amber-200">{battle.enemy.name}</h3>
-                <p className="text-[10px] md:text-xs text-zinc-400 font-mono mt-0.5">{battle.enemy.title}</p>
-              </div>
-            </div>
-
-            {/* Enemy HP Meter */}
-            <div className="w-full md:w-64 space-y-1">
-              <div className="flex justify-between text-[10px] md:text-xs font-mono font-bold">
-                <span className="text-red-400">HP</span>
-                <span>{battle.enemy.currentHp} / {battle.enemy.maxHp}</span>
-              </div>
-              <div className="w-full h-2 md:h-3 bg-zinc-950 rounded-full border border-red-900/50 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-red-600 to-amber-500 transition-all duration-300"
-                  style={{ width: `${Math.max(0, Math.min(100, (battle.enemy.currentHp / battle.enemy.maxHp) * 100))}%` }}
-                />
-              </div>
-            </div>
+            )}
           </div>
+        ) : !battle.inCombat ? (
+          /* DOCK STATE A: OUT-OF-COMBAT EXPLORATION BUTTONS (Venture Forward & Search Area) */
+          <div className="space-y-1.5 max-w-sm mx-auto">
+            <button
+              onClick={handleVentureForward}
+              className="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-700 via-amber-800 to-amber-950 hover:from-amber-600 hover:to-amber-900 text-amber-100 font-cinzel font-bold text-xs border border-amber-400/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition-all active:scale-98 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🧭</span>
+                <span className="font-bold tracking-wide">Venture Forward</span>
+              </div>
+              <span className="text-[10px] font-mono text-amber-300 bg-amber-950/90 px-2 py-0.5 rounded border border-amber-600/60 font-bold">
+                {ventureCost} Stamina
+              </span>
+            </button>
 
-          {/* VICTORY & LOOT REWARD CARD (When Winner === 'PLAYER') */}
-          {battle.winner === 'PLAYER' && (
-            <div className="bg-gradient-to-r from-amber-950 via-zinc-900 to-amber-950 border-2 border-amber-500/80 rounded-xl md:rounded-2xl p-3 md:p-5 shadow-2xl text-center space-y-2 md:space-y-3 animate-fade-in">
-              <div className="text-2xl md:text-3xl">🎉</div>
-              <h3 className="text-lg md:text-2xl font-bold font-serif text-amber-200">VICTORY & LOOT SECURED!</h3>
-              <p className="text-[10px] md:text-xs font-mono text-zinc-300">
-                Defeated <strong>{battle.enemy.name}</strong>! Earned <strong className="text-emerald-400">+{battle.enemy.expReward} EXP</strong> and <strong className="text-yellow-400">+{battle.enemy.copperReward} Cowrie Shells</strong>.
-              </p>
+            <button
+              onClick={handleSearchArea}
+              className="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-zinc-800 via-zinc-900 to-zinc-950 hover:from-zinc-700 hover:to-zinc-900 text-amber-200 font-cinzel font-bold text-xs border border-amber-800/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] transition-all active:scale-98 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔍</span>
+                <span className="font-bold tracking-wide">Search Area</span>
+              </div>
+              <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/90 px-2 py-0.5 rounded border border-cyan-800/60 font-bold">
+                {searchCost} Stamina
+              </span>
+            </button>
+          </div>
+        ) : (
+          /* DOCK STATE B: COMBAT BUTTON GRID (Attack / Skills / Items / Guard / Flee) */
+          <div className={`grid grid-cols-[1.1fr_1.1fr_0.9fr] gap-1.5 max-w-sm mx-auto transition-opacity duration-200 ${
+            isCombatBusy ? 'opacity-40 pointer-events-none' : ''
+          }`}>
+            {/* Row 1, Col 1: Attack */}
+            <button
+              onClick={handleAttack}
+              disabled={battle.winner !== null || isCombatBusy}
+              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-amber-800 to-amber-950 hover:from-amber-700 hover:to-amber-900 text-amber-100 font-cinzel font-bold text-xs border border-amber-500/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+            >
+              <span className="text-sm">⚔️</span>
+              <span className="truncate font-bold tracking-wide">Attack</span>
+            </button>
 
-              {/* Live Active Contract Progress Badge (Shows ONLY bounties updated in this battle or completed) */}
-              {player.bounties.filter((b) => {
-                if (!b.isAccepted || b.isClaimed) return false;
-                if (b.isCompleted) return true;
-                const cleanEnemyName = (battle.enemy?.name || '').replace(/^Elite\s+/, '').trim().toLowerCase();
-                const cleanEnemyId = (battle.enemy?.id || '').toLowerCase();
-                const cleanTargetName = b.targetMonsterName.toLowerCase();
-                const cleanTargetId = b.targetMonsterId.toLowerCase();
-                const isMatch =
-                  cleanEnemyName.includes(cleanTargetName) ||
-                  cleanTargetName.includes(cleanEnemyName) ||
-                  cleanEnemyId.includes(cleanTargetId);
-                return isMatch;
-              }).map((b) => (
-                <div key={b.id} className="bg-purple-950/80 border border-purple-500/60 p-1.5 md:p-2 rounded-lg text-[10px] md:text-xs font-mono text-purple-200 flex justify-between items-center max-w-md mx-auto">
-                  <span>🎯 Contract Progress: <strong>{b.title}</strong> ({b.targetMonsterName})</span>
-                  <span className={`font-bold ${b.isCompleted ? 'text-emerald-400' : 'text-amber-300'}`}>
-                    {b.isCompleted ? '✅ COMPLETED!' : `${b.currentCount} / ${b.targetCount}`}
+            {/* Row 1, Col 2: Skills */}
+            <button
+              onClick={() => setShowSpellPicker(true)}
+              disabled={battle.winner !== null || isCombatBusy}
+              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+            >
+              <span className="text-sm">⚡</span>
+              <span className="truncate font-bold tracking-wide">Skills</span>
+            </button>
+
+            {/* Col 3: Flee (spans 2 rows) */}
+            {(() => {
+              const attempts = battle.fleeAttempts ?? 0;
+              const isExhausted = attempts >= 2;
+              return (
+                <button
+                  onClick={handleFlee}
+                  disabled={battle.winner !== null || isExhausted || isCombatBusy}
+                  className={`row-span-2 min-h-[92px] rounded-xl font-cinzel font-bold text-xs transition-all active:scale-95 flex flex-col items-center justify-center gap-1 ${
+                    isExhausted
+                      ? 'bg-zinc-950 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
+                      : 'bg-gradient-to-b from-stone-900 to-zinc-950 hover:from-stone-800 hover:to-zinc-900 text-amber-200/90 border border-amber-900/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] disabled:opacity-40'
+                  }`}
+                >
+                  <span className="text-xl">🏃</span>
+                  <span className="font-bold tracking-wider">Flee</span>
+                  <span className="text-[8px] font-mono text-amber-400/80 bg-black/60 px-1 rounded">
+                    {isExhausted ? 'Blocked' : `${2 - attempts} Left`}
                   </span>
-                </div>
-              ))}
+                </button>
+              );
+            })()}
 
-              <button
-                onClick={handleClaimRewardsAndExit}
-                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-[10px] md:text-xs uppercase px-5 py-2 md:px-8 md:py-2.5 rounded-lg md:rounded-xl shadow-lg transition-all active:scale-95"
-              >
-                [ Claim Rewards & Continue Expedition ]
-              </button>
-            </div>
-          )}
+            {/* Row 2, Col 1: Items */}
+            <button
+              onClick={() => setShowItemPicker(true)}
+              disabled={battle.winner !== null || isCombatBusy}
+              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-emerald-950 to-zinc-900 hover:from-emerald-900 hover:to-zinc-800 text-emerald-200 font-cinzel font-bold text-xs border border-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+            >
+              <span className="text-sm">🎒</span>
+              <span className="truncate font-bold tracking-wide">Items</span>
+            </button>
 
-          {/* Real-time Battle Combat Terminal Feed */}
-          <div className="bg-zinc-950 border border-zinc-800 rounded-lg md:rounded-xl p-2 md:p-3 h-28 md:h-44 overflow-y-auto font-mono text-[10px] md:text-xs space-y-0.5 md:space-y-1 shadow-inner">
-            <div className="text-[9px] md:text-[10px] text-zinc-500 uppercase border-b border-zinc-800 pb-1 mb-1 flex justify-between">
-              <span>REAL-TIME COMBAT FEED</span>
-              <span>TURN #{battle.turnNumber}</span>
-            </div>
-            {battle.logs.map((log) => (
+            {/* Row 2, Col 2: Guard */}
+            <button
+              onClick={handleGuard}
+              disabled={battle.winner !== null || isCombatBusy}
+              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-blue-950 to-zinc-900 hover:from-blue-900 hover:to-zinc-800 text-cyan-200 font-cinzel font-bold text-xs border border-cyan-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+            >
+              <span className="text-sm">🛡️</span>
+              <span className="truncate font-bold tracking-wide">Guard</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 4. EXPANDED READABLE COMBAT / TACTICAL LOG (Single container, Newest on Top) */}
+      <div className="bg-zinc-950 border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[88px] flex flex-col justify-between">
+        <div className="flex items-center justify-between text-[9px] font-mono text-amber-500 border-b border-amber-900/40 pb-0.5">
+          <span className="font-bold flex items-center gap-1">
+            📜 {battle.inCombat ? 'Tactical Combat Chronicle' : 'Sector Narrative Log'} (Latest on Top)
+          </span>
+          <span className="text-zinc-500 text-[8px]">
+            {battle.inCombat ? `Turn #${battle.turnNumber}` : `Level ${selectedLocation.minLevel}+ Area`}
+          </span>
+        </div>
+
+        <div className="h-full overflow-y-auto space-y-1 font-mono text-[10px] pr-1 py-1 flex flex-col">
+          {battle.inCombat ? (
+            [...battle.logs].reverse().map((log, idx) => (
               <div
-                key={log.id}
-                className={`p-0.5 md:p-1 rounded ${
+                key={log.id || idx}
+                className={`p-1 rounded shrink-0 min-h-[16px] leading-snug ${
+                  idx === 0 ? 'bg-zinc-900/90 font-semibold' : 'opacity-85'
+                } ${
                   log.type === 'CRIT'
-                    ? 'bg-amber-950/60 text-amber-300 font-bold border-l-2 border-amber-500'
+                    ? 'bg-amber-950/60 text-amber-300 border-l-2 border-amber-500'
                     : log.type === 'DAMAGE'
                     ? log.actor === 'PLAYER'
                       ? 'text-sky-300'
@@ -2197,10 +2344,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               >
                 {log.text}
               </div>
-            ))}
-          </div>
+            ))
+          ) : (
+            (player.narratorLogs && player.narratorLogs.length > 0) ? (
+              player.narratorLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className={`p-1 rounded shrink-0 min-h-[16px] leading-snug ${
+                    idx === 0
+                      ? 'text-amber-200 font-bold border-l-2 border-amber-500 pl-2 bg-amber-950/30'
+                      : 'text-zinc-400 pl-2 opacity-85'
+                  }`}
+                >
+                  {log}
+                </div>
+              ))
+            ) : (
+              <div className="text-zinc-400 italic p-1 text-center text-[10px]">
+                Treading carefully through {selectedLocation.name}. Venture forward to scout the sector.
+              </div>
+            )
+          )}
         </div>
-      )}
+      </div>
 
       {/* Spell / Skill Picker Modal */}
       {showSpellPicker && (
@@ -2304,109 +2470,6 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* [BOTTOM] CONTEXTUAL ACTION PAD (EXPLORATION VS COMBAT) */}
-      <div className="bg-zinc-950 border border-amber-900/60 p-1 md:p-3 rounded-lg md:rounded-xl shadow-2xl">
-        <div className="text-[8px] md:text-[10px] font-mono text-amber-500 uppercase font-semibold mb-0.5 md:mb-1.5 text-center md:text-left flex justify-between items-center">
-          <span>{battle.inCombat ? 'COMBAT FAST-TAP ACTION PAD' : 'SECTOR EXPLORATION ACTION PAD'}</span>
-          {!battle.inCombat && activeInteractiveEncounter && (
-            <span className="text-amber-400 font-bold text-[8px] md:text-[9.5px] animate-pulse">
-              [ ENCOUNTER ACTIVE — RESOLVE OR DISMISS FIRST ]
-            </span>
-          )}
-        </div>
-
-        {/* Exploration Action Pad */}
-        {!battle.inCombat ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-2">
-            <button
-              onClick={handleVentureForward}
-              disabled={!!activeInteractiveEncounter}
-              className={`p-1.5 md:p-3 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px] ${
-                activeInteractiveEncounter
-                  ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
-                  : 'bg-amber-600 hover:bg-amber-500 text-zinc-950 active:scale-95'
-              }`}
-            >
-              <span>🧭</span>
-              <span>[ Venture Forward ] ({ventureCost} Stamina)</span>
-            </button>
-
-            <button
-              onClick={handleSearchArea}
-              disabled={!!activeInteractiveEncounter}
-              className={`p-1.5 md:p-3 font-bold font-mono text-[10.5px] md:text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center space-x-1.5 min-h-[36px] md:min-h-[44px] ${
-                activeInteractiveEncounter
-                  ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
-                  : 'bg-purple-900 hover:bg-purple-800 border border-purple-500/50 text-purple-100 active:scale-95'
-              }`}
-            >
-              <span>🔍</span>
-              <span>[ Search Area ] ({searchCost} Stamina)</span>
-            </button>
-          </div>
-        ) : (
-          /* Combat Action Pad */
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5 md:gap-2 font-mono text-[10px] md:text-xs font-bold">
-            <button
-              onClick={handleAttack}
-              disabled={battle.winner !== null}
-              className="p-1.5 md:p-3 bg-amber-600 hover:bg-amber-500 text-zinc-950 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
-            >
-              <span>1. Attack</span>
-              <span className="text-[8px] md:text-[9px] font-normal opacity-80">{player.equipment.primaryWeapon?.name || 'Primary Strike'}</span>
-            </button>
-
-            <button
-              onClick={() => setShowSpellPicker(true)}
-              disabled={battle.winner !== null}
-              className="p-1.5 md:p-3 bg-sky-900 hover:bg-sky-800 border border-sky-500/50 text-sky-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
-            >
-              <span>2. Skill / Spell</span>
-              <span className="text-[8px] md:text-[9px] font-normal opacity-80">Select Ability</span>
-            </button>
-
-            <button
-              onClick={() => setShowItemPicker(true)}
-              disabled={battle.winner !== null}
-              className="p-1.5 md:p-3 bg-emerald-900 hover:bg-emerald-800 border border-emerald-500/50 text-emerald-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
-            >
-              <span>3. Use Item</span>
-              <span className="text-[8px] md:text-[9px] font-normal opacity-80">Select Consumable</span>
-            </button>
-
-            <button
-              onClick={handleGuard}
-              disabled={battle.winner !== null}
-              className="p-1.5 md:p-3 bg-indigo-900 hover:bg-indigo-800 border border-indigo-500/50 text-indigo-100 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center disabled:opacity-40 min-h-[44px]"
-            >
-              <span>4. Guard / Parry</span>
-              <span className="text-[8px] md:text-[9px] font-normal opacity-80">-40% DR & Riposte</span>
-            </button>
-
-            {(() => {
-              const attempts = battle.fleeAttempts ?? 0;
-              const isExhausted = attempts >= 2;
-              return (
-                <button
-                  onClick={handleFlee}
-                  disabled={battle.winner !== null || isExhausted}
-                  className={`col-span-2 md:col-span-1 p-1.5 md:p-3 rounded-md md:rounded-lg uppercase tracking-wider shadow-md transition-all active:scale-95 flex flex-col items-center justify-center min-h-[44px] ${
-                    isExhausted
-                      ? 'bg-zinc-950 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
-                      : 'bg-red-950 hover:bg-red-900 border border-red-600/50 text-red-200 disabled:opacity-40'
-                  }`}
-                >
-                  <span>{isExhausted ? '5. Flee (Exhausted)' : `5. Flee ${attempts === 1 ? '(1 Left)' : ''}`}</span>
-                  <span className="text-[8px] md:text-[9px] font-normal opacity-80">
-                    {isExhausted ? 'Escape Blocked' : attempts === 1 ? 'High Fail Risk' : 'Agility Escape'}
-                  </span>
-                </button>
-              );
-            })()}
-          </div>
-        )}
-      </div>
 
       {/* Act Boss Forfeit Warning Modal */}
       {showBossWarningModal && (
