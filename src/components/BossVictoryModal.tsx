@@ -4,6 +4,7 @@
 // PURPLE/RED Encrypted Memory, Mutya Shards, and rewards claim button.
 
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { EquipmentItem, EncryptedMemory } from '../types/game';
 import { formatCostInCowries } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
@@ -42,7 +43,7 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
 
   const glyphFragment = isNgPlus && bossId ? NG_PLUS_BOSS_GLYPH_FRAGMENTS[bossId] : null;
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-gradient-to-b from-amber-950/90 via-zinc-950 to-zinc-950 border-2 border-amber-500/80 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-3.5 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl shadow-amber-950/80 animate-fade-in text-center my-auto">
         {/* Victory Header Badge */}
@@ -174,6 +175,8 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default BossVictoryModal;

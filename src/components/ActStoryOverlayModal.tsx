@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getActStory } from '../data/actStoryData';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -147,15 +148,15 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
     .map((p) => p.trim())
     .filter(Boolean);
 
-  return (
-    <div className="fixed inset-0 z-[90] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-gradient-to-b from-amber-950/90 via-zinc-900 to-zinc-950 border-2 border-amber-500/70 rounded-2xl max-w-xl md:max-w-2xl w-full flex flex-col max-h-[92vh] shadow-2xl animate-fade-in">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-gradient-to-b from-amber-950/95 via-zinc-900 to-zinc-950 border-2 border-amber-500/70 rounded-2xl max-w-xl md:max-w-2xl w-full flex flex-col max-h-[88vh] sm:max-h-[92vh] shadow-2xl animate-fade-in my-auto">
 
         {/* ── Header ── */}
-        <div className="p-4 md:p-6 pb-3 space-y-2 shrink-0 border-b border-amber-900/40">
+        <div className="p-3.5 sm:p-5 md:p-6 pb-2.5 sm:pb-3 space-y-1.5 sm:space-y-2 shrink-0 border-b border-amber-900/40">
           {/* ACT badge */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-mono font-bold tracking-widest uppercase px-3.5 py-1 bg-amber-950/80 border border-amber-500/50 text-amber-300 rounded-full shadow-inner">
+            <span className="text-[11px] sm:text-xs font-mono font-bold tracking-widest uppercase px-3 py-0.5 sm:py-1 bg-amber-950/80 border border-amber-500/50 text-amber-300 rounded-full shadow-inner">
               📜 CHAPTER CHRONICLES • {actRoman === 'REBIRTH' ? 'REBIRTH' : `ACT ${actRoman}`}
             </span>
             {/* Auto-scroll status badge placed in header so it never obscures lore text or footer buttons */}
@@ -177,7 +178,7 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
           </div>
 
           {/* Act name */}
-          <h2 className="font-serif text-amber-200 text-xl md:text-3xl font-bold leading-tight mt-1">
+          <h2 className="font-serif text-amber-200 text-lg sm:text-xl md:text-3xl font-bold leading-tight mt-1">
             {actName}
           </h2>
 
@@ -193,11 +194,11 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
         </div>
 
         {/* ── Scrollable Lore Cutscene (Clean flex scroll container) ── */}
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 md:px-8 py-4 scroll-smooth space-y-4">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 md:px-8 py-3 sm:py-4 scroll-smooth space-y-3 sm:space-y-4">
           {loreParagraphs.map((para, i) => (
             <p
               key={i}
-              className="font-serif text-amber-100/95 text-sm md:text-base leading-relaxed tracking-wide first-letter:text-xl first-letter:font-bold first-letter:text-amber-400"
+              className="font-serif text-amber-100/95 text-xs sm:text-sm md:text-base leading-relaxed tracking-wide first-letter:text-lg sm:first-letter:text-xl first-letter:font-bold first-letter:text-amber-400"
             >
               {para}
             </p>
@@ -206,13 +207,13 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
         </div>
 
         {/* ── Footer ── */}
-        <div className="p-4 md:p-6 pt-3 shrink-0 border-t border-amber-900/40 bg-zinc-950/80 rounded-b-2xl">
+        <div className="p-3 sm:p-5 md:p-6 pt-2.5 sm:pt-3 shrink-0 border-t border-amber-900/40 bg-zinc-950/90 rounded-b-2xl">
           <button
             type="button"
             onClick={onClose}
             className="w-full min-h-[44px] px-6 py-2.5 rounded-xl font-bold text-sm md:text-base transition-all duration-200
               bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500
-              text-amber-100 shadow-xl border border-amber-500/40 active:scale-98"
+              text-amber-100 shadow-xl border border-amber-500/40 active:scale-98 cursor-pointer"
           >
             Enter the Act →
           </button>
@@ -220,6 +221,8 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default ActStoryOverlayModal;

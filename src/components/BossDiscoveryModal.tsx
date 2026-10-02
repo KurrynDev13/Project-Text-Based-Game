@@ -3,6 +3,7 @@
 // Includes level-gated Challenge button and plays boss warning sound on mount.
 
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 // Utility import — soundFX is expected to be available globally or via a module.
 // If it lives in a different path, adjust the import below accordingly.
@@ -48,8 +49,8 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
 
   const isUnderPowered = playerPower < requiredPower;
 
-  return (
-    <div className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div
         className="bg-gradient-to-b from-red-950/90 to-zinc-950 border-2 border-red-700/60
           rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-5
@@ -151,6 +152,8 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default BossDiscoveryModal;

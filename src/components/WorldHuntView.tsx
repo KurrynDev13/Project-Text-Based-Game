@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
@@ -69,9 +70,19 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   const [selectedLocation, setSelectedLocation] = useState<GameLocation>(() => {
     const found = GAME_LOCATIONS.find((l) => l.id === player.currentLocationId);
-    const reqPower = found ? calcRequiredActPower(found.id, player.ngPlusLevel || 0) : 0;
+    if (!found) return GAME_LOCATIONS[0];
+    const locIdx = GAME_LOCATIONS.findIndex((l) => l.id === found.id);
+    if (locIdx <= 0) return found;
+
+    const prevLoc = GAME_LOCATIONS[locIdx - 1];
+    const isPrevBossDefeated = prevLoc.bossId ? (player.completedBossIds || []).includes(prevLoc.bossId) : false;
+    const isLocUnlocked = (player.unlockedLocationIds || []).includes(found.id);
+    const reqPower = calcRequiredActPower(found.id, player.ngPlusLevel || 0);
     const derivedInitial = calcDerivedStats(player.attributes, player.level, player.equipment);
-    if (found && derivedInitial.powerLevel >= reqPower) return found;
+
+    if (isPrevBossDefeated || isLocUnlocked || derivedInitial.powerLevel >= reqPower) {
+      return found;
+    }
     return GAME_LOCATIONS[0];
   });
 
@@ -352,19 +363,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       setActiveInteractiveEncounter(null);
     }
 
-    const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
-    if (derived.powerLevel < reqPower) {
-      notify(`🔒 Act Locked! Titan Power Rating ${reqPower} required to enter ${loc.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
-      return;
-    }
-
     const targetLocIndex = GAME_LOCATIONS.findIndex((l) => l.id === loc.id);
     const currentLocIndex = GAME_LOCATIONS.findIndex((l) => l.id === selectedLocation.id);
 
     if (targetLocIndex > 0) {
       const prevLoc = GAME_LOCATIONS[targetLocIndex - 1];
-      if (prevLoc.bossId && !(player.completedBossIds || []).includes(prevLoc.bossId)) {
+      const isPrevBossDefeated = prevLoc.bossId ? (player.completedBossIds || []).includes(prevLoc.bossId) : false;
+      const isInfinite = loc.id === 'loc_act_infinite';
+      const isInfiniteUnlocked = player.act8Completed || (player.completedBossIds || []).includes('boss_act_8');
+
+      if (isInfinite && !isInfiniteUnlocked) {
+        notify(`🔒 Infinite Survival Realm Locked! Defeat Act VIII Guardian (Bakunawa) to access The Celestial Ether of Bathala.`, 'warning', '🔒');
+        return;
+      }
+
+      if (!isInfinite && prevLoc.bossId && !isPrevBossDefeated) {
         notify(`🔒 Act Guardian Gate: You must defeat the Act Guardian Boss of ${prevLoc.name} before accessing ${loc.name}!`, 'warning', '🔒');
+        return;
+      }
+
+      const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
+      const isLocAlreadyUnlocked = (player.unlockedLocationIds || []).includes(loc.id);
+      if (!isPrevBossDefeated && !isLocAlreadyUnlocked && !isInfiniteUnlocked && derived.powerLevel < reqPower) {
+        notify(`🔒 Act Locked! Titan Power Rating ${reqPower} required to enter ${loc.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
         return;
       }
     }
@@ -1995,12 +2016,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               {GAME_LOCATIONS.map((loc, idx) => {
                 const isInfinite = loc.id === 'loc_act_infinite';
                 const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
-                const isPowerLocked = derived.powerLevel < reqPower;
                 const prevLoc = idx > 0 ? GAME_LOCATIONS[idx - 1] : null;
-                const isBossLocked = isInfinite
-                  ? !(player.act8Completed || (player.completedBossIds || []).includes('boss_act_8'))
-                  : (prevLoc?.bossId ? !(player.completedBossIds || []).includes(prevLoc.bossId) : false);
-                const isLocked = isPowerLocked || isBossLocked;
+                const isPrevBossDefeated = prevLoc?.bossId ? (player.completedBossIds || []).includes(prevLoc.bossId) : false;
+                const isInfiniteUnlocked = player.act8Completed || (player.completedBossIds || []).includes('boss_act_8');
+                const isLocUnlocked = idx === 0 || (player.unlockedLocationIds || []).includes(loc.id);
+
+                const isBossLocked = isInfinite ? !isInfiniteUnlocked : (prevLoc?.bossId ? !isPrevBossDefeated : false);
+                const isPowerLocked = (!isPrevBossDefeated && !isLocUnlocked && !isInfiniteUnlocked) && derived.powerLevel < reqPower;
+                const isLocked = isBossLocked || isPowerLocked;
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
 
                 let lockLabel = '';
@@ -2488,9 +2511,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       )}
 
       {/* Act Boss Forfeit Warning Modal */}
-      {showBossWarningModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border-2 border-amber-500/80 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in text-center">
+      {showBossWarningModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-zinc-950 border-2 border-amber-500/80 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in text-center my-auto">
             <div className="text-4xl">⚠️</div>
             <h3 className="text-xl font-bold font-serif text-amber-200">
               Unfinished Regional Lore Warning
@@ -2520,25 +2543,26 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             <div className="flex flex-col sm:flex-row gap-3 pt-2 font-mono text-xs">
               <button
                 onClick={() => setShowBossWarningModal(false)}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold uppercase py-3 rounded-xl transition-all"
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold uppercase py-3 rounded-xl transition-all cursor-pointer"
               >
                 🧭 Keep Venturing (Stay in Act)
               </button>
               <button
                 onClick={() => startBossBattle(true)}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase py-3 rounded-xl shadow-lg transition-all active:scale-95"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase py-3 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
               >
                 ⚔️ Forfeit Quests & Continue
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Act Progression Advancement Forfeit Warning Modal */}
-      {showAdvanceWarningModal && pendingAdvanceLocation && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border-2 border-red-500/80 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in text-center">
+      {showAdvanceWarningModal && pendingAdvanceLocation && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-zinc-950 border-2 border-red-500/80 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in text-center my-auto">
             <div className="text-4xl animate-bounce">⚠️</div>
             <h3 className="text-xl font-bold font-serif text-amber-200">
               Act Advancement & Quest Forfeiture Warning
@@ -2571,19 +2595,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                   setShowAdvanceWarningModal(false);
                   setPendingAdvanceLocation(null);
                 }}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold uppercase py-3 rounded-xl transition-all"
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold uppercase py-3 rounded-xl transition-all cursor-pointer"
               >
                 🧭 Stay & Finish Quests
               </button>
               <button
                 onClick={handleConfirmAdvanceAndForfeit}
-                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase py-3 rounded-xl shadow-lg transition-all active:scale-95"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase py-3 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
               >
                 ⚔️ Forfeit Quests & Advance
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Act Story Parchment Overlay (Phase 8.1) */}

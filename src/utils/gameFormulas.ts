@@ -545,23 +545,51 @@ export function calcRequiredGuardianPower(actId: string, ngPlusLevel: number = 0
   return ng1Base + extraTierBonus;
 }
 
-/** Dynamically calculates the required Titan Power Rating for an Act, derived from average Act monster power & scaled by NG+ */
-export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0, ngPlusStartLevel: number = 0): number {
+/**
+ * Dynamically calculates the required Titan Power Rating to enter an Act.
+ * The entry requirement for Act N is precisely aligned with defeating the Act Guardian of Act (N-1).
+ * In Normal Mode (NG0):
+ * - Act 1: 0 Power (always unlocked)
+ * - Act 2: 480 Power (matches Act 1 Guardian requirement)
+ * - Act 3: 800 Power (matches Act 2 Guardian requirement)
+ * - Act 4: 1200 Power (matches Act 3 Guardian requirement)
+ * - Act 5: 1550 Power (matches Act 4 Guardian requirement)
+ * - Act 6: 1900 Power (matches Act 5 Guardian requirement)
+ * - Act 7: 2250 Power (matches Act 6 Guardian requirement)
+ * - Act 8: 2600 Power (matches Act 7 Guardian requirement)
+ * - Celestial Ether: 2850 Power (matches Act 8 Guardian requirement)
+ *
+ * In NG+1 (and higher cycles):
+ * - Act 1: 0 Power (always unlocked at start of cycle)
+ * - Act 2: 3150 Power (matches Act 1 Guardian in NG+1)
+ * - Act 3: 3400 Power (matches Act 2 Guardian in NG+1)
+ * - Act 4: 3650 Power (matches Act 3 Guardian in NG+1)
+ * - Act 5: 3900 Power (matches Act 4 Guardian in NG+1)
+ * - Act 6: 4150 Power (matches Act 5 Guardian in NG+1)
+ * - Act 7: 4400 Power (matches Act 6 Guardian in NG+1)
+ * - Act 8: 4650 Power (matches Act 7 Guardian in NG+1)
+ * - Celestial Ether: 4900 Power (matches Act 8 Guardian in NG+1)
+ */
+export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0, _ngPlusStartLevel: number = 0): number {
   if (actId === 'loc_act_1') return 0; // Act I always unlocked at start
 
-  const loc = GAME_LOCATIONS.find((l) => l.id === actId);
-  if (!loc) return 0;
+  const actOrder = [
+    'loc_act_1',
+    'loc_act_2',
+    'loc_act_3',
+    'loc_act_4',
+    'loc_act_5',
+    'loc_act_6',
+    'loc_act_7',
+    'loc_act_8',
+    'loc_act_infinite',
+  ];
 
-  const monsters = loc.monsters
-    .map((id) => MONSTER_TEMPLATES.find((m) => m.id === id))
-    .filter((m): m is MonsterTemplate => !!m);
+  const idx = actOrder.indexOf(actId);
+  if (idx <= 0) return 0;
 
-  if (monsters.length === 0) return 0;
-
-  const sumPower = monsters.reduce((acc, m) => acc + calcMonsterPowerRating(m, loc.minLevel, ngPlusLevel, ngPlusStartLevel), 0);
-  const avgMonsterPower = sumPower / monsters.length;
-
-  return Math.floor(avgMonsterPower * 0.80);
+  const prevActId = actOrder[idx - 1];
+  return calcRequiredGuardianPower(prevActId, ngPlusLevel);
 }
 
 /** Standardized inventory auto-sorter using calcItemPowerRating (matching Delta vs Equipped) */
