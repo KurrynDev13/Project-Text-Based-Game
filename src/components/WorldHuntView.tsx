@@ -1180,7 +1180,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         appliedDmg = Math.floor(finalDmg * 2.0);
         enemy.currentHp -= appliedDmg;
         soundFX.playCritSound();
-        logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
+        logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${appliedDmg}!`, 'CRIT', 'PLAYER');
         const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
         enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
         logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
@@ -2215,6 +2215,22 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ) : !battle.inCombat ? (
           /* DOCK STATE A: OUT-OF-COMBAT EXPLORATION BUTTONS (Venture Forward & Search Area) */
           <div className="space-y-1.5 max-w-sm mx-auto">
+            {/* Prominent Guardian Confrontation Button when Act Boss is unlocked and ready to fight */}
+            {!isBossLevelLocked && !isBossDefeated && selectedLocation.bossId && (
+              <button
+                onClick={handleInitiateBossChallenge}
+                className="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-red-800 via-rose-900 to-amber-950 hover:from-red-700 hover:to-rose-800 text-red-100 font-cinzel font-bold text-xs border-2 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.55)] transition-all active:scale-98 flex items-center justify-between animate-pulse"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">👑</span>
+                  <span className="font-bold tracking-wide">Confront Act Guardian</span>
+                </div>
+                <span className="text-[10px] font-mono text-red-200 bg-red-950/90 px-2 py-0.5 rounded border border-red-500/70 font-bold">
+                  {bossCost} Stamina
+                </span>
+              </button>
+            )}
+
             <button
               onClick={handleVentureForward}
               className="w-full min-h-[44px] h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-700 via-amber-800 to-amber-950 hover:from-amber-600 hover:to-amber-900 text-amber-100 font-cinzel font-bold text-xs border border-amber-400/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] transition-all active:scale-98 flex items-center justify-between"
@@ -2313,7 +2329,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       </div>
 
       {/* 4. EXPANDED READABLE COMBAT / TACTICAL LOG (Single container, Newest on Top) */}
-      <div className="bg-zinc-950 border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[88px] flex flex-col justify-between">
+      <div className="bg-zinc-950 border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[120px] sm:h-[135px] flex flex-col justify-between">
         <div className="flex items-center justify-between text-[9px] font-mono text-amber-500 border-b border-amber-900/40 pb-0.5">
           <span className="font-bold flex items-center gap-1">
             📜 {battle.inCombat ? 'Tactical Combat Chronicle' : 'Sector Narrative Log'} (Latest on Top)
@@ -2325,7 +2341,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
         <div className="h-full overflow-y-auto space-y-1 font-mono text-[10px] pr-1 py-1 flex flex-col">
           {battle.inCombat ? (
-            [...battle.logs].reverse().map((log, idx) => (
+            battle.logs.map((log, idx) => (
               <div
                 key={log.id || idx}
                 className={`p-1 rounded shrink-0 min-h-[16px] leading-snug ${
