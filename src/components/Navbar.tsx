@@ -8,11 +8,12 @@ interface NavbarProps {
   onSelectTab: (tab: NavTab) => void;
   player: PlayerCharacter;
   inCombat?: boolean;
+  isRaidBattle?: boolean;
   onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player, inCombat, onShowToast }) => {
-  const isLocked = Boolean(inCombat && currentTab !== 'HAVEN');
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player, inCombat, isRaidBattle, onShowToast }) => {
+  const isLocked = Boolean(isRaidBattle || (inCombat && currentTab !== 'HAVEN'));
 
   const completedBountiesCount = player.bounties.filter((b) => b.isCompleted && !b.isClaimed).length;
   const encryptedMemoriesCount = (player.encryptedMemories || []).length;
@@ -27,7 +28,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
 
   const handleTabClick = (tabId: NavTab) => {
     if (isLocked) {
-      onShowToast?.('🔒 Combat in Progress! Finish your turn, resolve battle, or select [Flee] before switching tabs.', 'warning', '🔒');
+      onShowToast?.(
+        isRaidBattle
+          ? '🔒 Raid Combat in Progress! Complete the 10-turn attempt or click [Disengage] before switching views.'
+          : '🔒 Combat in Progress! Finish your turn, resolve battle, or select [Flee] before switching tabs.',
+        'warning',
+        '🔒'
+      );
       return;
     }
     onSelectTab(tabId);
@@ -40,7 +47,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
         <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
           <div className="flex items-center space-x-2 text-red-400 font-mono text-xs font-bold animate-pulse">
             <span>🔒</span>
-            <span>COMBAT LOCKED — SELECT [ 5. FLEE ] OR DEFEAT ENEMY TO LEAVE BATTLE</span>
+            <span>
+              {isRaidBattle
+                ? 'CELESTIAL RAID IN PROGRESS — COMPLETE 10-TURN ATTEMPT OR DISENGAGE'
+                : 'COMBAT LOCKED — SELECT [ 5. FLEE ] OR DEFEAT ENEMY TO LEAVE BATTLE'}
+            </span>
           </div>
         </div>
       )}

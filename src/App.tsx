@@ -201,6 +201,7 @@ export function App() {
 
   // Opening story modal shown after character creation
   const [showOpeningStory, setShowOpeningStory] = useState<boolean>(false);
+  const [isRaidBattleActive, setIsRaidBattleActive] = useState<boolean>(false);
 
   // Interactive Onboarding Tutorial state
   const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(() => {
@@ -456,48 +457,6 @@ export function App() {
     }));
   };
 
-  const handleLaunchRaidBattle = (currentBakunawaHp: number) => {
-    setShowRaidView(false);
-    setCurrentTab('WORLD');
-
-    const bakunawaMonster: EnemyMonster = {
-      id: 'boss_bakunawa_raid',
-      name: 'Bakunawa, The Moon-Devouring Serpent',
-      title: 'Celestial Titan of the Great Eclipse',
-      level: 55,
-      maxHp: 50000000,
-      currentHp: currentBakunawaHp > 0 ? currentBakunawaHp : 50000000,
-      attackMin: 180,
-      attackMax: 260,
-      armor: 140,
-      damageType: 'SHADOW',
-      expReward: 15000,
-      copperReward: 10000,
-      shardChance: 1.0,
-      isBoss: true,
-      spriteIcon: '🐉',
-      activeEffects: [],
-    };
-
-    setBattle({
-      inCombat: true,
-      turnNumber: 1,
-      playerActionGauge: 100,
-      enemyActionGauge: 0,
-      enemy: bakunawaMonster,
-      logs: [
-        {
-          id: `log_raid_start_${Date.now()}`,
-          turn: 1,
-          actor: 'SYSTEM',
-          text: '🐉 CELESTIAL RAID ENGAGEMENT: Bakunawa coils across the eclipsed heavens! Utilize your weapon attacks, Mutya skills, consumables, guard, or retreat!',
-          type: 'INFO',
-        },
-      ],
-      winner: null,
-    });
-  };
-
   return (
     <div className="min-h-screen text-amber-100 flex flex-col font-sans select-none overflow-hidden relative">
       {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
@@ -532,9 +491,12 @@ export function App() {
           <TitanRaidView
             player={player}
             onUpdatePlayer={setPlayer}
-            onNavigateToHaven={() => setShowRaidView(false)}
+            onNavigateToHaven={() => {
+              setIsRaidBattleActive(false);
+              setShowRaidView(false);
+            }}
             onShowToast={showToast}
-            onLaunchRaidBattle={handleLaunchRaidBattle}
+            onRaidBattleStateChange={setIsRaidBattleActive}
           />
         ) : (
           <>
@@ -605,7 +567,8 @@ export function App() {
             setCurrentTab(tab);
           }}
           player={player}
-          inCombat={battle.inCombat}
+          inCombat={battle.inCombat || isRaidBattleActive}
+          isRaidBattle={isRaidBattleActive}
           onShowToast={showToast}
         />
       )}

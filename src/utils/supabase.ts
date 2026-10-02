@@ -109,12 +109,64 @@ export interface GlobalRaidEventData {
   max_hp: number;
   status: 'ACTIVE' | 'DEFEATED';
   total_participants: number;
+  base_hp?: number;
+  per_player_contribution?: number;
+  active_players_count?: number;
+  rally_modifier?: number;
+  cycle_number?: number;
+  cycle_start_date?: string;
+  cycle_end_date?: string;
+  last_reset_at?: string;
+  next_reset_at?: string;
 }
 
 export interface GlobalRaidContribution {
   player_name: string;
   damage_dealt: number;
   battles_count: number;
+  daily_battles_count?: number;
+  cycle_number?: number;
+  reward_claimed?: boolean;
+}
+
+export interface WeeklyJackpotPayload {
+  status: string;
+  cycle_number: number;
+  player_name: string;
+  gold_ingots: number;
+  silver_pieces: number;
+  cowrie_shells: number;
+  mutya_shards: number;
+  exp_reward: number;
+  encrypted_memory_rarity: string;
+  memory_min_level: number;
+}
+
+/** Records player activity heartbeat in Supabase to factor into rolling weekly participation */
+export async function recordPlayerActivity(
+  playerName: string,
+  level: number = 1,
+  action: string = 'SESSION_HEARTBEAT'
+): Promise<boolean> {
+  if (!isSupabaseConfigured || !playerName) return false;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/log_player_activity`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        p_player_name: playerName,
+        p_character_level: level,
+        p_action: action,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchGlobalRaidEvent(eventId: string = 'bakunawa_eclipse_raid'): Promise<GlobalRaidEventData | null> {
@@ -137,8 +189,9 @@ export async function fetchGlobalRaidEvent(eventId: string = 'bakunawa_eclipse_r
 export async function submitGlobalRaidDamage(
   eventId: string,
   playerName: string,
-  damageDealt: number
-): Promise<{ current_hp: number; status: string } | null> {
+  damageDealt: number,
+  isSurgeWindow: boolean = false
+): Promise<{ current_hp: number; status: string; effective_damage?: number; rally_modifier?: number } | null> {
   if (!isSupabaseConfigured) return null;
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/deal_global_raid_damage`, {
@@ -152,6 +205,7 @@ export async function submitGlobalRaidDamage(
         p_event_id: eventId,
         p_player_name: playerName,
         p_damage: damageDealt,
+        p_is_surge_window: isSurgeWindow,
       }),
     });
     if (!res.ok) return null;
@@ -178,5 +232,58 @@ export async function fetchGlobalRaidLeaderboard(eventId: string = 'bakunawa_ecl
     return [];
   }
 }
+
+/** Checks whether a player has already claimed the weekly victory jackpot for the current cycle */
+export async function checkWeeklyJackpotClaimed(
+  eventId: string = 'bakunawa_eclipse_raid',
+  cycleNumber: number,
+  playerName: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured || !playerName) return false;
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/global_raid_claims?event_id=eq.${eventId}&cycle_number=eq.${cycleNumber}&player_name=eq.${encodeURIComponent(playerName)}&select=id`,
+      {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      }
+    );
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Claims the weekly Bakunawa Victory Jackpot via atomic Supabase RPC */
+export async function claimWeeklyJackpot(
+  eventId: string = 'bakunawa_eclipse_raid',
+  playerName: string
+): Promise<WeeklyJackpotPayload | null> {
+  if (!isSupabaseConfigured || !playerName) return null;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/claim_weekly_raid_jackpot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        p_event_id: eventId,
+        p_player_name: playerName,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 
 

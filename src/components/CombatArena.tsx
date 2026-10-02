@@ -197,9 +197,9 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
       enemy.currentHp -= critDmg;
       soundFX.playCritSound();
       logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
       enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
     } else {
       enemy.currentHp -= finalDmg;
       logs = addLog(logs, `${skill.icon} ${skill.name} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');

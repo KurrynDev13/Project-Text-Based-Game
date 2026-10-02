@@ -200,13 +200,16 @@ export function calcDerivedStats(
   let bonusCrit = 0;
   let bonusMagicDef = 0;
 
+  const equippedWeapon = equipment.weapon ?? equipment.primaryWeapon ?? null;
+  const equippedMount = equipment.mount ?? equipment.bike ?? null;
+
   const equippedItems = [
     equipment.upperArmor,
     equipment.lowerArmor,
-    equipment.primaryWeapon,
+    equippedWeapon,
     equipment.specialWeapon,
     equipment.heavyWeapon,
-    equipment.mount || equipment.bike,
+    equippedMount,
   ].filter(Boolean);
 
   equippedItems.forEach((item) => {
@@ -272,7 +275,6 @@ export function calcDerivedStats(
   // Magic Defense: INT * 0.5 + bonus
   const magicDefense = int * 0.5 + bonusMagicDef;
 
-  const equippedWeapon = equipment.weapon ?? equipment.primaryWeapon ?? null;
   let weaponAvgDmg = 0;
   if (equippedWeapon && equippedWeapon.baseDamageMin !== undefined && equippedWeapon.baseDamageMax !== undefined) {
     weaponAvgDmg = (equippedWeapon.baseDamageMin + equippedWeapon.baseDamageMax) / 2;
@@ -462,23 +464,23 @@ export function calcMonsterPowerRating(
     const actStartLevel = (actNumber - 1) * 6 + 1;
     const subLevelOffset = Math.max(0, levelOffset - actStartLevel);
 
-    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.35;
-    const baseNgHp = 2200 + (actNumber - 1) * 1400 + subLevelOffset * 200;
+    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.40;
+    const baseNgHp = 3800 + (actNumber - 1) * 2000 + subLevelOffset * 350;
     const hpArchetypeMult = monster.isBoss
-      ? 3.2
-      : Math.min(2.0, (monster.baseHp || 100) / 120);
+      ? 3.8
+      : Math.min(2.2, (monster.baseHp || 100) / 120);
     hp = monster.maxHp ?? Math.floor(baseNgHp * hpArchetypeMult * ngTierMult);
 
-    const baseNgArmor = 15 + (actNumber - 1) * 6 + subLevelOffset * 1.5;
+    const baseNgArmor = 35 + (actNumber - 1) * 12 + subLevelOffset * 3;
     const armorArchetypeMult = monster.isBoss
-      ? 2.5
-      : Math.min(2.0, (monster.baseArmor || 5) / 6);
+      ? 3.0
+      : Math.min(2.2, (monster.baseArmor || 5) / 6);
     arm = monster.armor ?? Math.floor(baseNgArmor * armorArchetypeMult * ngTierMult);
 
-    const baseNgDmgMin = 140 + (actNumber - 1) * 35 + subLevelOffset * 6;
-    const baseNgDmgMax = 220 + (actNumber - 1) * 50 + subLevelOffset * 8;
+    const baseNgDmgMin = 240 + (actNumber - 1) * 55 + subLevelOffset * 10;
+    const baseNgDmgMax = 380 + (actNumber - 1) * 75 + subLevelOffset * 15;
     const dmgArchetypeMult = monster.isBoss
-      ? 1.6
+      ? 1.8
       : Math.min(2.0, (monster.baseMinDmg || 10) / 10);
     minDmg = monster.attackMin ?? Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
     maxDmg = monster.attackMax ?? Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
@@ -608,8 +610,13 @@ export function sortInventory<T extends { category?: string; tier?: number; clas
   });
 }
 
-/** Checks if current UTC/PST time is within daily Raid windows: 7:00-9:00 AM PST or 7:00-9:00 PM PST */
-export function isRaidWindowActive(now: Date = new Date()): boolean {
+/** Celestial Raid is accessible 24/7 with a 6-attempt daily cap */
+export function isRaidWindowActive(_now: Date = new Date()): boolean {
+  return true;
+}
+
+/** Checks if current UTC/PST time is within the active Rush-Hour Surge window: 7:00-9:00 AM PST or 7:00-9:00 PM PST */
+export function isRaidSurgeWindowActive(now: Date = new Date()): boolean {
   const utcHours = now.getUTCHours();
   const utcMinutes = now.getUTCMinutes();
 
@@ -617,20 +624,114 @@ export function isRaidWindowActive(now: Date = new Date()): boolean {
   const pstHours = (utcHours - 8 + 24) % 24;
   const totalPstMinutes = pstHours * 60 + utcMinutes;
 
-  // Window 1: 7:00 AM to 9:00 AM PST (420 to 540 min)
+  // Surge Window 1: 7:00 AM to 9:00 AM PST (420 to 540 min)
   const w1 = totalPstMinutes >= 420 && totalPstMinutes < 540;
-  // Window 2: 7:00 PM to 9:00 PM PST (1140 to 1260 min)
+  // Surge Window 2: 7:00 PM to 9:00 PM PST (1140 to 1260 min)
   const w2 = totalPstMinutes >= 1140 && totalPstMinutes < 1260;
 
   return w1 || w2;
 }
 
+/** Formats surge window status, active countdown, or time until next surge */
+export function getRaidSurgeStatus(now: Date = new Date()): {
+  isSurge: boolean;
+  label: string;
+  badge: string;
+  nextSurgeText: string;
+} {
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+  const pstHours = (utcHours - 8 + 24) % 24;
+  const totalPstMinutes = pstHours * 60 + utcMinutes;
+
+  const isMorning = totalPstMinutes >= 420 && totalPstMinutes < 540;
+  const isEvening = totalPstMinutes >= 1140 && totalPstMinutes < 1260;
+
+  if (isMorning) {
+    const minsLeft = 540 - totalPstMinutes;
+    return {
+      isSurge: true,
+      label: `⚡ MORNING CELESTIAL SURGE ACTIVE (+20% DMG, Silver & Memory Rolls)`,
+      badge: `⚡ SURGE ACTIVE (${minsLeft}m left)`,
+      nextSurgeText: `Ends in ${minsLeft} mins`,
+    };
+  }
+
+  if (isEvening) {
+    const minsLeft = 1260 - totalPstMinutes;
+    return {
+      isSurge: true,
+      label: `⚡ EVENING CELESTIAL SURGE ACTIVE (+20% DMG, Silver & Memory Rolls)`,
+      badge: `⚡ SURGE ACTIVE (${minsLeft}m left)`,
+      nextSurgeText: `Ends in ${minsLeft} mins`,
+    };
+  }
+
+  // Calculate minutes until next surge
+  let minsUntilNext = 0;
+  let nextLabel = '';
+  if (totalPstMinutes < 420) {
+    minsUntilNext = 420 - totalPstMinutes;
+    nextLabel = 'Morning Surge (7:00 AM PST)';
+  } else if (totalPstMinutes < 1140) {
+    minsUntilNext = 1140 - totalPstMinutes;
+    nextLabel = 'Evening Surge (7:00 PM PST)';
+  } else {
+    minsUntilNext = (1440 - totalPstMinutes) + 420;
+    nextLabel = 'Morning Surge (7:00 AM PST tomorrow)';
+  }
+
+  const hours = Math.floor(minsUntilNext / 60);
+  const mins = minsUntilNext % 60;
+  const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+  return {
+    isSurge: false,
+    label: `24/7 Celestial Siege Active • Next Surge: ${nextLabel} in ${timeStr}`,
+    badge: `⏳ SURGE IN ${timeStr}`,
+    nextSurgeText: `Next surge in ${timeStr}`,
+  };
+}
+
+/** Returns current calendar date key YYYY-MM-DD for daily 6-attempt reset tracking */
+export function getCurrentRaidDayKey(now: Date = new Date()): string {
+  return now.toISOString().split('T')[0];
+}
+
 /** Formats remaining time status until next Raid window or active status */
 export function getRaidWindowStatusText(now: Date = new Date()): { active: boolean; label: string } {
-  const active = isRaidWindowActive(now);
-  if (active) {
-    return { active: true, label: '🌌 CELESTIAL RAID ACTIVE (7:00–9:00 AM/PM PST Window)' };
-  }
-  return { active: false, label: '🔒 CELESTIAL RAID LOCKED (Opens Daily at 7–9 AM & PM PST)' };
+  const surge = getRaidSurgeStatus(now);
+  return {
+    active: true,
+    label: surge.isSurge ? surge.label : '🌌 24/7 CELESTIAL RAID ACTIVE (Standard Attempt Mode)',
+  };
 }
+
+/**
+ * Calculates stat-driven damage over time (DoT) tick for Bleed, Poison, or Burn.
+ * Eliminates the % Max HP exploit so DoT damage scales purely with player character progression,
+ * offensive stats, weapon damage, and level against both regular monsters and colossal raid bosses.
+ */
+export function calculateStatDrivenDoTDamage(
+  statusType: 'BLEED' | 'POISON' | 'BURN' | string,
+  playerLevel: number,
+  derivedBonus: number,
+  weaponRoll: number = 20
+): number {
+  switch (statusType) {
+    case 'BLEED':
+      // Physical / Rend: 50% weapon roll + 35% relevant physical bonus + 6 * level
+      return Math.max(5, Math.floor((weaponRoll * 0.5) + (derivedBonus * 0.35) + (playerLevel * 6)));
+    case 'POISON':
+      // Nature / Toxin: 40% weapon roll + 30% ranged/nature bonus + 5 * level
+      return Math.max(5, Math.floor((weaponRoll * 0.4) + (derivedBonus * 0.3) + (playerLevel * 5)));
+    case 'BURN':
+      // Elemental / Fire: 40% weapon roll + 35% magic bonus + 5 * level
+      return Math.max(5, Math.floor((weaponRoll * 0.4) + (derivedBonus * 0.35) + (playerLevel * 5)));
+    default:
+      return Math.max(3, Math.floor((weaponRoll * 0.3) + (derivedBonus * 0.25) + (playerLevel * 4)));
+  }
+}
+
+
 

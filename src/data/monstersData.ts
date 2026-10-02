@@ -801,25 +801,25 @@ export function generateMonsterForLocation(
 
   if (ngPlusLevel > 0) {
     // NG+ Stat Scaling:
-    // Balanced so NG+ Act 1 regular monsters take ~4-6 hits to kill (matching player 400-500 basic attack / 1000 skill dmg)
-    // and deal ~180-260 damage per turn (against player's ~2600 HP pool), scaling progressively across all 8 Acts.
-    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.35;
-    const baseNgHp = 2200 + (actNumber - 1) * 1400 + levelOffset * 200;
+    // Scaled so NG+ monsters have true tactical longevity (~6-10 solid player strikes/skills to defeat)
+    // with increased armor mitigation and menacing attack power (~240-380+ base damage).
+    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.40;
+    const baseNgHp = 3800 + (actNumber - 1) * 2000 + levelOffset * 350;
     const hpArchetypeMult = template.isBoss
-      ? 3.2
-      : Math.min(2.0, template.baseHp / 120);
+      ? 3.8
+      : Math.min(2.2, template.baseHp / 120);
     maxHp = Math.floor(baseNgHp * hpArchetypeMult * ngTierMult);
 
-    const baseNgArmor = 15 + (actNumber - 1) * 6 + levelOffset * 1.5;
+    const baseNgArmor = 35 + (actNumber - 1) * 12 + levelOffset * 3;
     const armorArchetypeMult = template.isBoss
-      ? 2.5
-      : Math.min(2.0, template.baseArmor / 6);
+      ? 3.0
+      : Math.min(2.2, template.baseArmor / 6);
     armor = Math.floor(baseNgArmor * armorArchetypeMult * ngTierMult);
 
-    const baseNgDmgMin = 140 + (actNumber - 1) * 35 + levelOffset * 6;
-    const baseNgDmgMax = 220 + (actNumber - 1) * 50 + levelOffset * 8;
+    const baseNgDmgMin = 240 + (actNumber - 1) * 55 + levelOffset * 10;
+    const baseNgDmgMax = 380 + (actNumber - 1) * 75 + levelOffset * 15;
     const dmgArchetypeMult = template.isBoss
-      ? 1.6
+      ? 1.8
       : Math.min(2.0, template.baseMinDmg / 10);
     attackMin = Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
     attackMax = Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);

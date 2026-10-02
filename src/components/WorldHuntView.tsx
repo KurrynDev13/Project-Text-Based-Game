@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
-import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating, calcRequiredGuardianPower } from '../utils/gameFormulas';
+import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating, calcRequiredGuardianPower, calculateStatDrivenDoTDamage } from '../utils/gameFormulas';
 import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
 import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
@@ -1000,12 +1000,24 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       soundFX.playCritSound();
       logs = addLog(logs, `⚡ CRITICAL STRIKE! ${activeWeapon?.name || 'Strike'} devastated ${enemy.name} for ${critDmg} damage! (+5 MP)`, 'CRIT', 'PLAYER');
       // Guaranteed Bleed proc on critical hits
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
       enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
     } else {
       enemy.currentHp -= finalDmg;
       logs = addLog(logs, `⚔️ ${activeWeapon?.name || 'Basic Strike'} hit ${enemy.name} for ${finalDmg} damage! (+5 MP)`, 'DAMAGE', 'PLAYER');
+    }
+
+    // Player Weapon Affix Status Infliction Proc Check
+    for (const affix of activeWeapon?.affixes || []) {
+      if (affix.statusInfliction) {
+        const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
+        if (Math.random() * 100 < chancePercent) {
+          const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
+          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
+          logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+        }
+      }
     }
 
     const updatedPlayer = { ...player, currentMp: regenedMp };
@@ -1095,16 +1107,30 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       soundFX.playCritSound();
       logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
       // Guaranteed Bleed proc on critical hits
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 0.03, stackCount: 1 };
+      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
       enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns, 3% HP/turn)!`, 'DEBUFF', 'PLAYER');
+      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
     } else {
       enemy.currentHp -= finalDmg;
       logs = addLog(logs, `${skill.icon} [${skill.name}]${rankLabel} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
     }
 
     if (skill.effectType) {
+      const newEffect = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newEffect];
       logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+    }
+
+    // Player Weapon Affix Status Infliction Proc Check
+    for (const affix of activeWeapon?.affixes || []) {
+      if (affix.statusInfliction) {
+        const { type: statusType, chancePercent, durationTurns } = affix.statusInfliction;
+        if (Math.random() * 100 < chancePercent) {
+          const newEffect = { type: statusType, name: statusType, isBuff: false, durationTurnsLeft: durationTurns, magnitude: 1, stackCount: 1 };
+          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== statusType), newEffect];
+          logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
+        }
+      }
     }
 
     if (enemy.currentHp <= 0) {
@@ -1269,16 +1295,52 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const p = activePlayerState || player;
     let logs = currentLogs;
 
-    // ── Enemy Bleed DoT tick (from player critical hits) ──────────────────
+    // ── Enemy Status DoT ticks (Bleed, Poison, Burn from player strikes & affixes) ────
+    const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon ?? null;
+    const wpnRoll = activeWpn?.baseDamageMin || 25;
+    const physBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
+
+    // 1. Bleed Tick
     const enemyBleed = (enemy.activeEffects || []).find(e => e.type === 'BLEED');
     if (enemyBleed && enemyBleed.durationTurnsLeft > 0) {
-      const bleedDmg = Math.max(1, Math.floor(enemy.maxHp * 0.03));
+      const bleedDmg = calculateStatDrivenDoTDamage('BLEED', p.level, physBonus, wpnRoll);
       enemy.currentHp = Math.max(0, enemy.currentHp - bleedDmg);
-      logs = addLog(logs, `🩸 ${enemy.name} bleeds for ${bleedDmg} HP (3% max HP)!`, 'DAMAGE', 'SYSTEM');
+      logs = addLog(logs, `🩸 ${enemy.name} suffers ${bleedDmg} Bleed damage from rending wounds!`, 'DAMAGE', 'SYSTEM');
       enemy.activeEffects = (enemy.activeEffects || []).map(e =>
         e.type === 'BLEED' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
       ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BLEED');
-      // Check if bleed killed the enemy
+      if (enemy.currentHp <= 0) {
+        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+        handleVictory(enemy, logs);
+        return { logs, isDefeated: true };
+      }
+    }
+
+    // 2. Poison Tick
+    const enemyPoison = (enemy.activeEffects || []).find(e => e.type === 'POISON');
+    if (enemyPoison && enemyPoison.durationTurnsLeft > 0) {
+      const poisonDmg = calculateStatDrivenDoTDamage('POISON', p.level, derived.rangedDamage, wpnRoll);
+      enemy.currentHp = Math.max(0, enemy.currentHp - poisonDmg);
+      logs = addLog(logs, `🤢 ${enemy.name} suffers ${poisonDmg} Poison damage from caustic venom!`, 'DAMAGE', 'SYSTEM');
+      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+        e.type === 'POISON' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'POISON');
+      if (enemy.currentHp <= 0) {
+        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+        handleVictory(enemy, logs);
+        return { logs, isDefeated: true };
+      }
+    }
+
+    // 3. Burn Tick
+    const enemyBurn = (enemy.activeEffects || []).find(e => e.type === 'BURN');
+    if (enemyBurn && enemyBurn.durationTurnsLeft > 0) {
+      const burnDmg = calculateStatDrivenDoTDamage('BURN', p.level, derived.magicDamage, wpnRoll);
+      enemy.currentHp = Math.max(0, enemy.currentHp - burnDmg);
+      logs = addLog(logs, `🔥 ${enemy.name} suffers ${burnDmg} Burn damage from searing embers!`, 'DAMAGE', 'SYSTEM');
+      enemy.activeEffects = (enemy.activeEffects || []).map(e =>
+        e.type === 'BURN' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
+      ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BURN');
       if (enemy.currentHp <= 0) {
         onUpdatePlayer({ ...p, isCoveredNextTurn: false });
         handleVictory(enemy, logs);

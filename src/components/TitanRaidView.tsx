@@ -1,21 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { PlayerCharacter, EquipmentItem, EncryptedMemory, HeroClass } from '../types/game';
-import { calcDerivedStats, isRaidWindowActive, getRaidWindowStatusText, formatCowriesShort, totalCowriesFromWallet, cowriesToWallet } from '../utils/gameFormulas';
-import { generateBossLootArtifact } from '../utils/equipmentGenerator';
-import { soundFX } from '../utils/audio';
+import { PlayerCharacter, EncryptedMemory } from '../types/game';
+import {
+  calcDerivedStats,
+  getRaidSurgeStatus,
+  getCurrentRaidDayKey,
+  totalCowriesFromWallet,
+  cowriesToWallet,
+  processExpGain,
+} from '../utils/gameFormulas';
 import {
   fetchGlobalRaidEvent,
-  submitGlobalRaidDamage,
   fetchGlobalRaidLeaderboard,
+  recordPlayerActivity,
+  checkWeeklyJackpotClaimed,
+  claimWeeklyJackpot,
   GlobalRaidContribution,
 } from '../utils/supabase';
+import { RaidSurgeRewardModal } from './RaidSurgeRewardModal';
+import { RaidJackpotModal } from './RaidJackpotModal';
+import { RaidBattleArena, RaidAttemptResult } from './RaidBattleArena';
 
 interface TitanRaidViewProps {
   player: PlayerCharacter;
   onUpdatePlayer: (updated: PlayerCharacter) => void;
   onNavigateToHaven: () => void;
   onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
-  onLaunchRaidBattle?: (currentBakunawaHp: number) => void;
+  onLaunchRaidBattle?: (currentBakunawaHp: number, maxBakunawaHp?: number) => void;
+  onRaidBattleStateChange?: (inBattle: boolean) => void;
 }
 
 export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
@@ -23,208 +34,292 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
   onUpdatePlayer,
   onNavigateToHaven,
   onShowToast,
-  onLaunchRaidBattle,
+  onRaidBattleStateChange,
 }) => {
-  const MAX_GLOBAL_HP = 50000000; // 50,000,000 HP for Bakunawa
-  const MAX_DAILY_ATTEMPTS = 3;
+  const [maxGlobalHp, setMaxGlobalHp] = useState<number>(1500000);
+  const [globalBakunawaHp, setGlobalBakunawaHp] = useState<number>(1500000);
+  const [activeWayfarersCount, setActiveWayfarersCount] = useState<number>(0);
+  const [rallyModifier, setRallyModifier] = useState<number>(1.0);
+  const [cycleNumber, setCycleNumber] = useState<number>(1);
+  const [raidStatus, setRaidStatus] = useState<'ACTIVE' | 'DEFEATED'>('ACTIVE');
+  const [isInRaidBattle, setIsInRaidBattle] = useState<boolean>(false);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const currentDailyAttempts = player.lastRaidAttemptDate === todayStr ? player.dailyRaidAttemptsCount || 0 : 0;
+  const MAX_DAILY_ATTEMPTS = 6;
+  const currentDayKey = getCurrentRaidDayKey();
+  const currentDailyAttempts = player.lastRaidAttemptDate === currentDayKey ? player.dailyRaidAttemptsCount || 0 : 0;
   const remainingAttempts = Math.max(0, MAX_DAILY_ATTEMPTS - currentDailyAttempts);
 
-  const [globalBakunawaHp, setGlobalBakunawaHp] = useState<number>(38450000);
-  const [isTelegraphedEclipseRoar, setIsTelegraphedEclipseRoar] = useState<boolean>(true);
   const [leaderboard, setLeaderboard] = useState<GlobalRaidContribution[]>([]);
-  const [isRaidActive, setIsRaidActive] = useState<boolean>(() => isRaidWindowActive());
-  const [raidStatusText, setRaidStatusText] = useState<string>(() => getRaidWindowStatusText().label);
+
+  // Surge and Jackpot Modals
+  const [showSurgeModal, setShowSurgeModal] = useState<boolean>(false);
+  const [surgeModalData, setSurgeModalData] = useState<{
+    damageDealt: number;
+    cowriesEarned: number;
+    silverEarned: number;
+    mutyaEarned: number;
+    expEarned: number;
+    memoryDropped?: EncryptedMemory | null;
+  } | null>(null);
+
+  const [showJackpotModal, setShowJackpotModal] = useState<boolean>(false);
+  const [hasClaimedJackpot, setHasClaimedJackpot] = useState<boolean>(false);
+  const [isClaimingJackpot, setIsClaimingJackpot] = useState<boolean>(false);
+
+  const [surgeStatus, setSurgeStatus] = useState(() => getRaidSurgeStatus());
 
   const [raidLog, setRaidLog] = useState<string[]>([
     '🌕 CELESTIAL RAID EVENT: Bakunawa, The Moon-Devouring Serpent has coiled around the sky!',
-    '⚠️ TELEGRAPHED WARNING: Bakunawa opens its abyssal jaws! Channel Shaman Tidal Shield before striking!',
+    '⚡ 24/7 Celestial Siege active! 7:00-9:00 AM & PM PST grant empowered Rush-Hour Surge rewards (+20% DMG, Silver & Memories)!',
+    '🛡️ 6 Daily Tactical Challenges permitted per Wayfarer. Coordinate with your fellow slayers!',
   ]);
 
-  const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
+  const serpentHpPercent = maxGlobalHp > 0 ? Math.max(0, Math.min(100, Math.round((globalBakunawaHp / maxGlobalHp) * 100))) : 0;
+  const rallyPct = Math.round((rallyModifier - 1.0) * 100);
 
-  // Sync PST window and Supabase Global Raid Event Data on mount & timer
+  // Sync Supabase Global Raid Event Data and Surge timer
+  const syncRaidData = async () => {
+    setSurgeStatus(getRaidSurgeStatus());
+
+    const remoteRaid = await fetchGlobalRaidEvent('bakunawa_eclipse_raid');
+    if (remoteRaid) {
+      setGlobalBakunawaHp(remoteRaid.current_hp);
+      if (remoteRaid.max_hp) setMaxGlobalHp(remoteRaid.max_hp);
+      if (remoteRaid.rally_modifier) setRallyModifier(remoteRaid.rally_modifier);
+      if (remoteRaid.cycle_number) setCycleNumber(remoteRaid.cycle_number);
+      if (remoteRaid.status) setRaidStatus(remoteRaid.status);
+      if (typeof remoteRaid.active_players_count === 'number') {
+        setActiveWayfarersCount(remoteRaid.active_players_count);
+      }
+
+      // If defeated, check if player has claimed this cycle's jackpot
+      if (remoteRaid.status === 'DEFEATED' && remoteRaid.cycle_number) {
+        const claimed = await checkWeeklyJackpotClaimed('bakunawa_eclipse_raid', remoteRaid.cycle_number, player.name);
+        setHasClaimedJackpot(claimed);
+      }
+    }
+
+    const remoteLeaders = await fetchGlobalRaidLeaderboard('bakunawa_eclipse_raid');
+    if (remoteLeaders && remoteLeaders.length > 0) {
+      setLeaderboard(remoteLeaders);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
-
-    const syncRaidData = async () => {
-      const windowInfo = getRaidWindowStatusText();
-      if (isMounted) {
-        setIsRaidActive(windowInfo.active);
-        setRaidStatusText(windowInfo.label);
-      }
-
-      const remoteRaid = await fetchGlobalRaidEvent('bakunawa_eclipse_raid');
-      if (remoteRaid && isMounted) {
-        setGlobalBakunawaHp(remoteRaid.current_hp);
-      }
-
-      const remoteLeaders = await fetchGlobalRaidLeaderboard('bakunawa_eclipse_raid');
-      if (remoteLeaders && isMounted && remoteLeaders.length > 0) {
-        setLeaderboard(remoteLeaders);
-      }
-    };
+    recordPlayerActivity(player.name, player.level, 'RAID_VIEW');
 
     syncRaidData();
-    const interval = setInterval(syncRaidData, 10000);
+    const interval = setInterval(() => {
+      if (isMounted) syncRaidData();
+    }, 10000);
+
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [player.name, player.level]);
 
   const addRaidLog = (text: string) => {
     setRaidLog((prev) => [text, ...prev.slice(0, 19)]);
   };
 
-  /** Validates PST window and 3x daily attempt limit before carrying out raid actions */
-  const validateAttemptAndConsume = (): boolean => {
-    if (!isRaidActive) {
-      onShowToast?.(
-        'Celestial Raid is currently locked! Open windows are 7:00–9:00 AM & PM PST.',
-        'warning',
-        '🔒'
-      );
-      return false;
+  /** Validates daily 6x attempt limit before launching raid battle */
+  const handleStartRaidBattle = () => {
+    if (raidStatus === 'DEFEATED') {
+      onShowToast?.('Bakunawa has already been banished for this weekly cycle! Claim your jackpot bounty!', 'success', '🏆');
+      return;
     }
 
     if (remainingAttempts <= 0) {
       onShowToast?.(
-        'Daily challenge limit reached (3/3 attempts)! Return tomorrow during the PST raid window.',
+        'Daily challenge limit reached (6/6 attempts used today)! Resets at 12:00 Midnight.',
         'error',
         '⏳'
       );
-      return false;
+      return;
     }
 
-    // Record attempt if starting first action of attempt
+    setIsInRaidBattle(true);
+    onRaidBattleStateChange?.(true);
+  };
+
+  /** Callback when 10-turn raid attempt concludes */
+  const handleFinishAttempt = (result: RaidAttemptResult) => {
+    setIsInRaidBattle(false);
+    onRaidBattleStateChange?.(false);
+
+    // Consume 1 daily attempt count
     const newCount = currentDailyAttempts + 1;
     onUpdatePlayer({
       ...player,
       dailyRaidAttemptsCount: newCount,
-      lastRaidAttemptDate: todayStr,
+      lastRaidAttemptDate: currentDayKey,
     });
-    return true;
-  };
 
-  // RAID ACTION 1: Kampilan Sundering Strike
-  const handleStrikeSerpent = async () => {
-    soundFX.playAttackSound();
+    if (result.newGlobalHp !== undefined) {
+      setGlobalBakunawaHp(result.newGlobalHp);
+    }
 
-    let strikeDmg = Math.floor(450 + derived.meleeDamage * 3.5 + derived.rangedDamage * 2.8 + derived.magicDamage * 2.0);
-    if (isTelegraphedEclipseRoar) {
-      const shockwaveDmg = Math.floor(derived.maxHp * 0.35);
-      const newPlayerHp = Math.max(0, player.currentHp - shockwaveDmg);
-      addRaidLog(`💥 ECLIPSE ROAR DEVASTATION! Took ${shockwaveDmg} damage for striking without Shaman Shield!`);
+    if (result.bossDefeated) {
+      setRaidStatus('DEFEATED');
+    }
 
+    // Check for Encrypted Memory Roll on Surge attempts
+    let droppedMemory: EncryptedMemory | null = null;
+    if (result.isSurge && Math.random() < 0.25) {
+      const rarities: ('WHITE' | 'GREEN' | 'BLUE')[] = ['WHITE', 'GREEN', 'BLUE'];
+      const rolledRarity = rarities[Math.floor(Math.random() * rarities.length)];
+      droppedMemory = {
+        id: `mem_surge_${Date.now()}`,
+        name: `Celestial Memory (${rolledRarity})`,
+        rarity: rolledRarity,
+        minLevel: Math.max(1, player.level - 5),
+        acquiredAtLocation: 'loc_act_8',
+      };
       onUpdatePlayer({
         ...player,
-        currentHp: newPlayerHp,
+        dailyRaidAttemptsCount: newCount,
+        lastRaidAttemptDate: currentDayKey,
+        encryptedMemories: [...(player.encryptedMemories || []), droppedMemory],
       });
     }
 
-    const newSerpentHp = Math.max(0, globalBakunawaHp - strikeDmg);
-    setGlobalBakunawaHp(newSerpentHp);
-    addRaidLog(`⚔️ Kampilan Sundering Strike hit Bakunawa for ${strikeDmg.toLocaleString()} damage!`);
+    addRaidLog(
+      `⚔️ Attempt #${newCount} Concluded: Inflicted ${result.damageDealt.toLocaleString()} DMG! Earned +${result.cowriesEarned} Shells, +${result.mutyaEarned} Mutya & +${result.expEarned} EXP!${
+        result.isSurge ? ' (⚡ +20% Surge Boost)' : ''
+      }`
+    );
 
-    // Submit damage to Supabase global database RPC
-    const remoteResult = await submitGlobalRaidDamage('bakunawa_eclipse_raid', player.name, strikeDmg);
-    if (remoteResult) {
-      setGlobalBakunawaHp(remoteResult.current_hp);
+    if (result.isSurge) {
+      setSurgeModalData({
+        damageDealt: result.damageDealt,
+        cowriesEarned: result.cowriesEarned,
+        silverEarned: result.silverEarned,
+        mutyaEarned: result.mutyaEarned,
+        expEarned: result.expEarned,
+        memoryDropped: droppedMemory,
+      });
+      setShowSurgeModal(true);
+    } else {
+      onShowToast?.(
+        `Attempt Completed! Dealt ${result.damageDealt.toLocaleString()} Raid Damage! Gained +${result.cowriesEarned} Shells, +${result.mutyaEarned} Mutya & +${result.expEarned} EXP!`,
+        'success',
+        '🐉'
+      );
     }
 
-    // Award level-scaled currency loot & Mutya Shards for contributing
-    const rewardCC = Math.floor(150 + player.level * 25);
-    const newWalletCC = totalCowriesFromWallet(player.wallet) + rewardCC;
-    const newWallet = cowriesToWallet(newWalletCC, (player.wallet.mutyaShards || 0) + 1);
-
-    onUpdatePlayer({
-      ...player,
-      wallet: newWallet,
-    });
-    onShowToast?.(`Dealt ${strikeDmg.toLocaleString()} Raid Damage! Gained +${rewardCC} Cowries & +1 Mutya Shard!`, 'success', '🗡️');
-
-    setIsTelegraphedEclipseRoar(Math.random() < 0.45);
+    // Refresh remote leaderboard
+    syncRaidData();
   };
 
-  // RAID ACTION 2: Shaman Tidal Shield
-  const handleDefendEclipseRoar = () => {
-    soundFX.playPotionSound();
-    setIsTelegraphedEclipseRoar(false);
-    addRaidLog(`🛡️ Invoked Babaylan Shaman Shield! Perfectly nullified Bakunawa's Eclipse Roar!`);
-    onShowToast?.('Shaman Shield active! Eclipse Roar neutralized.', 'info', '🛡️');
-  };
+  // Weekly Jackpot Claim Handler
+  const handleClaimWeeklyJackpot = async (): Promise<boolean> => {
+    setIsClaimingJackpot(true);
+    try {
+      const claimResult = await claimWeeklyJackpot('bakunawa_eclipse_raid', player.name);
+      if (!claimResult) {
+        onShowToast?.('Failed to claim jackpot. Ensure you participated in this weekly cycle!', 'error');
+        setIsClaimingJackpot(false);
+        return false;
+      }
 
-  // RAID ACTION 3: Rally Tribal Warriors & Aid Allies
-  const handleRallyWarriors = () => {
-    soundFX.playSpellSound();
-    const costMp = 30;
-    if (player.currentMp < costMp) {
-      onShowToast?.('Not enough MP to rally warriors! Costs 30 MP.', 'warning', '⚡');
-      return;
+      // Add Jackpot Rewards
+      const totalJackpotCC = (claimResult.gold_ingots * 10000) + (claimResult.silver_pieces * 100) + claimResult.cowrie_shells;
+      const newWalletCC = totalCowriesFromWallet(player.wallet) + totalJackpotCC;
+      const newWallet = cowriesToWallet(newWalletCC, (player.wallet.mutyaShards || 0) + claimResult.mutya_shards);
+      const expResult = processExpGain(player.level, player.exp, claimResult.exp_reward);
+
+      const mythicRedMemory: EncryptedMemory = {
+        id: `mem_jackpot_${Date.now()}`,
+        name: 'Mythic Red Encrypted Memory (Bakunawa Vanquished)',
+        rarity: 'RED',
+        minLevel: 50,
+        acquiredAtLocation: 'loc_act_8',
+      };
+
+      onUpdatePlayer({
+        ...player,
+        level: expResult.newLevel,
+        exp: expResult.newExp,
+        availableAP: player.availableAP + expResult.apGained,
+        wallet: newWallet,
+        encryptedMemories: [...(player.encryptedMemories || []), mythicRedMemory],
+      });
+
+      setHasClaimedJackpot(true);
+      setIsClaimingJackpot(false);
+      onShowToast?.('Claimed Weekly Victory Jackpot! +3 Gold, +40 Silver, +20 Mutya & Mythic RED Memory!', 'success', '🏆');
+      return true;
+    } catch {
+      setIsClaimingJackpot(false);
+      onShowToast?.('Error processing jackpot claim.', 'error');
+      return false;
     }
-
-    // Grant level-scaled Triumphant Loot Artifact drop on successful rally!
-    const lootArtifact: EquipmentItem = generateBossLootArtifact({
-      bossId: 'boss_act_8',
-      bossLevelReq: player.level,
-      playerLevel: player.level,
-      heroClass: (player.heroClass || 'Mandirigma') as HeroClass,
-      isFirstWin: false,
-      playerEquipment: player.equipment,
-    });
-    const redMemory: EncryptedMemory = {
-      id: `mem_raid_${Date.now()}`,
-      name: 'Red Encrypted Memory (Bakunawa Eclipse)',
-      rarity: 'RED',
-      minLevel: player.level,
-      acquiredAtLocation: 'loc_act_8',
-    };
-
-    onUpdatePlayer({
-      ...player,
-      currentMp: player.currentMp - costMp,
-      locationPoints: player.locationPoints + 100,
-      inventory: [...player.inventory, lootArtifact],
-      encryptedMemories: [...(player.encryptedMemories || []), redMemory],
-    });
-
-    addRaidLog(`✨ Rallied Maharlika Tribal Warriors! Earned +100 LP, Red Encrypted Memory & Triumphant ${lootArtifact.name}!`);
-    onShowToast?.(`Rallied allies! Received Triumphant [${lootArtifact.name}] & Red Encrypted Memory!`, 'success', '🎁');
   };
 
-  const serpentHpPercent = Math.max(0, Math.min(100, Math.floor((globalBakunawaHp / MAX_GLOBAL_HP) * 100)));
+  // If in live raid combat, render dedicated RaidBattleArena
+  if (isInRaidBattle) {
+    return (
+      <RaidBattleArena
+        player={player}
+        globalBakunawaHp={globalBakunawaHp}
+        maxGlobalHp={maxGlobalHp}
+        rallyModifier={rallyModifier}
+        cycleNumber={cycleNumber}
+        onUpdatePlayer={onUpdatePlayer}
+        onFinishAttempt={handleFinishAttempt}
+        onCancelAttempt={() => {
+          setIsInRaidBattle(false);
+          onRaidBattleStateChange?.(false);
+        }}
+        onShowToast={onShowToast}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-transparent text-amber-100 p-3 md:p-6 space-y-4 overflow-y-auto">
-      {/* World Boss Banner (Glassmorphic Container) */}
+      {/* World Boss Header (Glassmorphic Container) */}
       <div className="bg-zinc-950/80 backdrop-blur-md border border-purple-900/60 rounded-xl p-4 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest font-bold">
-              GLOBAL CELESTIAL RAID EVENT • LEVEL 55 MYTHIC SERPENT
+              7-DAY WEEKLY CELESTIAL RAID • THE BLOOD MOON RISES ONCE AGAIN!
             </span>
-            <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded ${isRaidActive ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50' : 'bg-red-950 text-red-300 border border-red-500/50'}`}>
-              {isRaidActive ? '🟢 OPEN (7-9 AM/PM PST)' : '🔴 LOCKED'}
+            <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded ${
+              raidStatus === 'DEFEATED'
+                ? 'bg-yellow-950 text-yellow-300 border border-yellow-500/50'
+                : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+            }`}>
+              {raidStatus === 'DEFEATED' ? '🏆 BAKUNAWA BANISHED' : '🟢 24/7 OPEN'}
+            </span>
+            <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${
+              surgeStatus.isSurge 
+                ? 'bg-purple-900 text-purple-200 border-purple-400 animate-pulse'
+                : 'bg-zinc-900 text-zinc-400 border-zinc-700'
+            }`}>
+              {surgeStatus.badge}
             </span>
           </div>
           <h2 className="text-2xl md:text-3xl font-bold font-serif text-amber-200 mt-1">Bakunawa: The Great Moon Serpent</h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Sever the celestial coils of the moon-devourer to protect the seven moons and claim Red Encrypted Memories!
+            Sever the coils of the celestial serpent to defend the seven moons and claim the Weekly Victory Jackpot!
           </p>
         </div>
 
         <div className="flex items-center space-x-3">
           <div className="text-right font-mono text-xs bg-zinc-900/90 border border-purple-800/50 px-3 py-1.5 rounded-lg">
-            <div className="text-[9px] text-zinc-400 uppercase">Daily Challenges</div>
+            <div className="text-[9px] text-zinc-400 uppercase">Daily Battles</div>
             <div className={`font-bold ${remainingAttempts > 0 ? 'text-amber-300' : 'text-red-400'}`}>
               {currentDailyAttempts} / {MAX_DAILY_ATTEMPTS} Used ({remainingAttempts} Left)
             </div>
           </div>
           <button
-            onClick={onNavigateToHaven}
+            onClick={() => {
+              onRaidBattleStateChange?.(false);
+              onNavigateToHaven();
+            }}
             className="bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 font-mono text-xs font-bold px-3 py-2 rounded-lg transition-all"
           >
             Retreat to Sanctuary
@@ -232,22 +327,58 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
         </div>
       </div>
 
-      {/* PST Raid Window Banner Alert */}
-      {!isRaidActive && (
-        <div className="bg-red-950/80 backdrop-blur-md border border-red-700/60 text-red-200 p-3 rounded-xl flex items-center space-x-3 shadow-lg">
-          <span className="text-2xl">🔒</span>
+      {/* Server-Wide Rally Modifier Alert (If Community is Lagging) */}
+      {rallyPct > 0 && raidStatus === 'ACTIVE' && (
+        <div className="bg-gradient-to-r from-red-950/80 via-amber-950/80 to-purple-950/80 border border-amber-600/60 text-amber-200 p-3 rounded-xl flex items-center space-x-3 shadow-lg animate-pulse">
+          <span className="text-2xl">🔥</span>
           <div className="text-xs font-mono">
-            <strong className="text-red-300 uppercase block">Raid Window Locked</strong>
-            {raidStatusText}. Global raid battles are only active twice daily during peak celestial alignment.
+            <strong className="text-amber-300 uppercase block">Community Ancestral Rally Active (+{rallyPct}% Damage)</strong>
+            Tribal shamans chant war orations! All Wayfarer attacks inflict +{rallyPct}% boosted damage to turn the tide before the Monday eclipse!
           </div>
+        </div>
+      )}
+
+      {/* Victory Celebration & Claim Banner */}
+      {raidStatus === 'DEFEATED' && (
+        <div className="bg-gradient-to-r from-yellow-950/90 via-amber-950/90 to-yellow-900/90 border-2 border-yellow-500 text-yellow-100 p-4 rounded-xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 text-left">
+            <span className="text-3xl">🏆</span>
+            <div>
+              <div className="font-serif font-bold text-base text-yellow-200 uppercase tracking-wide">
+                Bakunawa Has Been Vanquished!
+              </div>
+              <div className="text-xs text-zinc-300 font-sans">
+                The weekly siege is won! Claim your Gold Ingots, Silver, bulk Mutya, and Mythic RED Memory!
+              </div>
+            </div>
+          </div>
+          {hasClaimedJackpot ? (
+            <div className="px-4 py-2 bg-emerald-950 text-emerald-300 border border-emerald-500 rounded-lg text-xs font-mono font-bold">
+              ✅ Weekly Jackpot Claimed
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowJackpotModal(true)}
+              className="px-5 py-2.5 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-zinc-950 font-serif font-bold text-xs uppercase tracking-wider rounded-lg shadow-xl active:scale-95 transition-all"
+            >
+              Claim Weekly Jackpot
+            </button>
+          )}
         </div>
       )}
 
       {/* Global Titan HP Pool Meter */}
       <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 p-4 rounded-xl space-y-2 shadow-inner">
-        <div className="flex justify-between text-xs font-mono font-bold">
-          <span className="text-purple-400">POOLED GLOBAL BAKUNAWA HEALTH</span>
-          <span>{globalBakunawaHp.toLocaleString()} / {MAX_GLOBAL_HP.toLocaleString()} HP ({serpentHpPercent}%)</span>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs font-mono font-bold gap-1">
+          <div className="flex items-center space-x-2">
+            <span className="text-purple-400">LOCKED WEEKLY HEALTH POOL</span>
+            {surgeStatus.isSurge && (
+              <span className="text-[10px] bg-amber-900/60 text-amber-300 px-1.5 py-0.5 rounded border border-amber-600/50 animate-pulse">
+                ⚡ Surge Active
+              </span>
+            )}
+          </div>
+          <span>{globalBakunawaHp.toLocaleString()} / {maxGlobalHp.toLocaleString()} HP ({serpentHpPercent}%)</span>
         </div>
         <div className="w-full h-4 bg-zinc-950 rounded-full border border-purple-900/60 overflow-hidden">
           <div
@@ -255,81 +386,126 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
             style={{ width: `${serpentHpPercent}%` }}
           />
         </div>
+        <div className="text-[10px] text-zinc-400 font-mono flex justify-between">
+          <span>7-Day Cycle Resets Monday 12:00 Midnight</span>
+          <span>{surgeStatus.nextSurgeText}</span>
+        </div>
       </div>
 
-      {/* Telegraphed Warning Alert */}
-      {isTelegraphedEclipseRoar && isRaidActive && (
-        <div className="bg-purple-950/80 backdrop-blur-md border-2 border-purple-600 text-purple-100 p-3 rounded-xl flex items-center space-x-3 shadow-lg animate-pulse">
-          <span className="text-2xl">⚠️</span>
-          <div className="text-xs font-mono">
-            <strong className="text-purple-300 uppercase block">Telegraphed Eclipse Roar Warning!</strong>
-            Bakunawa is channeling Total Lunar Eclipse! Tap <strong>[ Shaman Tidal Shield ]</strong> before striking!
+      {/* Main Grid: Live Battle Log & Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+        {/* Battle Log Box */}
+        <div className="lg:col-span-2 bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-xl p-4 flex flex-col space-y-2 shadow-inner">
+          <div className="text-xs font-mono uppercase font-bold text-amber-300 flex justify-between items-center border-b border-zinc-800 pb-2">
+            <span>Celestial Battle Transmission</span>
+            <span className="text-[10px] text-zinc-500">Live Global Sync</span>
           </div>
-        </div>
-      )}
-
-      {/* Grid Layout: Raid Event Feed (Left) & Global Leaderboard (Right) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-xl p-3 h-56 overflow-y-auto font-mono text-xs space-y-1 shadow-inner">
-          <div className="text-[10px] text-zinc-500 uppercase border-b border-zinc-800 pb-1 mb-1 font-bold">
-            GLOBAL RAID BATTLE LOG FEED
-          </div>
-          {raidLog.map((log, idx) => (
-            <div key={idx} className="p-1 rounded bg-zinc-900/60 text-zinc-200">
-              {log}
-            </div>
-          ))}
-        </div>
-
-        {/* Global Leaderboard Panel */}
-        <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/40 rounded-xl p-3 h-56 overflow-y-auto font-mono text-xs space-y-1 shadow-inner">
-          <div className="text-[10px] text-amber-400 uppercase border-b border-zinc-800 pb-1 mb-1 font-bold flex justify-between">
-            <span>🏆 TOP RAID CHAMPIONS</span>
-            <span className="text-zinc-500">DAMAGE</span>
-          </div>
-          {leaderboard.length > 0 ? (
-            leaderboard.map((entry, idx) => (
-              <div key={idx} className="flex justify-between items-center p-1 rounded bg-zinc-900/40 text-zinc-300">
-                <span className="truncate pr-2 font-semibold">
-                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`} {entry.player_name}
-                </span>
-                <span className="text-amber-400 font-bold">{entry.damage_dealt.toLocaleString()}</span>
+          <div className="flex-1 overflow-y-auto space-y-1.5 font-mono text-xs max-h-48 lg:max-h-64 pr-1">
+            {raidLog.map((log, index) => (
+              <div
+                key={index}
+                className={`p-2 rounded border text-xs leading-relaxed ${
+                  log.includes('💥')
+                    ? 'bg-red-950/50 border-red-800/40 text-red-200'
+                    : log.includes('🛡️')
+                    ? 'bg-blue-950/50 border-blue-800/40 text-blue-200'
+                    : log.includes('⚔️')
+                    ? 'bg-amber-950/40 border-amber-800/40 text-amber-200'
+                    : 'bg-zinc-900/40 border-zinc-800/40 text-zinc-300'
+                }`}
+              >
+                {log}
               </div>
-            ))
-          ) : (
-            <div className="text-zinc-500 text-[11px] p-2 text-center italic">
-              Be the first Maharlika champion to strike Bakunawa and claim top rank!
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
+
+        {/* Weekly Leaderboard */}
+        <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-800 rounded-xl p-4 flex flex-col space-y-2 shadow-inner">
+          <div className="text-xs font-mono uppercase font-bold text-amber-300 border-b border-zinc-800 pb-2 flex justify-between items-center">
+            <span>Celestial Slayers</span>
+            <span className="text-[10px] text-purple-400">Weekly Top 10</span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 font-mono text-xs pr-1">
+            {leaderboard.length === 0 ? (
+              <div className="text-zinc-500 italic text-center py-4">No strikes recorded yet this cycle. Be the first!</div>
+            ) : (
+              leaderboard.map((leader, i) => (
+                <div
+                  key={i}
+                  className="flex justify-between items-center p-2 rounded bg-zinc-900/60 border border-zinc-800/60"
+                >
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-[10px] font-bold w-4 ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-zinc-300' : i === 2 ? 'text-amber-600' : 'text-zinc-500'}`}>
+                      #{i + 1}
+                    </span>
+                    <span className="font-bold text-zinc-200">{leader.player_name}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-amber-300 font-bold">{leader.damage_dealt.toLocaleString()} DMG</div>
+                    <div className="text-[9px] text-zinc-500">{leader.battles_count} battles</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-      {/* [BOTTOM] TITAN RAID DISPATCH ACTION PAD */}
+      {/* Raid Dispatch Action Pad */}
       <div className="bg-zinc-950/80 backdrop-blur-md border border-amber-900/60 p-4 rounded-xl shadow-2xl space-y-3">
         <div className="text-[10px] font-mono text-purple-400 uppercase font-semibold text-center md:text-left flex justify-between items-center">
           <span>CELESTIAL RAID DISPATCH PAD</span>
-          <span className="text-zinc-400 font-normal">Daily Challenges: <strong className="text-amber-300">{currentDailyAttempts}/3 Used ({remainingAttempts} Left)</strong></span>
+          <span className="text-zinc-400 font-normal">
+            Daily Challenges: <strong className="text-amber-300">{currentDailyAttempts}/{MAX_DAILY_ATTEMPTS} Used ({remainingAttempts} Left)</strong>
+          </span>
         </div>
 
         {/* PRIMARY ACTION: Full Turn-Based Battle Engine Launch */}
         <button
-          onClick={() => {
-            if (validateAttemptAndConsume()) {
-              onLaunchRaidBattle?.(globalBakunawaHp);
-            }
-          }}
-          disabled={!isRaidActive || remainingAttempts <= 0}
+          onClick={handleStartRaidBattle}
+          disabled={raidStatus === 'DEFEATED' || remainingAttempts <= 0}
           className="w-full p-4 bg-gradient-to-r from-purple-900 via-red-900 to-amber-700 hover:from-purple-800 hover:to-amber-600 disabled:opacity-50 border-2 border-amber-500/80 text-amber-100 rounded-xl uppercase tracking-wider font-mono text-xs md:text-sm font-bold shadow-2xl transition-all active:scale-98 flex flex-col md:flex-row items-center justify-center gap-1.5 md:gap-3"
         >
           <div className="flex items-center space-x-2">
             <span className="text-xl">🐉</span>
-            <span>[ CHALLENGE BAKUNAWA (ATTEMPT {currentDailyAttempts + 1}/3) ]</span>
+            <span>
+              {raidStatus === 'DEFEATED'
+                ? '[ BAKUNAWA ALREADY VANQUISHED FOR THIS CYCLE ]'
+                : `[ CHALLENGE BAKUNAWA (ATTEMPT ${currentDailyAttempts + 1}/${MAX_DAILY_ATTEMPTS}) ]`}
+            </span>
           </div>
           <span className="text-[10px] text-amber-300 font-normal font-mono">
-            (Uses actual Weapon Attacks, Mutya Skills, Potions, Guard &amp; Flee)
+            {surgeStatus.isSurge ? '⚡ Surge Window: +20% DMG, Silver & Memory Rolls Active!' : '(Standard 24/7 Attack Mode - 10 Turn Attempt)'}
           </span>
         </button>
       </div>
+
+      {/* RUSH-HOUR SURGE REWARD MODAL */}
+      {showSurgeModal && surgeModalData && (
+        <RaidSurgeRewardModal
+          isOpen={showSurgeModal}
+          onClose={() => setShowSurgeModal(false)}
+          damageDealt={surgeModalData.damageDealt}
+          cowriesEarned={surgeModalData.cowriesEarned}
+          silverEarned={surgeModalData.silverEarned}
+          mutyaEarned={surgeModalData.mutyaEarned}
+          expEarned={surgeModalData.expEarned}
+          memoryDropped={surgeModalData.memoryDropped}
+          rallyModifier={rallyModifier}
+        />
+      )}
+
+      {/* WEEKLY VICTORY JACKPOT CLAIM MODAL */}
+      {showJackpotModal && (
+        <RaidJackpotModal
+          isOpen={showJackpotModal}
+          onClose={() => setShowJackpotModal(false)}
+          cycleNumber={cycleNumber}
+          onClaimJackpot={handleClaimWeeklyJackpot}
+          isClaiming={isClaimingJackpot}
+        />
+      )}
     </div>
   );
 };
