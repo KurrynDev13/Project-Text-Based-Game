@@ -180,7 +180,6 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
         break;
       case 'FIRE':
       case 'FROST':
-      case 'POISON':
         enemyDR = enemy.armor / (enemy.armor + 250);
         break;
       case 'PHYSICAL':

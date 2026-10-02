@@ -463,16 +463,20 @@ export function App() {
     const bakunawaMonster: EnemyMonster = {
       id: 'boss_bakunawa_raid',
       name: 'Bakunawa, The Moon-Devouring Serpent',
+      title: 'Celestial Titan of the Great Eclipse',
       level: 55,
       maxHp: 50000000,
       currentHp: currentBakunawaHp > 0 ? currentBakunawaHp : 50000000,
       attackMin: 180,
       attackMax: 260,
       armor: 140,
+      damageType: 'SHADOW',
       expReward: 15000,
+      copperReward: 10000,
+      shardChance: 1.0,
       isBoss: true,
-      icon: '🐉',
-      element: 'DARK',
+      spriteIcon: '🐉',
+      activeEffects: [],
     };
 
     setBattle({
@@ -484,8 +488,10 @@ export function App() {
       logs: [
         {
           id: `log_raid_start_${Date.now()}`,
+          turn: 1,
+          actor: 'SYSTEM',
           text: '🐉 CELESTIAL RAID ENGAGEMENT: Bakunawa coils across the eclipsed heavens! Utilize your weapon attacks, Mutya skills, consumables, guard, or retreat!',
-          type: 'SYSTEM',
+          type: 'INFO',
         },
       ],
       winner: null,

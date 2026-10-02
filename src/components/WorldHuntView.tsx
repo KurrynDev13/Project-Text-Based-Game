@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
-import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating } from '../utils/gameFormulas';
+import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating, calcRequiredGuardianPower } from '../utils/gameFormulas';
 import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
 import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
@@ -252,19 +252,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   }, [selectedLocation.id, player.unlockedActStoryIds, suppressActStory]);
 
   // Mandatory Automatic Act Guardian Discovery Modal trigger when player reaches Climax Level
+  const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
+  const bossPowerReq = calcRequiredGuardianPower(selectedLocation.id, player.ngPlusLevel || 0);
+
+  // Mandatory Automatic Act Guardian Discovery Modal trigger when player reaches required Titan Power
   useEffect(() => {
     if (battle.inCombat || showActStoryModal) return;
     const bossId = selectedLocation.bossId;
     if (!bossId) return;
 
-    const isNgPlus = (player.ngPlusLevel || 0) > 0;
-    const startLvl = player.ngPlusStartLevel || 0;
-    const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
-    const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
-
     const isDiscovered = (player.discoveredBossIds ?? []).includes(bossId);
 
-    if (player.level >= bossLevelReq && !isDiscovered) {
+    if (derived.powerLevel >= bossPowerReq && !isDiscovered) {
       setShowBossDiscoveryModal(true);
       const discovered = Array.from(new Set([...(player.discoveredBossIds ?? []), bossId]));
       onUpdatePlayer({
@@ -272,7 +271,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         discoveredBossIds: discovered,
       });
     }
-  }, [selectedLocation.id, selectedLocation.bossId, selectedLocation.bossLevelReq, player.level, player.ngPlusLevel, player.ngPlusStartLevel, player.discoveredBossIds, battle.inCombat, showActStoryModal]);
+  }, [selectedLocation.id, selectedLocation.bossId, bossPowerReq, derived.powerLevel, player.discoveredBossIds, battle.inCombat, showActStoryModal]);
 
   const handleCloseActStory = () => {
     setShowActStoryModal(false);
@@ -282,8 +281,6 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       unlockedActStoryIds: unlocked,
     });
   };
-
-  const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
   const rawSkillIds = player.equippedSkillIds && player.equippedSkillIds.length > 0
     ? player.equippedSkillIds
@@ -297,18 +294,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const actQuests = (player.sideQuests || []).filter((q) => q.actId === selectedLocation.id);
   const actQuestsCompleted = actQuests.filter((q) => q.isCompleted || q.isClaimed).length;
   const actQuestsDiscovered = actQuests.filter((q) => q.isDiscovered).length;
+  const hasUndiscovered = actQuests.some((q) => !q.isDiscovered);
+  const hasUncompleted = actQuestsCompleted < actQuests.length;
   const isBossDefeated = selectedLocation.bossId ? (player.completedBossIds || []).includes(selectedLocation.bossId) : false;
-  const bossTemplate = MONSTER_TEMPLATES.find((m) => m.id === selectedLocation.bossId);
-  const bossPowerReq = bossTemplate
-    ? calcMonsterPowerRating(bossTemplate, selectedLocation.minLevel, player.ngPlusLevel || 0)
-    : calcRequiredActPower(selectedLocation.id, player.ngPlusLevel || 0);
 
   const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
   const isNgPlus = (player.ngPlusLevel || 0) > 0;
   const startLvl = player.ngPlusStartLevel || player.level;
   const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
-  const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
-  const isBossQualified = isBossDefeated || derived.powerLevel >= bossPowerReq || player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
+  const isBossQualified = isBossDefeated || derived.powerLevel >= bossPowerReq;
   const isBossLevelLocked = !isBossQualified;
 
   const addLog = (
@@ -484,7 +478,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     if (isBossLevelLocked) {
-      notify("An overwhelming primordial spirit barrier shrouds the inner sanctum. The realm's guardian does not acknowledge your presence yet. Purge more malevolent spirits from this sector to awaken the guardian...", 'warning', '🌑');
+      notify(`🔒 An overwhelming primordial spirit barrier shrouds the inner sanctum. Titan Power Rating ${bossPowerReq} is required to awaken the Guardian of ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🌑');
       return;
     }
 
@@ -1491,8 +1485,21 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const actClimaxCap = !isBossDefeated ? (isNgPlus ? startLvl + baseCap - 1 : baseCap) : undefined;
 
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
-    const bossCowrieReward = 1500; // 15 Silver Pieces
-    const bossMutyaReward = 4;
+    // Tiered Act Guardian Victory Rewards (Acts I to VIII)
+    const bossRewardMap: Record<string, { cowries: number; mutya: number }> = {
+      boss_act_1: { cowries: 2000, mutya: 4 },    // 20 Silver
+      boss_act_2: { cowries: 4000, mutya: 6 },    // 40 Silver
+      boss_act_3: { cowries: 7500, mutya: 8 },    // 75 Silver
+      boss_act_4: { cowries: 15000, mutya: 10 },  // 1 Gold 50 Silver
+      boss_act_5: { cowries: 30000, mutya: 12 },  // 3 Gold
+      boss_act_6: { cowries: 50000, mutya: 15 },  // 5 Gold
+      boss_act_7: { cowries: 80000, mutya: 18 },  // 8 Gold
+      boss_act_8: { cowries: 150000, mutya: 25 }, // 15 Gold
+    };
+    const baseBossReward = (enemy.id && bossRewardMap[enemy.id]) ? bossRewardMap[enemy.id] : { cowries: 5000, mutya: 5 };
+    const ngMult = isNgPlus ? (1 + (player.ngPlusLevel || 1) * 0.5) : 1.0;
+    const bossCowrieReward = Math.floor(baseBossReward.cowries * (isNgPlus ? 2.0 : 1.0));
+    const bossMutyaReward = Math.floor(baseBossReward.mutya * ngMult);
     const shardDropped = Math.random() < enemy.shardChance;
 
     const updatedWallet = cowriesToWallet(
@@ -1605,8 +1612,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         logs = addLog(logs, `🗡️ GUARDIAN LEGENDARY ARTIFACT DROPPED: [${bossItem.name}]!`, 'CRIT', 'SYSTEM');
 
         // Broadcast High-Tier Gear Discovery
-        if (bossItem.rarity === 'MYTHIC' || bossItem.rarity === 'LUNAR' || bossItem.tier >= 9) {
-          broadcastSystemAnnouncement(`${playerTitle} discovered Legendary ${bossItem.rarity || 'Mythic'} equipment [${bossItem.name}]!`);
+        if (bossItem.rarity === 'TRIUMPHANT' || bossItem.tier >= 9) {
+          broadcastSystemAnnouncement(`${playerTitle} discovered Triumphant ${bossItem.rarity} equipment [${bossItem.name}]!`);
         }
 
         // 3. Generate High-Rarity Encrypted Memory Drop (PURPLE or RED)
@@ -2460,13 +2467,13 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             bossTitle={boss.title}
             bossLore={boss.specialAbility || `The legendary climax boss guarding ${selectedLocation.name}.`}
             bossLevel={boss.level}
-            climaxLevelReq={bossLevelReq}
-            playerLevel={player.level}
+            requiredPower={bossPowerReq}
+            playerPower={derived.powerLevel}
             onDismiss={() => setShowBossDiscoveryModal(false)}
             onChallenge={() => {
               setShowBossDiscoveryModal(false);
               if (isBossLevelLocked) {
-                notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to confront ${selectedLocation.name}'s Guardian.`, 'warning', '🔒');
+                notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
                 return;
               }
               if (hasUncompleted) {

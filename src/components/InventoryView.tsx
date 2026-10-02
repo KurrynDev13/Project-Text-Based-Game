@@ -78,8 +78,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const handleDecryptMemory = (memory: EncryptedMemory) => {
     soundFX.playSpellSound();
 
-    // Pool of potential equipment items based on memory level & rarity
-    const allCatalogs = [...UPPER_ARMORS, ...LOWER_ARMORS, ...DAGGERS, ...SWORDS, ...BOWS, ...STAVES, ...BIKES];
+    // Pool of potential equipment items based on memory level & rarity (Mounts strictly locked post-Act 6)
+    const isMountUnlocked = !!(player.act6Completed || player.mountUnlocked);
+    const mountCatalog = isMountUnlocked ? BIKES : [];
+    const allCatalogs = [...UPPER_ARMORS, ...LOWER_ARMORS, ...DAGGERS, ...SWORDS, ...BOWS, ...STAVES, ...mountCatalog];
 
     // Pick item appropriate for rarity/level
     const candidateItems = allCatalogs.filter((item) => item.levelReq <= memory.minLevel + 10);

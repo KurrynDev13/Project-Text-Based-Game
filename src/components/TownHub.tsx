@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass } from '../types/game';
+import { PlayerCharacter, EquipmentItem, ConsumableItem, Bounty, GameLocation, HeroClass, MemoryRarity } from '../types/game';
 import { UPPER_ARMORS, LOWER_ARMORS, DAGGERS, SWORDS, BOWS, STAVES, MOUNTS, CONSUMABLES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS, INITIAL_SIDE_QUESTS, INITIAL_BOUNTIES } from '../data/equipmentData';
 import { calcDerivedStats, formatCostInCC, totalCopperFromWallet, totalCowriesFromWallet, cowriesToWallet, processExpGain, formatCostInCowries, formatCowriesShort, calcMaxStamina, calcBountyExpReward, getEquippedItemForCategory, calcItemDelta, sortInventory, calcRequiredActPower } from '../utils/gameFormulas';
 import { getScaledForgeCatalog } from '../utils/equipmentGenerator';
@@ -76,6 +76,8 @@ export const TownHub: React.FC<TownHubProps> = ({
   const [selectedEnchantItem, setSelectedEnchantItem] = useState<EquipmentItem | null>(null);
   const [showBountyBoard, setShowBountyBoard] = useState<boolean>(false);
   const [bountyBoardTab, setBountyBoardTab] = useState<'AVAILABLE' | 'COMPLETED'>('AVAILABLE');
+  const [selectedStoryLocation, setSelectedStoryLocation] = useState<GameLocation | null>(null);
+  const [showActStoryOverlay, setShowActStoryOverlay] = useState<boolean>(false);
   const [activeRestCardIndex, setActiveRestCardIndexState] = useState<number>(() => {
     const saved = localStorage.getItem('maharlika_last_rest_option_index');
     return saved ? Math.max(0, parseInt(saved, 10) || 0) : 0;
@@ -367,12 +369,16 @@ const REST_OPTIONS: RestOption[] = [
 
     soundFX.playLevelUpSound();
 
+    const memRarity: MemoryRarity = isNgPlus
+      ? (bounty.rewardMemoryRarity === 'WHITE' ? 'BLUE' : bounty.rewardMemoryRarity === 'GREEN' ? 'PURPLE' : 'RED')
+      : bounty.rewardMemoryRarity;
+
     const newMemories = [
       ...player.encryptedMemories,
       {
         id: `bounty_mem_${Date.now()}`,
-        name: `Bounty Memory (${bounty.rewardMemoryRarity})`,
-        rarity: bounty.rewardMemoryRarity,
+        name: `Bounty Memory (${memRarity})`,
+        rarity: memRarity,
         minLevel: player.level,
         acquiredAtLocation: player.currentLocationId,
       },
@@ -382,11 +388,13 @@ const REST_OPTIONS: RestOption[] = [
       b.id === bounty.id ? { ...b, isClaimed: true } : b
     );
 
-    const rewardCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
+    const baseCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
+    const rewardCowries = isNgPlus ? baseCowries * 4 : baseCowries;
+    const rewardMutya = isNgPlus ? 2 : 1;
     const rewardExp = calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp);
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
-    updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + 1;
+    updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + rewardMutya;
     updatedWallet.prismaticShards = updatedWallet.mutyaShards;
 
     const expResult = processExpGain(player.level, player.exp, rewardExp);
@@ -401,11 +409,11 @@ const REST_OPTIONS: RestOption[] = [
       wallet: updatedWallet,
     });
 
-    const memText = `💎 1x Encrypted Memory (${bounty.rewardMemoryRarity})`;
+    const memText = `💎 1x Encrypted Memory (${memRarity})`;
     if (expResult.levelsGained > 0) {
-      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, +${rewardMutya} Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'success', '🎉');
     } else {
-      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, 1x Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowrie Shells, +${rewardMutya} Mutya Shard, and ${memText}!\n\n(Visit Inventory -> Memories to decrypt gear!)`, 'success', '🎉');
     }
   };
 
@@ -784,15 +792,19 @@ const REST_OPTIONS: RestOption[] = [
     player.level,
     player.heroClass as HeroClass,
     forgeCategory,
-    filterByHeroClassOnly
+    filterByHeroClassOnly,
+    player.currentLocationId,
+    player.ngPlusLevel || 0
   );
 
-  const filteredForgeItems = rawForgeItems.filter((item) => {
+  const betterForgeItems = rawForgeItems.filter((item) => {
     const equipped = getEquippedItemForCategory(player.equipment, item.category);
     if (!equipped) return true;
     const delta = calcItemDelta(item, equipped);
-    return delta.deltaPower > 0;
+    return delta.deltaPower >= 0;
   });
+
+  const filteredForgeItems = betterForgeItems.length > 0 ? betterForgeItems : rawForgeItems;
 
   const renderItemComparison = (shopItem: EquipmentItem) => {
     const equipped = getEquippedItemForCategory(player.equipment, shopItem.category);
@@ -1845,12 +1857,6 @@ const REST_OPTIONS: RestOption[] = [
             {/* Consumables Catalog Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {CONSUMABLES.filter((potion) => {
-                const unlockedLocationIds = player.unlockedLocationIds || ['loc_act_1'];
-                const targetLoc = GAME_LOCATIONS.find((l) => l.id === potion.actId);
-                const minLvl = targetLoc?.minLevel ?? (potion.actReq ? potion.actReq * 6 - 5 : 1);
-                const isUnlocked = unlockedLocationIds.includes(potion.actId || '') || player.level >= minLvl;
-                if (!isUnlocked) return false;
-
                 if (alchemistCategory === 'VITALITY') return potion.category === 'VITALITY' || potion.category === 'POTION';
                 if (alchemistCategory === 'ELIXIR') return potion.category === 'ELIXIR' || potion.category === 'TINCTURE';
                 if (alchemistCategory === 'PANACEA') return potion.category === 'PANACEA';
@@ -1858,9 +1864,7 @@ const REST_OPTIONS: RestOption[] = [
               }).map((potion) => {
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][(potion.actReq ?? 1) - 1] || `${potion.actReq}`;
                 const unlockedLocationIds = player.unlockedLocationIds || ['loc_act_1'];
-                const targetLoc = GAME_LOCATIONS.find((l) => l.id === potion.actId);
-                const minLvl = targetLoc?.minLevel ?? (potion.actReq ? potion.actReq * 6 - 5 : 1);
-                const isUnlocked = true;
+                const isUnlocked = unlockedLocationIds.includes(potion.actId || '');
 
                 return (
                   <div
@@ -2426,6 +2430,21 @@ const REST_OPTIONS: RestOption[] = [
           actLore={NG_PLUS_REBIRTH_STORY}
           isNgPlus={true}
           onClose={() => setShowRebirthStoryModal(false)}
+        />
+      )}
+
+      {/* Act Lore Replay Modal */}
+      {showActStoryOverlay && selectedStoryLocation && (
+        <ActStoryOverlayModal
+          actId={selectedStoryLocation.id}
+          actName={selectedStoryLocation.name}
+          actSubtitle={selectedStoryLocation.subtitle}
+          actLore={selectedStoryLocation.description}
+          isNgPlus={(player.ngPlusLevel || 0) > 0}
+          onClose={() => {
+            setShowActStoryOverlay(false);
+            setSelectedStoryLocation(null);
+          }}
         />
       )}
     </div>

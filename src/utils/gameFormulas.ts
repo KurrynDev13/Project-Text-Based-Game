@@ -463,16 +463,23 @@ export function calcMonsterPowerRating(
     const subLevelOffset = Math.max(0, levelOffset - actStartLevel);
 
     const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.35;
-    const baseNgHp = 2200 + (actNumber - 1) * 3500 + subLevelOffset * 250;
-    const hpArchetypeMult = (monster.baseHp || 100) / 120;
-    hp = monster.maxHp ?? Math.floor(baseNgHp * hpArchetypeMult * (monster.isBoss ? 2.5 : 1.0) * ngTierMult);
+    const baseNgHp = 2200 + (actNumber - 1) * 1400 + subLevelOffset * 200;
+    const hpArchetypeMult = monster.isBoss
+      ? 3.2
+      : Math.min(2.0, (monster.baseHp || 100) / 120);
+    hp = monster.maxHp ?? Math.floor(baseNgHp * hpArchetypeMult * ngTierMult);
 
     const baseNgArmor = 15 + (actNumber - 1) * 6 + subLevelOffset * 1.5;
-    arm = monster.armor ?? Math.floor(baseNgArmor * ((monster.baseArmor || 5) / 6) * ngTierMult);
+    const armorArchetypeMult = monster.isBoss
+      ? 2.5
+      : Math.min(2.0, (monster.baseArmor || 5) / 6);
+    arm = monster.armor ?? Math.floor(baseNgArmor * armorArchetypeMult * ngTierMult);
 
-    const baseNgDmgMin = 140 + (actNumber - 1) * 45 + subLevelOffset * 6;
-    const baseNgDmgMax = 220 + (actNumber - 1) * 65 + subLevelOffset * 8;
-    const dmgArchetypeMult = (monster.baseMinDmg || 10) / 10;
+    const baseNgDmgMin = 140 + (actNumber - 1) * 35 + subLevelOffset * 6;
+    const baseNgDmgMax = 220 + (actNumber - 1) * 50 + subLevelOffset * 8;
+    const dmgArchetypeMult = monster.isBoss
+      ? 1.6
+      : Math.min(2.0, (monster.baseMinDmg || 10) / 10);
     minDmg = monster.attackMin ?? Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
     maxDmg = monster.attackMax ?? Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
   } else {
@@ -491,6 +498,49 @@ export function calcMonsterPowerRating(
   const bossBonus = monster.isBoss ? 250 : 0;
 
   return Math.floor(basePower + abilityBonus + bossBonus);
+}
+
+/**
+ * Calculates the required Titan Power Rating to confront an Act Guardian.
+ * In Normal Mode (NG0):
+ * - Act 1: 480 (Player at Lv 6 with basic gear has ~510 Power)
+ * - Act 2: 800, Act 3: 1200, Act 4: 1550, Act 5: 1900, Act 6: 2250, Act 7: 2600, Act 8: 2850
+ * In NG+1:
+ * - Act 1: 3150 (Player entering NG+ has ~2764 Power and starts LOCKED, requiring progression and upgrades to challenge)
+ * - Scales progressively up to 4900 for Act 8 (+350 Power per additional NG+ tier)
+ */
+export function calcRequiredGuardianPower(actId: string, ngPlusLevel: number = 0): number {
+  const baseMap: Record<string, number> = {
+    loc_act_1: 480,
+    loc_act_2: 800,
+    loc_act_3: 1200,
+    loc_act_4: 1550,
+    loc_act_5: 1900,
+    loc_act_6: 2250,
+    loc_act_7: 2600,
+    loc_act_8: 2850,
+    loc_act_infinite: 3200,
+  };
+
+  const ng1Map: Record<string, number> = {
+    loc_act_1: 3150,
+    loc_act_2: 3400,
+    loc_act_3: 3650,
+    loc_act_4: 3900,
+    loc_act_5: 4150,
+    loc_act_6: 4400,
+    loc_act_7: 4650,
+    loc_act_8: 4900,
+    loc_act_infinite: 5400,
+  };
+
+  if (ngPlusLevel <= 0) {
+    return baseMap[actId] ?? 480;
+  }
+
+  const ng1Base = ng1Map[actId] ?? 3150;
+  const extraTierBonus = (ngPlusLevel - 1) * 350;
+  return ng1Base + extraTierBonus;
 }
 
 /** Dynamically calculates the required Titan Power Rating for an Act, derived from average Act monster power & scaled by NG+ */

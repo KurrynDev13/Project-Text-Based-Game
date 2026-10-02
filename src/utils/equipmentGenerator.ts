@@ -4,7 +4,7 @@
 // aligned strictly with the 4 Hero Classes (Mandirigma, Bagani, Mangangaso, Babaylan).
 
 import { EquipmentItem, HeroClass, ItemRarity, WeaponCategory, ArmorCategory, Affix } from '../types/game';
-import { DAGGERS, SWORDS, BOWS, STAVES, UPPER_ARMORS, LOWER_ARMORS, WEAPON_STATUS_AFFIXES, ARMOR_STATUS_AFFIXES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
+import { DAGGERS, SWORDS, BOWS, STAVES, UPPER_ARMORS, LOWER_ARMORS, WEAPON_STATUS_AFFIXES, ARMOR_STATUS_AFFIXES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS } from '../data/equipmentData';
 
 export type ForgeCategoryFilter = 'ALL' | 'WEAPONS' | 'ARMOR' | 'DAGGERS' | 'SWORDS' | 'BOWS' | 'STAVES' | 'UPPER' | 'LOWER';
 
@@ -213,15 +213,30 @@ export function getScaledForgeCatalog(
   playerLevel: number,
   heroClass: HeroClass,
   categoryFilter: ForgeCategoryFilter = 'ALL',
-  filterByHeroClassOnly: boolean = true
+  filterByHeroClassOnly: boolean = true,
+  currentLocationId: string = 'loc_act_1',
+  ngPlusLevel: number = 0
 ): EquipmentItem[] {
-  // 1. Level-gating: show items up to [Current Level] + 2
-  const maxVisibleLevel = playerLevel + 2;
   const fullCatalog = getFullEquipmentCatalog();
 
-  return fullCatalog.filter((item: EquipmentItem) => {
-    // 1. Level-gating: show items up to [Current Level] + 5
-    if (item.levelReq > maxVisibleLevel) return false;
+  const locIndex = GAME_LOCATIONS.findIndex((l) => l.id === currentLocationId);
+  const actIndex = locIndex >= 0 ? locIndex : 0;
+  const currentLoc = GAME_LOCATIONS[actIndex] || GAME_LOCATIONS[0];
+  const actMinLvl = currentLoc.minLevel || 1;
+  const actMaxLvl = (currentLoc.bossLevelReq ?? (actMinLvl + 5)) + 1;
+
+  const candidates = fullCatalog.filter((item: EquipmentItem) => {
+    // 1. Act & Level Gating:
+    if (ngPlusLevel <= 0) {
+      const minShow = Math.max(1, Math.min(playerLevel - 2, actMinLvl));
+      const maxShow = Math.min(playerLevel + 2, actMaxLvl);
+      if (item.levelReq < minShow || item.levelReq > maxShow) return false;
+    } else {
+      // In NG+: Offer high-grade items scaled to player level range
+      const minShow = Math.max(45, playerLevel - 3);
+      const maxShow = Math.min(55, playerLevel + 2);
+      if (item.levelReq < minShow || item.levelReq > maxShow) return false;
+    }
 
     // 2. Class suitability filtering
     if (filterByHeroClassOnly && item.classReq && item.classReq.length > 0) {
@@ -241,6 +256,9 @@ export function getScaledForgeCatalog(
 
     return true;
   });
+
+  // Sort by level descending and return a curated set of the top 9 items
+  return candidates.sort((a, b) => b.levelReq - a.levelReq).slice(0, 9);
 }
 
 /**

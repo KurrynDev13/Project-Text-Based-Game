@@ -15,9 +15,11 @@ interface BossDiscoveryModalProps {
   bossName: string;
   bossTitle: string;
   bossLore: string;
-  bossLevel: number;
-  climaxLevelReq: number;
-  playerLevel: number;
+  bossLevel?: number;
+  requiredPower: number;
+  playerPower: number;
+  climaxLevelReq?: number;
+  playerLevel?: number;
   /** Close the modal without fighting — player can come back later. */
   onDismiss: () => void;
   /** Close the modal and immediately begin boss combat. */
@@ -32,8 +34,10 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
   bossTitle,
   bossLore,
   bossLevel: _bossLevel,
-  climaxLevelReq,
-  playerLevel,
+  requiredPower,
+  playerPower,
+  climaxLevelReq: _climaxLevelReq,
+  playerLevel: _playerLevel,
   onDismiss,
   onChallenge,
 }) => {
@@ -42,7 +46,7 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
     soundFX.playBossWarningSound();
   }, []);
 
-  const isUnderLeveled = playerLevel < climaxLevelReq;
+  const isUnderPowered = playerPower < requiredPower;
 
   return (
     <div className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -92,28 +96,28 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
           {bossLore}
         </p>
 
-        {/* ── Level Info ── */}
+        {/* ── Titan Power Info ── */}
         <div className="flex items-center justify-between gap-4 px-2 py-3
           bg-zinc-900/60 border border-zinc-700/50 rounded-xl text-sm">
           <div className="text-center flex-1">
-            <p className="text-zinc-500 text-xs mb-0.5">Required Level</p>
-            <p className="font-mono font-bold text-red-400 text-lg">{climaxLevelReq}</p>
+            <p className="text-zinc-500 text-xs mb-0.5">Required Titan Power</p>
+            <p className="font-mono font-bold text-red-400 text-lg">⚡ {requiredPower}</p>
           </div>
           <div className="w-px h-8 bg-zinc-700" />
           <div className="text-center flex-1">
-            <p className="text-zinc-500 text-xs mb-0.5">Your Level</p>
-            <p className={`font-mono font-bold text-lg ${isUnderLeveled ? 'text-red-400' : 'text-amber-400'}`}>
-              {playerLevel}
+            <p className="text-zinc-500 text-xs mb-0.5">Your Titan Power</p>
+            <p className={`font-mono font-bold text-lg ${isUnderPowered ? 'text-red-400' : 'text-amber-400'}`}>
+              ⚡ {playerPower}
             </p>
           </div>
         </div>
 
-        {/* Under-leveled warning */}
-        {isUnderLeveled && (
+        {/* Under-powered warning */}
+        {isUnderPowered && (
           <div className="flex items-center gap-2 px-4 py-3 bg-red-950/60 border border-red-700/40 rounded-xl">
             <span className="text-red-400 text-sm">⚠</span>
             <p className="text-red-300 text-xs font-medium">
-              You are not yet strong enough to challenge this Guardian.
+              Your Titan Power Rating is not yet sufficient to confront this Guardian. Purge lesser fiends and forge stronger gear.
             </p>
           </div>
         )}
@@ -130,13 +134,13 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
             Retreat for Now
           </button>
 
-          {/* Challenge (primary — disabled when under-leveled) */}
+          {/* Challenge (primary — disabled when under-powered) */}
           <button
             type="button"
-            onClick={isUnderLeveled ? undefined : onChallenge}
-            disabled={isUnderLeveled}
+            onClick={isUnderPowered ? undefined : onChallenge}
+            disabled={isUnderPowered}
             className={`flex-1 min-h-[44px] px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
-              ${isUnderLeveled
+              ${isUnderPowered
                 ? 'bg-zinc-800 border border-zinc-700 text-zinc-600 cursor-not-allowed opacity-50'
                 : 'bg-gradient-to-r from-red-800 to-amber-800 hover:from-red-700 hover:to-amber-700 text-amber-100 shadow-lg shadow-red-950/50 ring-1 ring-amber-700/40'
               }`}

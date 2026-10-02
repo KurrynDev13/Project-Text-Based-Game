@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlayerCharacter, EquipmentItem, EncryptedMemory } from '../types/game';
+import { PlayerCharacter, EquipmentItem, EncryptedMemory, HeroClass } from '../types/game';
 import { calcDerivedStats, isRaidWindowActive, getRaidWindowStatusText, formatCowriesShort, totalCowriesFromWallet, cowriesToWallet } from '../utils/gameFormulas';
 import { generateBossLootArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
@@ -167,7 +167,14 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
     }
 
     // Grant level-scaled Triumphant Loot Artifact drop on successful rally!
-    const lootArtifact: EquipmentItem = generateBossLootArtifact('boss_act_8', player.level, player.heroClass);
+    const lootArtifact: EquipmentItem = generateBossLootArtifact({
+      bossId: 'boss_act_8',
+      bossLevelReq: player.level,
+      playerLevel: player.level,
+      heroClass: (player.heroClass || 'Mandirigma') as HeroClass,
+      isFirstWin: false,
+      playerEquipment: player.equipment,
+    });
     const redMemory: EncryptedMemory = {
       id: `mem_raid_${Date.now()}`,
       name: 'Red Encrypted Memory (Bakunawa Eclipse)',
