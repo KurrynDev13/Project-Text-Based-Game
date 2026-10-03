@@ -16,7 +16,7 @@ import { getDefaultSkillIds, getBasicAttackId, getSkillsByClass } from './data/s
 
 import { Navbar, NavTab } from './components/Navbar';
 import { PersistentHUD } from './components/PersistentHUD';
-import { TownHub } from './components/TownHub';
+import { HavenView } from './components/HavenView';
 import { WorldHuntView } from './components/WorldHuntView';
 import { InventoryView } from './components/InventoryView';
 import { CharacterSheet } from './components/CharacterSheet';
@@ -501,7 +501,7 @@ export function App() {
         ) : (
           <>
             {currentTab === 'HAVEN' && (
-              <TownHub
+              <HavenView
                 player={player}
                 onUpdatePlayer={setPlayer}
                 onNavigateToWorld={() => setCurrentTab('WORLD')}

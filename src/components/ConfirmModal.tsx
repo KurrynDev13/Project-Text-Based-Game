@@ -1,28 +1,42 @@
 import React from 'react';
 
 interface ConfirmModalProps {
+  isOpen?: boolean;
   title: string;
   message: string;
   confirmText?: string;
+  confirmLabel?: string;
   cancelText?: string;
+  cancelLabel?: string;
   type?: 'warning' | 'danger' | 'info';
+  variant?: 'warning' | 'danger' | 'info';
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
+  isOpen = true,
   title,
   message,
-  confirmText = 'Proceed',
-  cancelText = 'Cancel',
-  type = 'warning',
+  confirmText,
+  confirmLabel,
+  cancelText,
+  cancelLabel,
+  type,
+  variant,
   onConfirm,
   onCancel,
 }) => {
+  if (!isOpen) return null;
+
+  const resolvedConfirmText = confirmLabel || confirmText || 'Proceed';
+  const resolvedCancelText = cancelLabel || cancelText || 'Cancel';
+  const resolvedType = variant || type || 'warning';
+
   let borderColor = 'border-amber-500/80';
   let buttonBg = 'bg-amber-600 hover:bg-amber-500 text-zinc-950';
 
-  if (type === 'danger') {
+  if (resolvedType === 'danger') {
     borderColor = 'border-red-500/80';
     buttonBg = 'bg-red-600 hover:bg-red-500 text-white';
   }
@@ -60,14 +74,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             onClick={onCancel}
             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl transition-all"
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             type="button"
             onClick={onConfirm}
             className={`px-5 py-2 ${buttonBg} font-bold rounded-xl shadow-lg transition-all active:scale-95`}
           >
-            {confirmText}
+            {resolvedConfirmText}
           </button>
         </div>
       </div>

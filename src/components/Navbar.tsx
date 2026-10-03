@@ -90,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
       </div>
 
       {/* Mobile Sticky Bottom Navigation Pad */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-lg border-t border-amber-900/40 px-2 py-1.5 flex justify-around items-center z-30">
+      <div className="md:hidden w-full px-2 py-1.5 flex justify-around items-center">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (

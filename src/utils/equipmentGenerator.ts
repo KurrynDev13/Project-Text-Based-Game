@@ -5,6 +5,7 @@
 
 import { EquipmentItem, HeroClass, ItemRarity, WeaponCategory, ArmorCategory, Affix } from '../types/game';
 import { DAGGERS, SWORDS, BOWS, STAVES, UPPER_ARMORS, LOWER_ARMORS, WEAPON_STATUS_AFFIXES, ARMOR_STATUS_AFFIXES, ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES, GAME_LOCATIONS } from '../data/equipmentData';
+import { calcItemPowerRating } from './gameFormulas';
 
 export type ForgeCategoryFilter = 'ALL' | 'WEAPONS' | 'ARMOR' | 'DAGGERS' | 'SWORDS' | 'BOWS' | 'STAVES' | 'UPPER' | 'LOWER';
 
@@ -206,59 +207,246 @@ export function getFullEquipmentCatalog(): EquipmentItem[] {
 }
 
 /**
+ * Extracts canonical base template ID by stripping any timestamp suffix (e.g. "ua_3_1728392183" -> "ua_3")
+ */
+export function getBaseTemplateId(id: string): string {
+  return id.replace(/_\d{10,}$/, '');
+}
+
+/**
  * Returns filtered, level-gated equipment for Panday Pira's Forge store.
- * Constrained by: levelReq <= playerLevel + 5
+ * Sourced from authentic pre-colonial master catalog + level-scaled procedural items with affixes.
+ * Always guarantees at least 6-12 class-appropriate weapons and level-scaled armors in stock.
  */
 export function getScaledForgeCatalog(
   playerLevel: number,
   heroClass: HeroClass,
   categoryFilter: ForgeCategoryFilter = 'ALL',
-  filterByHeroClassOnly: boolean = true,
+  filterByHeroClassOnly: boolean = false,
   currentLocationId: string = 'loc_act_1',
-  ngPlusLevel: number = 0
+  ngPlusLevel: number = 0,
+  ownedItemIds?: Set<string> | string[]
 ): EquipmentItem[] {
-  const fullCatalog = getFullEquipmentCatalog();
+  const masterItems: EquipmentItem[] = [
+    ...SWORDS,
+    ...DAGGERS,
+    ...BOWS,
+    ...STAVES,
+    ...UPPER_ARMORS,
+    ...LOWER_ARMORS,
+  ];
+  const proceduralCatalog = getFullEquipmentCatalog();
+  const combinedCatalog: EquipmentItem[] = [...masterItems, ...proceduralCatalog];
 
-  const locIndex = GAME_LOCATIONS.findIndex((l) => l.id === currentLocationId);
-  const actIndex = locIndex >= 0 ? locIndex : 0;
-  const currentLoc = GAME_LOCATIONS[actIndex] || GAME_LOCATIONS[0];
-  const actMinLvl = currentLoc.minLevel || 1;
-  const actMaxLvl = (currentLoc.bossLevelReq ?? (actMinLvl + 5)) + 1;
+  const minLevel = ngPlusLevel > 0 ? Math.max(35, playerLevel - 8) : Math.max(1, playerLevel - 6);
+  const maxLevel = playerLevel + 3;
 
-  const candidates = fullCatalog.filter((item: EquipmentItem) => {
-    // 1. Act & Level Gating:
-    if (ngPlusLevel <= 0) {
-      const minShow = Math.max(1, Math.min(playerLevel - 2, actMinLvl));
-      const maxShow = Math.min(playerLevel + 2, actMaxLvl);
-      if (item.levelReq < minShow || item.levelReq > maxShow) return false;
+  const ownedSet = ownedItemIds
+    ? Array.isArray(ownedItemIds)
+      ? new Set(ownedItemIds)
+      : ownedItemIds
+    : null;
+
+  const seenIds = new Set<string>();
+
+  let candidates = combinedCatalog.filter((item: EquipmentItem) => {
+    // Prevent duplicate entries
+    if (seenIds.has(item.id)) return false;
+
+    // 1. Sold-out hiding (strictly matches exact template ID, never generic prefix):
+    if (ownedSet) {
+      const templateId = getBaseTemplateId(item.id);
+      if (ownedSet.has(templateId) || ownedSet.has(item.id)) return false;
+    }
+
+    // 2. Level bracket filtering:
+    if (item.levelReq < minLevel || item.levelReq > maxLevel) return false;
+
+    // 3. Class suitability filtering:
+    // ALWAYS enforce class compatibility for weapons
+    const isWeapon = ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
+    if (isWeapon) {
+      if (!item.classReq || !item.classReq.includes(heroClass)) {
+        return false;
+      }
     } else {
-      // In NG+: Offer high-grade items scaled to player level range
-      const minShow = Math.max(45, playerLevel - 3);
-      const maxShow = Math.min(55, playerLevel + 2);
-      if (item.levelReq < minShow || item.levelReq > maxShow) return false;
+      // For armor, if specific class requirements exist, ensure heroClass is included
+      if (item.classReq && item.classReq.length > 0 && !item.classReq.includes(heroClass)) {
+        return false;
+      }
     }
 
-    // 2. Class suitability filtering
-    if (filterByHeroClassOnly && item.classReq && item.classReq.length > 0) {
-      if (!item.classReq.includes(heroClass)) return false;
+    // 4. Category Filter
+    if (categoryFilter === 'ALL') {
+      seenIds.add(item.id);
+      return true;
     }
-
-    // 3. Category Filter
-    if (categoryFilter === 'ALL') return true;
-    if (categoryFilter === 'WEAPONS') return ['DAGGER', 'SWORD', 'BOW', 'STAFF'].includes(item.category);
-    if (categoryFilter === 'ARMOR') return ['UPPER', 'LOWER'].includes(item.category);
-    if (categoryFilter === 'DAGGERS') return item.category === 'DAGGER';
-    if (categoryFilter === 'SWORDS') return item.category === 'SWORD';
-    if (categoryFilter === 'BOWS') return item.category === 'BOW';
-    if (categoryFilter === 'STAVES') return item.category === 'STAFF';
-    if (categoryFilter === 'UPPER') return item.category === 'UPPER';
-    if (categoryFilter === 'LOWER') return item.category === 'LOWER';
+    if (categoryFilter === 'WEAPONS') {
+      const ok = isWeapon;
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'ARMOR') {
+      const ok = ['UPPER', 'LOWER'].includes(item.category);
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'DAGGERS') {
+      const ok = item.category === 'DAGGER';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'SWORDS') {
+      const ok = item.category === 'SWORD';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'BOWS') {
+      const ok = item.category === 'BOW';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'STAVES') {
+      const ok = item.category === 'STAFF';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'UPPER') {
+      const ok = item.category === 'UPPER';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
+    if (categoryFilter === 'LOWER') {
+      const ok = item.category === 'LOWER';
+      if (ok) seenIds.add(item.id);
+      return ok;
+    }
 
     return true;
   });
 
-  // Sort by level descending and return a curated set of the top 9 items
-  return candidates.sort((a, b) => b.levelReq - a.levelReq).slice(0, 9);
+  // GUARANTEED ARTISAN STOCK: If stock is depleted, Panday Pira crafts fresh commission gear for player's level
+  if (candidates.length < 6) {
+    const tier = Math.min(10, Math.max(1, Math.ceil(playerLevel / 5)));
+    const rarity = getRarityForLevel(playerLevel);
+
+    const weaponCategory: 'SWORD' | 'DAGGER' | 'BOW' | 'STAFF' =
+      heroClass === 'Mandirigma' ? 'SWORD' :
+      heroClass === 'Bagani' ? 'DAGGER' :
+      heroClass === 'Mangangaso' ? 'BOW' : 'STAFF';
+
+    const weaponArchetypes = {
+      SWORD: 'Kampilan / Mandirigma',
+      DAGGER: 'Kris / Bagani',
+      BOW: 'Pinaka / Mangangaso',
+      STAFF: 'Yantok / Babaylan',
+    };
+
+    const weaponDmg = calcWeaponDamageForLevel(playerLevel, tier);
+    const upperDef = calcArmorDefenseForLevel(playerLevel, 'UPPER', tier);
+    const lowerDef = calcArmorDefenseForLevel(playerLevel, 'LOWER', tier);
+
+    const fallbackItems: EquipmentItem[] = [
+      {
+        id: `artisan_${weaponCategory.toLowerCase()}_lvl_${playerLevel}_a`,
+        name: `Panday Pira's Honed ${weaponCategory === 'SWORD' ? 'Kampilan' : weaponCategory === 'DAGGER' ? 'Kris' : weaponCategory === 'BOW' ? 'Pinaka' : 'Staff'}`,
+        category: weaponCategory,
+        classReq: [heroClass],
+        tier,
+        levelReq: playerLevel,
+        baseDamageMin: weaponDmg.min + 2,
+        baseDamageMax: weaponDmg.max + 3,
+        damageType: 'PHYSICAL',
+        inherentPerk: '+5% Critical Strike Trait',
+        archetype: weaponArchetypes[weaponCategory],
+        costInCC: calcCostInCowries(playerLevel, rarity),
+        rarity,
+      },
+      {
+        id: `artisan_upper_lvl_${playerLevel}_a`,
+        name: `Panday Pira's Tempered Pintados Cuirass`,
+        category: 'UPPER',
+        classReq: ['Mandirigma', 'Bagani', 'Mangangaso', 'Babaylan'],
+        tier,
+        levelReq: playerLevel,
+        baseDefense: upperDef + 2,
+        inherentPerk: '+15 Max Health Ward',
+        archetype: 'Heavy / Artisan Cuirass',
+        costInCC: calcCostInCowries(playerLevel, rarity),
+        rarity,
+      },
+      {
+        id: `artisan_lower_lvl_${playerLevel}_a`,
+        name: `Panday Pira's Reinforced Abaca Greaves`,
+        category: 'LOWER',
+        classReq: ['Mandirigma', 'Bagani', 'Mangangaso', 'Babaylan'],
+        tier,
+        levelReq: playerLevel,
+        baseDefense: lowerDef + 2,
+        inherentPerk: '+2% Tactical Dodge',
+        archetype: 'Medium / Artisan Greaves',
+        costInCC: calcCostInCowries(playerLevel, rarity),
+        rarity,
+      },
+      {
+        id: `artisan_${weaponCategory.toLowerCase()}_lvl_${Math.max(1, playerLevel - 1)}_b`,
+        name: `Ancestral Tempered ${weaponCategory === 'SWORD' ? 'Bolo' : weaponCategory === 'DAGGER' ? 'Balisong' : weaponCategory === 'BOW' ? 'Recurve' : 'Cane'}`,
+        category: weaponCategory,
+        classReq: [heroClass],
+        tier,
+        levelReq: Math.max(1, playerLevel - 1),
+        baseDamageMin: weaponDmg.min,
+        baseDamageMax: weaponDmg.max,
+        damageType: 'PHYSICAL',
+        inherentPerk: 'Balanced Pre-Colonial Forge',
+        archetype: weaponArchetypes[weaponCategory],
+        costInCC: Math.floor(calcCostInCowries(playerLevel, rarity) * 0.85),
+        rarity,
+      },
+      {
+        id: `artisan_upper_lvl_${Math.max(1, playerLevel - 1)}_b`,
+        name: `Hardened Carabao Hide Vest`,
+        category: 'UPPER',
+        classReq: ['Mandirigma', 'Bagani', 'Mangangaso', 'Babaylan'],
+        tier,
+        levelReq: Math.max(1, playerLevel - 1),
+        baseDefense: upperDef,
+        inherentPerk: 'Poblacion Smith Armor',
+        archetype: 'Medium / Warrior Vest',
+        costInCC: Math.floor(calcCostInCowries(playerLevel, rarity) * 0.85),
+        rarity,
+      },
+      {
+        id: `artisan_lower_lvl_${Math.max(1, playerLevel - 1)}_b`,
+        name: `Heavy Carabao Leather Trousers`,
+        category: 'LOWER',
+        classReq: ['Mandirigma', 'Bagani', 'Mangangaso', 'Babaylan'],
+        tier,
+        levelReq: Math.max(1, playerLevel - 1),
+        baseDefense: lowerDef,
+        inherentPerk: 'Poblacion Smith Breeches',
+        archetype: 'Medium / Warrior Trousers',
+        costInCC: Math.floor(calcCostInCowries(playerLevel, rarity) * 0.85),
+        rarity,
+      },
+    ];
+
+    fallbackItems.forEach((fb) => {
+      if (!seenIds.has(fb.id)) {
+        if (!ownedSet || (!ownedSet.has(fb.id) && !ownedSet.has(getBaseTemplateId(fb.id)))) {
+          if (categoryFilter === 'ALL' ||
+             (categoryFilter === 'WEAPONS' && fb.category === weaponCategory) ||
+             (categoryFilter === 'ARMOR' && ['UPPER', 'LOWER'].includes(fb.category))) {
+            seenIds.add(fb.id);
+            candidates.push(fb);
+          }
+        }
+      }
+    });
+  }
+
+  // Sort by level descending (highest level upgrades first), then power rating descending
+  return candidates.sort((a, b) => b.levelReq - a.levelReq || calcItemPowerRating(b) - calcItemPowerRating(a));
 }
 
 /**

@@ -22,5 +22,13 @@ export default defineConfig(() => {
         ignored: ['**/.vs/**', '**/.git/**'],
       },
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: path.resolve(import.meta.dirname, 'index.html'),
+          havenTest: path.resolve(import.meta.dirname, 'HavenRedesignTestView.html'),
+        },
+      },
+    },
   };
 });

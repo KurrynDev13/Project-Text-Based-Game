@@ -190,6 +190,15 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       return;
     }
 
+    if (currentStep.targetId === 'navbar-bottom') {
+      const navEl = document.querySelector('[data-tutorial-target="navbar-bottom"]');
+      const rect = navEl ? navEl.getBoundingClientRect() : null;
+      const navTop = rect && rect.top > 0 ? rect.top : window.innerHeight - 56;
+      const navHeight = rect && rect.height > 10 ? rect.height : 56;
+      setTargetRect(new DOMRect(0, navTop, window.innerWidth, navHeight));
+      return;
+    }
+
     const elements = Array.from(document.querySelectorAll(`[data-tutorial-target="${currentStep.targetId}"]`));
     const visibleElement = elements.find((el) => {
       const rect = el.getBoundingClientRect();
@@ -206,7 +215,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
 
   useLayoutEffect(() => {
     const scrollToTarget = () => {
-      if (!currentStep.targetId) return;
+      if (!currentStep.targetId || currentStep.targetId === 'navbar-bottom') return;
       const elements = Array.from(document.querySelectorAll(`[data-tutorial-target="${currentStep.targetId}"]`));
       const targetEl = (elements.find((el) => {
         const rect = el.getBoundingClientRect();
@@ -316,25 +325,28 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
 
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
-    const estCardHeight = isMobile ? 140 : 220;
+    const estCardHeight = isMobile ? 180 : 220;
     const bottomReserve = isMobile ? 65 : 80;
 
     let isPlacingAbove = false;
     let topPosition: number;
 
     if (isMobile) {
-      // On mobile: targets in top zone (HUD/Banner top < 120) get popover placed below. All other targets get popover at top: 8px.
-      if (targetRect.top < 120) {
+      // On mobile: targets in upper area (HUD, Banner, District Tabs like Forge & Alchemist) get popover placed below.
+      const fitsBelow = targetRect.bottom + estCardHeight + 10 <= windowHeight - bottomReserve;
+      const isTargetInUpperHalf = targetRect.top < 260;
+
+      if (isTargetInUpperHalf || fitsBelow) {
         isPlacingAbove = false;
         topPosition = targetRect.bottom + 10;
       } else {
         isPlacingAbove = true;
-        topPosition = 8;
+        topPosition = Math.max(12, targetRect.top - estCardHeight - 16);
       }
     } else {
       // On desktop:
       const fitsBelow = targetRect.bottom + estCardHeight + 10 <= windowHeight - bottomReserve;
-      const isTargetNearTop = targetRect.top < 120;
+      const isTargetNearTop = targetRect.top < 180;
       if (isTargetNearTop || fitsBelow) {
         isPlacingAbove = false;
         topPosition = targetRect.bottom + 10;
@@ -348,8 +360,8 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
     const safeGap = isMobile ? 10 : 16;
 
     const maxCardHeight = isPlacingAbove
-      ? Math.max(110, spotlightTop - safeGap - topPosition)
-      : Math.max(140, windowHeight - topPosition - bottomReserve - 8);
+      ? Math.max(160, spotlightTop - safeGap - topPosition)
+      : Math.max(180, windowHeight - topPosition - bottomReserve - 8);
 
     // Clamp top position safely inside visible bounds
     topPosition = Math.max(8, Math.min(topPosition, windowHeight - 120));
@@ -368,6 +380,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
   };
 
   const hasValidSpotlight = Boolean(targetRect && targetRect.width > 10 && targetRect.height > 10);
+  const isNavbarBottom = currentStep.targetId === 'navbar-bottom';
 
   return (
     <div className="fixed inset-0 z-[100] overflow-hidden select-none pointer-events-none">
@@ -380,12 +393,14 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       {hasValidSpotlight && targetRect && (
         <div
           onClick={handleSpotlightClick}
-          className="fixed transition-all duration-300 rounded-xl pointer-events-auto cursor-pointer z-[101] border-2 border-amber-400 ring-4 ring-amber-500/40"
+          className={`fixed transition-all duration-300 pointer-events-auto cursor-pointer z-[101] border-2 border-amber-400 ring-4 ring-amber-500/40 ${
+            isNavbarBottom ? 'rounded-t-2xl' : 'rounded-xl'
+          }`}
           style={{
-            top: `${Math.max(0, targetRect.top - 6)}px`,
-            left: `${Math.max(0, targetRect.left - 6)}px`,
-            width: `${targetRect.width + 12}px`,
-            height: `${targetRect.height + 12}px`,
+            top: isNavbarBottom ? `${Math.max(0, targetRect.top - 4)}px` : `${Math.max(0, targetRect.top - 6)}px`,
+            left: isNavbarBottom ? '0px' : `${Math.max(0, targetRect.left - 6)}px`,
+            width: isNavbarBottom ? '100vw' : `${targetRect.width + 12}px`,
+            height: isNavbarBottom ? `${window.innerHeight - targetRect.top + 4}px` : `${targetRect.height + 12}px`,
             boxShadow: '0 0 0 9999px rgba(9, 9, 11, 0.82), 0 0 25px rgba(251, 191, 36, 0.6)',
           }}
         >
