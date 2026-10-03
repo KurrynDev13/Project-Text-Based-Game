@@ -447,7 +447,12 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
             </div>
             <div>
               <div className="text-xs uppercase tracking-widest text-amber-500 font-semibold">{currentEnemy.title}</div>
-              <h3 className="text-xl md:text-2xl font-bold font-serif text-amber-200">{currentEnemy.name}</h3>
+              <h3 className="text-xl md:text-2xl font-bold font-serif text-amber-200 flex items-center gap-2">
+                <span>{currentEnemy.name}</span>
+                <span className="text-xs font-mono text-red-400 font-bold bg-red-950/80 border border-red-800/60 px-2 py-0.5 rounded-full">
+                  Lv.{currentEnemy.level}{currentEnemy.powerRating ? ` • ⚡${currentEnemy.powerRating}` : ''}
+                </span>
+              </h3>
               <p className="text-xs text-zinc-400">Armor: {currentEnemy.armor} | DMG: {currentEnemy.attackMin}-{currentEnemy.attackMax} ({currentEnemy.damageType})</p>
             </div>
           </div>

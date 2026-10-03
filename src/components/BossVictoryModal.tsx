@@ -82,10 +82,13 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
             </div>
           </div>
         ) : nextActName ? (
-          <div className="bg-gradient-to-r from-emerald-950 via-zinc-900 to-emerald-950 border border-emerald-500/60 p-3 rounded-xl shadow-lg">
+          <div className="bg-gradient-to-r from-emerald-950 via-zinc-900 to-emerald-950 border border-emerald-500/60 p-3 rounded-xl shadow-lg space-y-1">
             <div className="text-[10px] font-mono uppercase text-emerald-400 font-bold tracking-widest">MAP PROGRESSION UNLOCKED</div>
             <div className="text-sm font-bold font-serif text-emerald-200 mt-0.5">
               🗺️ {nextActName} is now accessible!
+            </div>
+            <div className="text-[11px] font-mono text-amber-200/90 pt-0.5">
+              ⚔️ Realm Cleansed! You will immediately march into <strong className="text-amber-300">{nextActName.split(':')[0]}</strong>.
             </div>
           </div>
         ) : null}
@@ -170,7 +173,13 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
           className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-3 rounded-xl uppercase font-mono tracking-wider transition-all shadow-xl active:scale-95 text-xs flex items-center justify-center space-x-2"
         >
           <span>🏆</span>
-          <span>Claim Rewards &amp; Continue Expedition</span>
+          <span>
+            {bossName.includes('Bakunawa') || bossId === 'boss_act_8'
+              ? 'Claim Rewards & Unlock Celestial Realm'
+              : nextActName
+              ? `Claim Rewards & March into ${nextActName.split(':')[0]}`
+              : 'Claim Rewards & Continue Expedition'}
+          </span>
         </button>
       </div>
     </div>

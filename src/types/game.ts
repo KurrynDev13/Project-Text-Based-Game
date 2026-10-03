@@ -192,6 +192,7 @@ export interface Bounty {
   isAccepted?: boolean;
   isCompleted: boolean;
   isClaimed: boolean;
+  isForfeited?: boolean;
 }
 
 export interface SideQuest {
@@ -262,6 +263,7 @@ export interface PlayerCharacter {
   bounties: Bounty[];
   sideQuests?: SideQuest[];
   forfeitedQuestIds?: string[];
+  forfeitedBountyIds?: string[];
   completedBossIds?: string[];
   act6Completed?: boolean;
   act8Completed?: boolean;
@@ -290,6 +292,7 @@ export interface EnemyMonster {
   name: string;
   title: string;
   level: number;
+  powerRating?: number; // Titan Power Rating representing true threat level
   maxHp: number;
   currentHp: number;
   armor: number;

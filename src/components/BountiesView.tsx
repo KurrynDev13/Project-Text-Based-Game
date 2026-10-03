@@ -69,7 +69,9 @@ export const BountiesView: React.FC<BountiesViewProps> = ({ player, onUpdatePlay
           <div
             key={bounty.id}
             className={`border rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-lg ${
-              bounty.isClaimed
+              bounty.isForfeited
+                ? 'bg-zinc-950/40 border-red-950/60 opacity-45'
+                : bounty.isClaimed
                 ? 'bg-zinc-950/60 border-zinc-800 opacity-50'
                 : bounty.isCompleted
                 ? 'bg-emerald-950/30 border-emerald-500/80 ring-1 ring-emerald-500/40'
@@ -79,15 +81,23 @@ export const BountiesView: React.FC<BountiesViewProps> = ({ player, onUpdatePlay
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-mono font-bold uppercase text-amber-400">{bounty.title}</span>
-                {bounty.isCompleted && !bounty.isClaimed && (
+                {bounty.isForfeited ? (
+                  <span className="bg-red-950/80 text-red-400 border border-red-800/60 font-mono text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                    🚫 Forfeited / Realm Cleansed
+                  </span>
+                ) : bounty.isCompleted && !bounty.isClaimed ? (
                   <span className="bg-emerald-500 text-zinc-950 font-mono text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                     Ready to Claim
                   </span>
-                )}
+                ) : null}
               </div>
               <h3 className="text-lg font-bold font-serif text-white">Target: {bounty.targetMonsterName}</h3>
               <p className="text-xs text-zinc-400">
-                Progress: <strong className="text-amber-300 font-mono">{bounty.currentCount} / {bounty.targetCount}</strong> eliminated
+                {bounty.isForfeited ? (
+                  <span className="text-red-400/80 font-mono text-[11px] italic">Contract voided — territory guardian vanquished.</span>
+                ) : (
+                  <>Progress: <strong className="text-amber-300 font-mono">{bounty.currentCount} / {bounty.targetCount}</strong> eliminated</>
+                )}
               </p>
             </div>
 
@@ -99,16 +109,18 @@ export const BountiesView: React.FC<BountiesViewProps> = ({ player, onUpdatePlay
 
               <button
                 onClick={() => handleClaimBounty(bounty)}
-                disabled={!bounty.isCompleted || bounty.isClaimed}
+                disabled={bounty.isForfeited || !bounty.isCompleted || bounty.isClaimed}
                 className={`px-5 py-2 rounded-lg text-xs font-bold uppercase font-mono tracking-wider transition-all ${
-                  bounty.isClaimed
+                  bounty.isForfeited
+                    ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed'
+                    : bounty.isClaimed
                     ? 'bg-zinc-800 text-zinc-500 cursor-default'
                     : bounty.isCompleted
                     ? 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-md active:scale-95'
                     : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 }`}
               >
-                {bounty.isClaimed ? 'Claimed' : bounty.isCompleted ? 'Claim Reward' : 'In Progress'}
+                {bounty.isForfeited ? 'Forfeited' : bounty.isClaimed ? 'Claimed' : bounty.isCompleted ? 'Claim Reward' : 'In Progress'}
               </button>
             </div>
           </div>

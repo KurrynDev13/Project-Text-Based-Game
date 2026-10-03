@@ -511,7 +511,11 @@ export function calcMonsterPowerRating(
  * - Act 1: 3150 (Player entering NG+ has ~2764 Power and starts LOCKED, requiring progression and upgrades to challenge)
  * - Scales progressively up to 4900 for Act 8 (+350 Power per additional NG+ tier)
  */
-export function calcRequiredGuardianPower(actId: string, ngPlusLevel: number = 0): number {
+export function calcRequiredGuardianPower(
+  actId: string,
+  ngPlusLevel: number = 0,
+  bossMonster?: MonsterPowerInput
+): number {
   const baseMap: Record<string, number> = {
     loc_act_1: 480,
     loc_act_2: 800,
@@ -536,41 +540,33 @@ export function calcRequiredGuardianPower(actId: string, ngPlusLevel: number = 0
     loc_act_infinite: 5400,
   };
 
-  if (ngPlusLevel <= 0) {
-    return baseMap[actId] ?? 480;
+  let fallbackReq = baseMap[actId] ?? 480;
+  if (ngPlusLevel > 0) {
+    const ng1Base = ng1Map[actId] ?? 3150;
+    const extraTierBonus = (ngPlusLevel - 1) * 350;
+    fallbackReq = ng1Base + extraTierBonus;
   }
 
-  const ng1Base = ng1Map[actId] ?? 3150;
-  const extraTierBonus = (ngPlusLevel - 1) * 350;
-  return ng1Base + extraTierBonus;
+  if (bossMonster) {
+    const calculatedBossPower = calcMonsterPowerRating(bossMonster, 0, ngPlusLevel);
+    // Requires ~68% of the Guardian's actual Power Rating, clamped to at least the act baseline
+    const dynamicReq = Math.floor(calculatedBossPower * 0.68);
+    return Math.max(fallbackReq, dynamicReq);
+  }
+
+  return fallbackReq;
 }
 
 /**
  * Dynamically calculates the required Titan Power Rating to enter an Act.
  * The entry requirement for Act N is precisely aligned with defeating the Act Guardian of Act (N-1).
- * In Normal Mode (NG0):
- * - Act 1: 0 Power (always unlocked)
- * - Act 2: 480 Power (matches Act 1 Guardian requirement)
- * - Act 3: 800 Power (matches Act 2 Guardian requirement)
- * - Act 4: 1200 Power (matches Act 3 Guardian requirement)
- * - Act 5: 1550 Power (matches Act 4 Guardian requirement)
- * - Act 6: 1900 Power (matches Act 5 Guardian requirement)
- * - Act 7: 2250 Power (matches Act 6 Guardian requirement)
- * - Act 8: 2600 Power (matches Act 7 Guardian requirement)
- * - Celestial Ether: 2850 Power (matches Act 8 Guardian requirement)
- *
- * In NG+1 (and higher cycles):
- * - Act 1: 0 Power (always unlocked at start of cycle)
- * - Act 2: 3150 Power (matches Act 1 Guardian in NG+1)
- * - Act 3: 3400 Power (matches Act 2 Guardian in NG+1)
- * - Act 4: 3650 Power (matches Act 3 Guardian in NG+1)
- * - Act 5: 3900 Power (matches Act 4 Guardian in NG+1)
- * - Act 6: 4150 Power (matches Act 5 Guardian in NG+1)
- * - Act 7: 4400 Power (matches Act 6 Guardian in NG+1)
- * - Act 8: 4650 Power (matches Act 7 Guardian in NG+1)
- * - Celestial Ether: 4900 Power (matches Act 8 Guardian in NG+1)
  */
-export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0, _ngPlusStartLevel: number = 0): number {
+export function calcRequiredActPower(
+  actId: string,
+  ngPlusLevel: number = 0,
+  _ngPlusStartLevel: number = 0,
+  prevBossMonster?: MonsterPowerInput
+): number {
   if (actId === 'loc_act_1') return 0; // Act I always unlocked at start
 
   const actOrder = [
@@ -589,7 +585,7 @@ export function calcRequiredActPower(actId: string, ngPlusLevel: number = 0, _ng
   if (idx <= 0) return 0;
 
   const prevActId = actOrder[idx - 1];
-  return calcRequiredGuardianPower(prevActId, ngPlusLevel);
+  return calcRequiredGuardianPower(prevActId, ngPlusLevel, prevBossMonster);
 }
 
 /** Standardized inventory auto-sorter using calcItemPowerRating (matching Delta vs Equipped) */

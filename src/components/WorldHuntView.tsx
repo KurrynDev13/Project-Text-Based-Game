@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
@@ -68,23 +68,55 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     onShowToast?.(msg, type, icon);
   };
 
-  const [selectedLocation, setSelectedLocation] = useState<GameLocation>(() => {
-    const found = GAME_LOCATIONS.find((l) => l.id === player.currentLocationId);
-    if (!found) return GAME_LOCATIONS[0];
-    const locIdx = GAME_LOCATIONS.findIndex((l) => l.id === found.id);
-    if (locIdx <= 0) return found;
-
-    const prevLoc = GAME_LOCATIONS[locIdx - 1];
-    const isPrevBossDefeated = prevLoc.bossId ? (player.completedBossIds || []).includes(prevLoc.bossId) : false;
-    const isLocUnlocked = (player.unlockedLocationIds || []).includes(found.id);
-    const reqPower = calcRequiredActPower(found.id, player.ngPlusLevel || 0);
-    const derivedInitial = calcDerivedStats(player.attributes, player.level, player.equipment);
-
-    if (isPrevBossDefeated || isLocUnlocked || derivedInitial.powerLevel >= reqPower) {
-      return found;
+  // Determine highest legitimate act unlocked based on defeated Act Guardians
+  const getLegitimateMaxActIndex = (completedBossIds: string[] = []): number => {
+    let maxIdx = 0; // Act 1 (idx 0) is always unlocked
+    for (let i = 0; i < GAME_LOCATIONS.length - 1; i++) {
+      const bossId = GAME_LOCATIONS[i].bossId;
+      if (bossId && completedBossIds.includes(bossId)) {
+        maxIdx = i + 1;
+      } else {
+        break;
+      }
     }
-    return GAME_LOCATIONS[0];
+    return maxIdx;
+  };
+
+  const [selectedLocation, setSelectedLocation] = useState<GameLocation>(() => {
+    const maxLegitIdx = getLegitimateMaxActIndex(player.completedBossIds || []);
+    const foundIdx = GAME_LOCATIONS.findIndex((l) => l.id === player.currentLocationId);
+    if (foundIdx >= 0 && foundIdx <= maxLegitIdx) {
+      return GAME_LOCATIONS[foundIdx];
+    }
+    return GAME_LOCATIONS[maxLegitIdx] || GAME_LOCATIONS[0];
   });
+
+  // Auto-heal player save if an illegitimate act progression occurred due to regular monster victory
+  useEffect(() => {
+    const maxLegitIdx = getLegitimateMaxActIndex(player.completedBossIds || []);
+    const currentLocIdx = GAME_LOCATIONS.findIndex((l) => l.id === player.currentLocationId);
+    const isOverExtended = currentLocIdx > maxLegitIdx;
+
+    const legitimateActIds = GAME_LOCATIONS.slice(0, maxLegitIdx + 1).map((l) => l.id);
+    const cleanedUnlockedLocs = (player.unlockedLocationIds || []).filter((id) => legitimateActIds.includes(id));
+    const cleanedStoryIds = (player.unlockedActStoryIds || []).filter((id) => legitimateActIds.includes(id));
+
+    const needsFix = isOverExtended ||
+      cleanedUnlockedLocs.length !== (player.unlockedLocationIds || []).length ||
+      cleanedStoryIds.length !== (player.unlockedActStoryIds || []).length;
+
+    if (needsFix) {
+      const fallbackLoc = GAME_LOCATIONS[maxLegitIdx];
+      setSelectedLocation(fallbackLoc);
+      setShowActStoryModal(false);
+      onUpdatePlayer({
+        ...player,
+        currentLocationId: fallbackLoc.id,
+        unlockedLocationIds: Array.from(new Set(['loc_act_1', ...cleanedUnlockedLocs])),
+        unlockedActStoryIds: cleanedStoryIds,
+      });
+    }
+  }, [player.completedBossIds, player.currentLocationId, player.unlockedLocationIds, player.unlockedActStoryIds]);
 
   useEffect(() => {
     onLocationChange?.(selectedLocation.id);
@@ -278,7 +310,27 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   }, [selectedLocation.id, player.unlockedActStoryIds, suppressActStory]);
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
-  const bossPowerReq = calcRequiredGuardianPower(selectedLocation.id, player.ngPlusLevel || 0);
+  const effectivePlayerDmg = Math.max(derived.meleeDamage, derived.rangedDamage, derived.magicDamage);
+  const playerContext = useMemo(() => ({
+    level: player.level,
+    maxHp: derived.maxHp,
+    effectiveDmg: effectivePlayerDmg,
+    powerLevel: derived.powerLevel,
+  }), [player.level, derived.maxHp, effectivePlayerDmg, derived.powerLevel]);
+
+  const bossPreview = useMemo(() => {
+    if (!selectedLocation.bossId) return null;
+    return generateMonsterForLocation(
+      selectedLocation.minLevel,
+      selectedLocation.bossId,
+      undefined,
+      player.ngPlusLevel || 0,
+      player.ngPlusStartLevel || 0,
+      playerContext
+    );
+  }, [selectedLocation.id, selectedLocation.bossId, selectedLocation.minLevel, player.ngPlusLevel, player.ngPlusStartLevel, playerContext]);
+
+  const bossPowerReq = calcRequiredGuardianPower(selectedLocation.id, player.ngPlusLevel || 0, bossPreview ?? undefined);
 
   const handleCloseActStory = () => {
     setShowActStoryModal(false);
@@ -299,10 +351,17 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     .slice(0, 3);
 
   const actQuests = (player.sideQuests || []).filter((q) => q.actId === selectedLocation.id);
-  const actQuestsCompleted = actQuests.filter((q) => q.isCompleted || q.isClaimed).length;
-  const actQuestsDiscovered = actQuests.filter((q) => q.isDiscovered).length;
+  const actQuestsCompleted = actQuests.filter((q) => q.isCompleted || q.isClaimed || q.isForfeited).length;
+  const uncompletedQuests = actQuests.filter((q) => !q.isCompleted && !q.isClaimed && !q.isForfeited);
   const hasUndiscovered = actQuests.some((q) => !q.isDiscovered);
-  const hasUncompleted = actQuestsCompleted < actQuests.length;
+  const hasUncompletedQuests = uncompletedQuests.length > 0;
+
+  const actActiveBounties = (player.bounties || []).filter(
+    (b) => b.actId === selectedLocation.id && b.isAccepted && !b.isCompleted && !b.isClaimed && !b.isForfeited
+  );
+  const hasActiveBounties = actActiveBounties.length > 0;
+
+  const hasUncompleted = hasUncompletedQuests || hasActiveBounties;
   const isBossDefeated = selectedLocation.bossId ? (player.completedBossIds || []).includes(selectedLocation.bossId) : false;
 
   const baseBossReq = selectedLocation.bossLevelReq ?? (selectedLocation.minLevel + 5);
@@ -403,10 +462,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return q;
     });
 
+    const newlyForfeitedBounties: string[] = [];
+    const updatedBounties = (player.bounties || []).map((b) => {
+      if (b.actId === selectedLocation.id && !b.isCompleted && !b.isClaimed && !b.isForfeited) {
+        newlyForfeitedBounties.push(b.id);
+        return { ...b, isForfeited: true };
+      }
+      return b;
+    });
+
     const updatedForfeitedIds = Array.from(new Set([...(player.forfeitedQuestIds || []), ...newlyForfeited]));
+    const updatedForfeitedBountyIds = Array.from(new Set([...(player.forfeitedBountyIds || []), ...newlyForfeitedBounties]));
 
     setSelectedLocation(loc);
-    setExplorationEvent(`🗺️ Advanced to ${loc.name}! ${newlyForfeited.length} uncompleted side quests in ${selectedLocation.name} were permanently forfeited.`);
+    setExplorationEvent(`🗺️ Advanced to ${loc.name}! Uncompleted regional side quests & contracts in ${selectedLocation.name} were permanently forfeited.`);
     soundFX.playClickSound();
 
     onUpdatePlayer({
@@ -414,6 +483,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       currentLocationId: loc.id,
       sideQuests: updatedSideQuests,
       forfeitedQuestIds: updatedForfeitedIds,
+      bounties: updatedBounties,
+      forfeitedBountyIds: updatedForfeitedBountyIds,
     });
 
     setShowAdvanceWarningModal(false);
@@ -423,29 +494,48 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const { ventureCost, searchCost, bossCost } = getActStaminaCosts(selectedLocation.id, player.ngPlusLevel || 0);
   const maxStamina = calcMaxStamina(player.level);
 
-  // Boss Battle Starter (with option to forfeit uncompleted side quests)
+  // Boss Battle Starter (with option to forfeit uncompleted side quests & bounties)
   const startBossBattle = (forfeitQuests: boolean) => {
     if (!selectedLocation.bossId) return;
 
     let updatedSideQuests = player.sideQuests || [];
     let updatedForfeitedIds = player.forfeitedQuestIds || [];
+    let updatedBounties = player.bounties || [];
+    let updatedForfeitedBountyIds = player.forfeitedBountyIds || [];
 
     if (forfeitQuests) {
       const newlyForfeited: string[] = [];
       updatedSideQuests = updatedSideQuests.map((q) => {
-        if (q.actId === selectedLocation.id && !q.isClaimed) {
+        if (q.actId === selectedLocation.id && !q.isClaimed && !q.isCompleted) {
           newlyForfeited.push(q.id);
           return { ...q, isForfeited: true };
         }
         return q;
       });
       updatedForfeitedIds = Array.from(new Set([...updatedForfeitedIds, ...newlyForfeited]));
+
+      const newlyForfeitedBounties: string[] = [];
+      updatedBounties = updatedBounties.map((b) => {
+        if (b.actId === selectedLocation.id && !b.isClaimed && !b.isCompleted) {
+          newlyForfeitedBounties.push(b.id);
+          return { ...b, isForfeited: true };
+        }
+        return b;
+      });
+      updatedForfeitedBountyIds = Array.from(new Set([...updatedForfeitedBountyIds, ...newlyForfeitedBounties]));
     }
 
     const currentStamina = player.stamina ?? maxStamina;
     const newStamina = Math.max(0, currentStamina - bossCost);
 
-    const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
+    const boss = generateMonsterForLocation(
+      selectedLocation.minLevel,
+      selectedLocation.bossId,
+      undefined,
+      player.ngPlusLevel || 0,
+      player.ngPlusStartLevel || 0,
+      playerContext
+    );
 
     setExplorationEvent(`⚔️ CLIMAX GUARDIAN BATTLE! Challenging ${boss.name} (${boss.title})!`);
     soundFX.playCritSound();
@@ -455,6 +545,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       stamina: newStamina,
       sideQuests: updatedSideQuests,
       forfeitedQuestIds: updatedForfeitedIds,
+      bounties: updatedBounties,
+      forfeitedBountyIds: updatedForfeitedBountyIds,
     });
 
     onUpdateBattle({
@@ -468,7 +560,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           id: `boss_init_${Date.now()}`,
           turn: 1,
           actor: 'SYSTEM',
-          text: `⚔️ [ACT GUARDIAN ENCOUNTER] You confront ${boss.name} (${boss.title}) in ${selectedLocation.name}!`,
+          text: `⚔️ [ACT GUARDIAN ENCOUNTER] You confront ${boss.name} (Lv.${boss.level} • ⚡${boss.powerRating ?? '---'} PWR • ${boss.title}) in ${selectedLocation.name}!`,
           type: 'CRIT',
         },
       ],
@@ -580,7 +672,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         isSurvivalBoss = true;
         const bossPool = ['boss_act_1', 'boss_act_2', 'boss_act_3', 'boss_act_4', 'boss_act_5', 'boss_act_6', 'boss_act_7', 'boss_act_8'];
         const chosenBossId = bossPool[Math.floor(Math.random() * bossPool.length)];
-        monster = generateMonsterForLocation(47 + (waveTier - 1) * 3, chosenBossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
+        monster = generateMonsterForLocation(47 + (waveTier - 1) * 3, chosenBossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
         monster.name = `Celestial Titan ${monster.name} (Wave ${waveTier})`;
         monster.isBoss = true;
         monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.15));
@@ -590,12 +682,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       } else {
         // Standard Monster Spawn
         const activeTargetId = player.bounties.find(
-          (b) => b.isAccepted !== false && !b.isCompleted && selectedLocation.monsters.includes(b.targetMonsterId)
+          (b) => b.isAccepted !== false && !b.isCompleted && !b.isForfeited && selectedLocation.monsters.includes(b.targetMonsterId)
         )?.targetMonsterId;
 
         const monsterToSpawn = (activeTargetId && Math.random() < 0.85) ? activeTargetId : undefined;
         const spawnLvl = isSurvivalRealm ? 47 + (waveTier - 1) * 2 : selectedLocation.minLevel;
-        monster = generateMonsterForLocation(spawnLvl, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
+        monster = generateMonsterForLocation(spawnLvl, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
         if (isSurvivalRealm) {
           monster.maxHp = Math.floor(monster.maxHp * (1 + waveTier * 0.08));
           monster.currentHp = monster.maxHp;
@@ -603,8 +695,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       const logText = isSurvivalBoss
-        ? `⚡ CELESTIAL TITAN APPROACHING! Wave Tier #${waveTier} Boss ${monster.name} emerges!`
-        : `⚠️ ENEMY AMBUSH: A level ${monster.level} ${monster.name} (${monster.title}) lunges from the shadow thicket!`;
+        ? `⚡ CELESTIAL TITAN APPROACHING! Wave Tier #${waveTier} Boss ${monster.name} (Lv.${monster.level} • ⚡${monster.powerRating ?? '---'} PWR) emerges!`
+        : `⚠️ ENEMY AMBUSH: A Level ${monster.level} ${monster.name} (⚡${monster.powerRating ?? '---'} PWR • ${monster.title}) lunges from the shadow thicket!`;
       soundFX.playCritSound();
       setExplorationEvent(null);
       setActiveInteractiveEncounter(null);
@@ -868,14 +960,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       )?.targetMonsterId;
 
       const monsterToSpawn = activeTargetId || undefined;
-      const monster = generateMonsterForLocation(selectedLocation.minLevel + 2, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
+      const monster = generateMonsterForLocation(selectedLocation.minLevel + 2, monsterToSpawn, selectedLocation.monsters, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
       if (!monster.name.startsWith('Elite')) {
         monster.name = `Elite ${monster.name}`;
       }
       monster.maxHp = Math.floor(monster.maxHp * 1.4);
       monster.currentHp = monster.maxHp;
+      monster.powerRating = calcMonsterPowerRating(monster, 0, player.ngPlusLevel || 0);
 
-      const logText = `⚔️ SURPRISE AMBUSH: Successfully tracked down ${monster.name}! Caught the enemy unaware — you strike first!`;
+      const logText = `⚔️ SURPRISE AMBUSH: Successfully tracked down ${monster.name} (Lv.${monster.level} • ⚡${monster.powerRating ?? '---'} PWR)! Caught the enemy unaware — you strike first!`;
       soundFX.playCritSound();
       setExplorationEvent(null);
       setActiveInteractiveEncounter(null);
@@ -1964,8 +2057,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
   };
 
-  // Claim Rewards and exit battle viewport safely
-  const handleClaimRewardsAndExit = () => {
+  // Claim regular combat rewards and exit battle viewport safely - NEVER advances acts
+  const handleClaimCombatVictory = () => {
     soundFX.playCoinSound();
     onUpdateBattle({
       inCombat: false,
@@ -1976,6 +2069,38 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       logs: [],
       winner: null,
     });
+  };
+
+  // Climax Act Guardian Boss victory claim - ONLY called when claiming BossVictoryModal
+  const handleClaimBossVictoryAndAdvance = () => {
+    soundFX.playCoinSound();
+    onUpdateBattle({
+      inCombat: false,
+      turnNumber: 0,
+      playerActionGauge: 100,
+      enemyActionGauge: 0,
+      enemy: null,
+      logs: [],
+      winner: null,
+    });
+
+    // Find subsequent act location (Act 1 -> Act 2, ..., Act 7 -> Act 8)
+    const curIdx = GAME_LOCATIONS.findIndex((l) => l.id === selectedLocation.id);
+    const nextLoc = (curIdx >= 0 && curIdx < GAME_LOCATIONS.length - 1 && selectedLocation.id !== 'loc_act_8' && selectedLocation.id !== 'loc_act_infinite')
+      ? GAME_LOCATIONS[curIdx + 1]
+      : null;
+
+    if (nextLoc) {
+      // March player into next act directly & display new Act Lore!
+      const updatedUnlocked = Array.from(new Set([...(player.unlockedLocationIds || []), nextLoc.id]));
+      setSelectedLocation(nextLoc);
+      onUpdatePlayer({
+        ...player,
+        currentLocationId: nextLoc.id,
+        unlockedLocationIds: updatedUnlocked,
+      });
+      setShowActStoryModal(true);
+    }
   };
 
   return (
@@ -2006,19 +2131,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 const isPowerLocked = (!isPrevBossDefeated && !isLocUnlocked && !isInfiniteUnlocked) && derived.powerLevel < reqPower;
                 const isLocked = isBossLocked || isPowerLocked;
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
+                const prevRoman = idx > 0 ? ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx - 1] : '';
 
                 let lockLabel = '';
                 if (isLocked) {
                   if (isInfinite) {
-                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII' : `${reqPower} Pwr`})`;
+                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII Boss' : `${reqPower} Pwr`})`;
                   } else {
-                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${idx}` : `${reqPower} Pwr`})`;
+                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${prevRoman} Boss` : `${reqPower} Pwr`})`;
                   }
                 } else {
                   if (isInfinite) {
                     lockLabel = `🌌 ${loc.name}`;
                   } else {
-                    lockLabel = `Act ${actRoman}: ${loc.name}`;
+                    lockLabel = loc.name;
                   }
                 }
 
@@ -2136,8 +2262,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             ))}
 
             <button
-              onClick={handleClaimRewardsAndExit}
-              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-xs uppercase px-5 py-2 rounded-xl shadow-lg transition-all active:scale-95"
+              onClick={handleClaimCombatVictory}
+              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-xs uppercase px-5 py-2 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
             >
               [ Claim Rewards &amp; Continue ]
             </button>
@@ -2497,28 +2623,35 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           <div className="bg-zinc-950 border-2 border-amber-500/80 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in text-center my-auto">
             <div className="text-4xl">⚠️</div>
             <h3 className="text-xl font-bold font-serif text-amber-200">
-              Unfinished Regional Lore Warning
+              Realm Cleansing &amp; Forfeiture Warning
             </h3>
 
             <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 text-xs font-mono text-amber-100 leading-relaxed text-left space-y-2">
               <p className="font-bold text-amber-300">
-                There are still quests to be discovered in this Act!
+                Challenging the Act Guardian will seal the fate of this realm!
               </p>
-              <p className="text-zinc-300">
-                You have completed <strong className="text-amber-300">{actQuestsCompleted}/{actQuests.length}</strong> side quests in {selectedLocation.name}.
-                {hasUndiscovered && (
-                  <span className="text-yellow-300 block mt-1 font-semibold">
-                    • There are still undiscovered quest givers wandering the wilderness. Venture forward to encounter them!
-                  </span>
-                )}
-              </p>
+              {hasUncompletedQuests && (
+                <p className="text-zinc-300">
+                  • <strong className="text-amber-300">{actQuestsCompleted}/{actQuests.length}</strong> Regional Side Quests completed.
+                  {hasUndiscovered && (
+                    <span className="text-yellow-300 block text-[11px] mt-0.5 font-semibold">
+                      (Undiscovered regional encounters still await in the wilderness)
+                    </span>
+                  )}
+                </p>
+              )}
+              {hasActiveBounties && (
+                <p className="text-zinc-300">
+                  • <strong className="text-amber-300">{actActiveBounties.length}</strong> active bounty contract(s) currently open in this Act.
+                </p>
+              )}
               <p className="text-red-300 border-t border-amber-900/60 pt-2 font-semibold">
-                If you continue and conquer the Act Guardian, all uncompleted and undiscovered side quests in this Act will be <span className="underline">permanently forfeited</span>.
+                Once the Act Guardian falls, this realm will be cleansed of darkness. All uncompleted side quests and bounties in this Act will be <span className="underline font-bold text-red-200">PERMANENTLY FORFEITED</span>, and you will immediately march forward into the next Act!
               </p>
             </div>
 
             <div className="text-xs font-mono text-zinc-300 font-bold">
-              Forfeit side quests and continue to the Act Guardian battle?
+              Forfeit regional contracts &amp; side quests to confront the Guardian?
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2 font-mono text-xs">
@@ -2526,13 +2659,13 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 onClick={() => setShowBossWarningModal(false)}
                 className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold uppercase py-3 rounded-xl transition-all cursor-pointer"
               >
-                🧭 Keep Venturing (Stay in Act)
+                🧭 Stay &amp; Prepare
               </button>
               <button
                 onClick={() => startBossBattle(true)}
                 className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold uppercase py-3 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
               >
-                ⚔️ Forfeit Quests & Continue
+                ⚔️ Forfeit &amp; Confront Guardian
               </button>
             </div>
           </div>
@@ -2606,7 +2739,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* Boss Discovery Warning Card Modal (Phase 8.2) */}
       {showBossDiscoveryModal && selectedLocation.bossId && (() => {
-        const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0);
+        const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
         return (
           <BossDiscoveryModal
             bossId={selectedLocation.bossId}
@@ -2648,7 +2781,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           isNgPlus={(player.ngPlusLevel || 0) > 0}
           onClaim={() => {
             setActiveBossVictoryReward(null);
-            handleClaimRewardsAndExit();
+            handleClaimBossVictoryAndAdvance();
           }}
         />
       )}

@@ -377,7 +377,9 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
             <div className="bg-zinc-950/90 backdrop-blur-md px-2.5 py-1 rounded-xl border border-red-900/80 shadow-2xl w-44 sm:w-52 mb-1 text-right">
               <div className="flex items-center justify-between text-[10px] font-cinzel font-bold text-red-100">
                 <span className="truncate font-bold">{monster.name}</span>
-                <span className="text-[8px] font-mono text-red-400 shrink-0 ml-1">Lv.{monster.level}</span>
+                <span className="text-[8px] font-mono text-red-400 shrink-0 ml-1">
+                  Lv.{monster.level}{monster.powerRating ? ` • ⚡${monster.powerRating}` : ''}
+                </span>
               </div>
               
               <div className="flex items-center justify-between text-[8px] font-mono text-zinc-400 my-0.5">
@@ -405,7 +407,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 onClick={() => setPreviewData({
                   src: getMonsterImageUrl(monster.id, monster.isBoss),
                   title: monster.name,
-                  subtitle: `Level ${monster.level} ${monster.isBoss ? 'Act Guardian Boss' : 'Monster'}`,
+                  subtitle: `Level ${monster.level}${monster.powerRating ? ` • ⚡${monster.powerRating} Power` : ''} ${monster.isBoss ? 'Act Guardian Boss' : 'Monster'}`,
                   badge: monster.isBoss ? 'BOSS GUARDIAN' : 'MONSTER',
                   theme: monster.isBoss ? 'BOSS' : 'MONSTER',
                 })}

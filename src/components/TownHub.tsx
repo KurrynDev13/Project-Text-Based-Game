@@ -2104,7 +2104,7 @@ const REST_OPTIONS: RestOption[] = [
                       </div>
 
                       <div className="space-y-2">
-                        {isUnlocked && !isInfiniteRealm && (
+                        {isUnlocked && !isInfiniteRealm && (player.unlockedActStoryIds ?? []).includes(loc.id) && (
                           <button
                             onClick={() => {
                               setSelectedStoryLocation(loc);

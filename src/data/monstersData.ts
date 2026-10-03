@@ -1,5 +1,5 @@
 import { EnemyMonster, MemoryRarity } from '../types/game';
-import { calcExpRequired } from '../utils/gameFormulas';
+import { calcExpRequired, calcMonsterPowerRating } from '../utils/gameFormulas';
 
 export interface MonsterTemplate {
   id: string;
@@ -766,7 +766,13 @@ export function generateMonsterForLocation(
   specificMonsterId?: string,
   allowedMonsterIds?: string[],
   ngPlusLevel: number = 0,
-  ngPlusStartLevel: number = 0
+  ngPlusStartLevel: number = 0,
+  playerContext?: {
+    level?: number;
+    maxHp?: number;
+    effectiveDmg?: number;
+    powerLevel?: number;
+  }
 ): EnemyMonster {
   let template = MONSTER_TEMPLATES.find((m) => m.id === specificMonsterId);
 
@@ -780,10 +786,6 @@ export function generateMonsterForLocation(
   const actNumber = Math.max(1, Math.min(8, Math.ceil(locationMinLevel / 6)));
   const actStartLevel = (actNumber - 1) * 6 + 1;
   const levelOffset = Math.max(0, locationMinLevel - actStartLevel);
-
-  const effectiveLevel = ngPlusLevel > 0
-    ? (ngPlusStartLevel || 53) + (actNumber - 1) * 6 + levelOffset
-    : locationMinLevel;
 
   if (!template) {
     const candidateTemplates = MONSTER_TEMPLATES.filter(
@@ -799,47 +801,119 @@ export function generateMonsterForLocation(
   let attackMin: number;
   let attackMax: number;
 
+  const playerLvl = playerContext?.level || locationMinLevel;
+  const playerDmg = playerContext?.effectiveDmg || 25;
+  const playerHp = playerContext?.maxHp || 250;
+
   if (ngPlusLevel > 0) {
     // NG+ Stat Scaling:
-    // Scaled so NG+ monsters have true tactical longevity (~6-10 solid player strikes/skills to defeat)
-    // with increased armor mitigation and menacing attack power (~240-380+ base damage).
-    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.40;
-    const baseNgHp = 3800 + (actNumber - 1) * 2000 + levelOffset * 350;
-    const hpArchetypeMult = template.isBoss
-      ? 3.8
-      : Math.min(2.2, template.baseHp / 120);
-    maxHp = Math.floor(baseNgHp * hpArchetypeMult * ngTierMult);
+    // Scaled so NG+ monsters have true tactical longevity with heightened threats.
+    const ngTierMult = 1.0 + (ngPlusLevel - 1) * 0.50;
+    const baseNgHp = template.isBoss
+      ? 18000 + (actNumber - 1) * 7500 + levelOffset * 1200
+      : 3600 + (actNumber - 1) * 1800 + levelOffset * 350;
+    const hpArchetypeMult = template.isBoss ? 1.0 : Math.min(2.4, Math.max(0.7, template.baseHp / 120));
+    const targetNgHp = Math.floor(baseNgHp * hpArchetypeMult * ngTierMult);
 
-    const baseNgArmor = 35 + (actNumber - 1) * 12 + levelOffset * 3;
-    const armorArchetypeMult = template.isBoss
-      ? 3.0
-      : Math.min(2.2, template.baseArmor / 6);
-    armor = Math.floor(baseNgArmor * armorArchetypeMult * ngTierMult);
+    const baseNgArmor = template.isBoss
+      ? 120 + (actNumber - 1) * 35 + levelOffset * 8
+      : 35 + (actNumber - 1) * 12 + levelOffset * 3;
+    const armorArchetypeMult = template.isBoss ? 1.0 : Math.min(2.2, Math.max(0.6, template.baseArmor / 6));
+    const targetNgArmor = Math.floor(baseNgArmor * armorArchetypeMult * ngTierMult);
 
-    const baseNgDmgMin = 240 + (actNumber - 1) * 55 + levelOffset * 10;
-    const baseNgDmgMax = 380 + (actNumber - 1) * 75 + levelOffset * 15;
-    const dmgArchetypeMult = template.isBoss
-      ? 1.8
-      : Math.min(2.0, template.baseMinDmg / 10);
-    attackMin = Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
-    attackMax = Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
+    const baseNgDmgMin = template.isBoss
+      ? 380 + (actNumber - 1) * 85 + levelOffset * 18
+      : 220 + (actNumber - 1) * 50 + levelOffset * 10;
+    const baseNgDmgMax = Math.floor(baseNgDmgMin * (template.isBoss ? 1.45 : 1.35));
+    const dmgArchetypeMult = template.isBoss ? 1.0 : Math.min(2.0, Math.max(0.7, template.baseMinDmg / 10));
+    const targetNgDmgMin = Math.floor(baseNgDmgMin * dmgArchetypeMult * ngTierMult);
+    const targetNgDmgMax = Math.floor(baseNgDmgMax * dmgArchetypeMult * ngTierMult);
+
+    // Dynamic player-adaptive scaling in NG+ if player has surpassed standard post-game metrics
+    const playerScaledHp = template.isBoss
+      ? Math.floor(playerDmg * 22 * hpArchetypeMult * ngTierMult)
+      : Math.floor(playerDmg * 7.5 * hpArchetypeMult * ngTierMult);
+    const playerScaledDmg = Math.floor(playerHp * (template.isBoss ? 0.28 : 0.14) * dmgArchetypeMult * ngTierMult);
+
+    maxHp = Math.max(targetNgHp, playerScaledHp);
+    armor = targetNgArmor;
+    attackMin = Math.max(targetNgDmgMin, playerScaledDmg);
+    attackMax = Math.max(targetNgDmgMax, Math.floor(attackMin * 1.35));
   } else {
-    // NG0 Scaling: Standard per-Act base stats + 4% per floor level offset
+    // Normal Mode (NG0):
+    // Standard per-Act baseline difficulty floor + dynamic scaling based on player character stats
     const statScale = 1.0 + levelOffset * 0.04;
-    maxHp = Math.floor(template.baseHp * statScale);
-    armor = Math.floor(template.baseArmor * statScale);
-    attackMin = Math.floor(template.baseMinDmg * statScale);
-    attackMax = Math.floor(template.baseMaxDmg * statScale);
+    const floorHp = Math.floor(template.baseHp * statScale);
+    const floorArmor = Math.floor(template.baseArmor * statScale);
+    const floorDmgMin = Math.floor(template.baseMinDmg * statScale);
+    const floorDmgMax = Math.floor(template.baseMaxDmg * statScale);
+
+    // Baseline expected player metrics per act tier
+    const expectedDmg = locationMinLevel * 8 + 20;
+    const expectedHp = locationMinLevel * 45 + 300;
+
+    const dmgExcessRatio = Math.max(1.0, playerDmg / expectedDmg);
+    const hpExcessRatio = Math.max(1.0, playerHp / expectedHp);
+
+    if (playerContext && (dmgExcessRatio > 1.05 || hpExcessRatio > 1.05)) {
+      // Scale monster stats up smoothly if player stats outgrow the baseline
+      const hpScale = Math.min(2.5, dmgExcessRatio);
+      const dmgScale = Math.min(2.0, hpExcessRatio);
+
+      maxHp = Math.floor(floorHp * hpScale);
+      attackMin = Math.floor(floorDmgMin * dmgScale);
+      attackMax = Math.floor(floorDmgMax * dmgScale);
+      armor = Math.floor(floorArmor * (1 + (playerLvl - locationMinLevel) * 0.04));
+    } else {
+      maxHp = floorHp;
+      armor = floorArmor;
+      attackMin = floorDmgMin;
+      attackMax = floorDmgMax;
+    }
   }
 
-  // EXP reward scales exponentially with 1.24^level to create a smooth RPG curve
-  // (starts at ~8 kills/level in early game, scaling gradually to ~15-20 in mid game, and ~25-40+ in endgame/NG+)
-  const baseScale = Math.pow(1.24, Math.max(0, effectiveLevel - 1));
+  // Calculate Titan Power Rating dynamically
+  const powerRating = calcMonsterPowerRating(
+    {
+      maxHp,
+      armor,
+      attackMin,
+      attackMax,
+      damageType: template.damageType,
+      specialAbility: template.specialAbility,
+      isBoss: template.isBoss,
+    },
+    levelOffset,
+    ngPlusLevel,
+    ngPlusStartLevel
+  );
+
+  // Dynamic Monster Level: authentically represents combat threat while staying aligned with Act & NG+ brackets
+  let dynamicLevel: number;
+  if (ngPlusLevel > 0) {
+    const ngBaseLevel = (ngPlusStartLevel || 50) + (actNumber - 1) * 4 + levelOffset;
+    const tierOffset = template.isBoss ? 4 : Math.min(3, Math.floor((template.baseHp || 100) / 120));
+    dynamicLevel = ngBaseLevel + tierOffset;
+  } else {
+    // Dynamic level in NG0: stays within act progression, slightly scales if player overlevels
+    const actExpectedLvl = locationMinLevel + (template.isBoss ? 5 : Math.min(3, Math.floor(levelOffset)));
+    const playerLvlCap = playerContext?.level
+      ? Math.max(actExpectedLvl, Math.min(playerContext.level, locationMinLevel + 6))
+      : actExpectedLvl;
+    dynamicLevel = playerLvlCap;
+  }
+
+  // EXP reward: scaled proportionally to the EXP required for dynamicLevel (~6.5% of level per kill)
+  // Eliminates runaway exponential math.pow overflows!
+  const levelExpRequired = calcExpRequired(dynamicLevel);
+  const baseKillExp = Math.floor(levelExpRequired * 0.065);
   const expReward = Math.max(
     15,
-    Math.floor(25 * baseScale * (template.expMult ?? 1.0))
+    Math.floor(baseKillExp * (template.expMult ?? 1.0))
   );
-  const copperReward = Math.floor(30 * (1 + (effectiveLevel - 1) * 0.35) * template.copperMult);
+
+  const ngCopperMult = ngPlusLevel > 0 ? (1 + ngPlusLevel * 0.5) : 1.0;
+  const copperReward = Math.floor(30 * (1 + (dynamicLevel - 1) * 0.35) * template.copperMult * ngCopperMult);
 
   const monsterName = ngPlusLevel > 0 ? `[NG+${ngPlusLevel}] ${template.name}` : template.name;
 
@@ -847,7 +921,8 @@ export function generateMonsterForLocation(
     id: template.id,
     name: monsterName,
     title: template.title,
-    level: effectiveLevel,
+    level: dynamicLevel,
+    powerRating,
     maxHp,
     currentHp: maxHp,
     armor,

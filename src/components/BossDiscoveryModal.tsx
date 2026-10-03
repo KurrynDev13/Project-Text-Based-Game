@@ -79,10 +79,17 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
             {bossName}
           </h2>
 
-          {/* Boss Title */}
-          <p className="text-amber-400 text-xs font-mono font-bold uppercase tracking-widest text-center">
-            {bossTitle}
-          </p>
+          {/* Boss Title & Level */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1">
+            <p className="text-amber-400 text-xs font-mono font-bold uppercase tracking-widest text-center">
+              {bossTitle}
+            </p>
+            {bossLevel && (
+              <span className="bg-red-950/90 border border-red-700/60 text-red-300 font-mono font-bold px-2 py-0.5 rounded-full text-[10px]">
+                Lv. {bossLevel}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Decorative divider */}
