@@ -1,8 +1,17 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { EnemyMonster, PlayerCharacter } from '../types/game';
 import { getHeroImageUrl, getMonsterImageUrl, getEventImageUrl, getLocationBgUrl } from '../utils/assetHelper';
 import { calcDerivedStats } from '../utils/gameFormulas';
 import { InteractiveEncounter } from './WorldHuntView';
+
+export interface PreviewData {
+  src: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  theme: 'HERO' | 'MONSTER' | 'BOSS' | 'EVENT';
+}
 
 export interface FloatingNumber {
   id: string;
@@ -143,6 +152,19 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
 
   const [floaters, setFloaters] = useState<FloatingNumber[]>([]);
   const [isRumbling, setIsRumbling] = useState<boolean>(false);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+
+  // Close gallery preview on Escape key press
+  useEffect(() => {
+    if (!previewData) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewData(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewData]);
 
   // Background artwork
   const bgUrl = getLocationBgUrl(locationId);
@@ -379,11 +401,20 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
               <div className="absolute -bottom-1.5 w-24 h-5 bg-red-600/25 rounded-full blur-md -z-10" />
 
               {/* Monster Artwork Frame */}
-              <div className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900">
+              <div
+                onClick={() => setPreviewData({
+                  src: getMonsterImageUrl(monster.id, monster.isBoss),
+                  title: monster.name,
+                  subtitle: `Level ${monster.level} ${monster.isBoss ? 'Act Guardian Boss' : 'Monster'}`,
+                  badge: monster.isBoss ? 'BOSS GUARDIAN' : 'MONSTER',
+                  theme: monster.isBoss ? 'BOSS' : 'MONSTER',
+                })}
+                className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+              >
                 <img
                   src={getMonsterImageUrl(monster.id, monster.isBoss)}
                   alt={monster.name}
-                  className="w-full h-full object-cover object-center filter contrast-110"
+                  className="w-full h-full object-cover object-center filter contrast-110 group-hover:brightness-110 transition-all"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
@@ -393,6 +424,9 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                     Boss
                   </span>
                 )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <span className="text-[9px] bg-red-950/90 text-red-200 px-1 py-0.5 rounded border border-red-500/80 font-mono font-bold">⛶ Expand</span>
+                </div>
               </div>
 
               {/* Monster Floating Damage Text Container */}
@@ -424,17 +458,29 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 <div className="absolute -bottom-1.5 w-26 h-5 bg-amber-500/25 rounded-full blur-md -z-10" />
 
                 {/* Hero Artwork Frame */}
-                <div className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900">
+                <div
+                  onClick={() => setPreviewData({
+                    src: getHeroImageUrl(player.heroClass),
+                    title: player.name || player.heroClass || 'Maharlika Hero',
+                    subtitle: `Level ${player.level} ${player.heroClass || 'Maharlika'}`,
+                    badge: 'HERO',
+                    theme: 'HERO',
+                  })}
+                  className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                >
                   <img
                     src={getHeroImageUrl(player.heroClass)}
                     alt={player.name}
-                    className="w-full h-full object-cover object-top filter contrast-110"
+                    className="w-full h-full object-cover object-top filter contrast-110 group-hover:brightness-110 transition-all"
                   />
                   {isGuarding && (
                     <span className="absolute top-1 left-1 text-[8px] font-mono bg-blue-950/95 text-cyan-200 border border-cyan-500/80 px-1 py-0.2 rounded font-bold uppercase shadow animate-pulse">
                       🛡️ Guard
                     </span>
                   )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <span className="text-[9px] bg-amber-950/90 text-amber-200 px-1 py-0.5 rounded border border-amber-500/80 font-mono font-bold">⛶ Expand</span>
+                  </div>
                 </div>
 
                 {/* Hero Floating Damage / Text Container */}
@@ -507,12 +553,24 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
             <div className="flex flex-col items-center animate-fade-in max-w-xs">
               <div className="relative group max-w-[150px] sm:max-w-[170px] mb-2">
                 <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-amber-500 to-red-600 opacity-70 blur-md" />
-                <div className="relative w-28 h-38 sm:w-32 sm:h-42 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900">
+                <div
+                  onClick={() => setPreviewData({
+                    src: getEventImageUrl(activeEncounter.type),
+                    title: activeEncounter.title,
+                    subtitle: activeEncounter.description,
+                    badge: 'SPECIAL SECTOR ENCOUNTER',
+                    theme: 'EVENT',
+                  })}
+                  className="relative w-28 h-38 sm:w-32 sm:h-42 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                >
                   <img
                     src={getEventImageUrl(activeEncounter.type)}
                     alt={activeEncounter.title}
-                    className="w-full h-full object-cover object-center filter contrast-110"
+                    className="w-full h-full object-cover object-center filter contrast-110 group-hover:brightness-110 transition-all"
                   />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <span className="text-[9px] bg-amber-950/90 text-amber-200 px-1 py-0.5 rounded border border-amber-500/80 font-mono font-bold">⛶ Expand</span>
+                  </div>
                 </div>
               </div>
 
@@ -543,27 +601,48 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                       : 'bg-gradient-to-br from-amber-500 to-yellow-600'
                   }`}
                 />
-                <div className="relative w-28 h-38 sm:w-32 sm:h-42 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900">
-                  <img
-                    src={
-                      explorationEvent.toLowerCase().includes('shrine') ||
-                      explorationEvent.toLowerCase().includes('altar') ||
-                      explorationEvent.toLowerCase().includes('spirit') ||
-                      explorationEvent.toLowerCase().includes('aura') ||
-                      explorationEvent.toLowerCase().includes('tonic') ||
-                      explorationEvent.toLowerCase().includes('babaylan')
-                        ? getEventImageUrl('SHRINE')
-                        : explorationEvent.toLowerCase().includes('cache') ||
-                          explorationEvent.toLowerCase().includes('jar') ||
-                          explorationEvent.toLowerCase().includes('pottery') ||
-                          explorationEvent.toLowerCase().includes('artifact')
-                        ? getEventImageUrl('CACHE')
-                        : getEventImageUrl('CURSED_CHEST')
-                    }
-                    alt="Exploration Event"
-                    className="w-full h-full object-cover object-center filter contrast-110"
-                  />
-                </div>
+                {(() => {
+                  const eventImgSrc = explorationEvent.toLowerCase().includes('shrine') ||
+                    explorationEvent.toLowerCase().includes('altar') ||
+                    explorationEvent.toLowerCase().includes('spirit') ||
+                    explorationEvent.toLowerCase().includes('aura') ||
+                    explorationEvent.toLowerCase().includes('tonic') ||
+                    explorationEvent.toLowerCase().includes('babaylan')
+                      ? getEventImageUrl('SHRINE')
+                      : explorationEvent.toLowerCase().includes('cache') ||
+                        explorationEvent.toLowerCase().includes('jar') ||
+                        explorationEvent.toLowerCase().includes('pottery') ||
+                        explorationEvent.toLowerCase().includes('artifact')
+                      ? getEventImageUrl('CACHE')
+                      : getEventImageUrl('CURSED_CHEST');
+
+                  const isSanctuary = explorationEvent.toLowerCase().includes('shrine') ||
+                    explorationEvent.toLowerCase().includes('altar') ||
+                    explorationEvent.toLowerCase().includes('spirit') ||
+                    explorationEvent.toLowerCase().includes('aura');
+
+                  return (
+                    <div
+                      onClick={() => setPreviewData({
+                        src: eventImgSrc,
+                        title: isSanctuary ? 'Ancestral Spirit Sanctuary' : 'Pre-Colonial Treasure Cache',
+                        subtitle: explorationEvent,
+                        badge: 'EXPLORATION DISCOVERY',
+                        theme: 'EVENT',
+                      })}
+                      className="relative w-28 h-38 sm:w-32 sm:h-42 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                    >
+                      <img
+                        src={eventImgSrc}
+                        alt="Exploration Event"
+                        className="w-full h-full object-cover object-center filter contrast-110 group-hover:brightness-110 transition-all"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <span className="text-[9px] bg-amber-950/90 text-amber-200 px-1 py-0.5 rounded border border-amber-500/80 font-mono font-bold">⛶ Expand</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="bg-zinc-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-900/80 shadow-2xl max-w-[260px] sm:max-w-xs text-center">
@@ -600,6 +679,80 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
             </div>
           )}
         </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* UNIVERSAL ARTWORK GALLERY LIGHTBOX PREVIEW OVERLAY          */}
+      {/* ─────────────────────────────────────────────────────────── */}
+      {previewData && typeof document !== 'undefined' && createPortal(
+        <div
+          onClick={() => setPreviewData(null)}
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 animate-fade-in select-none"
+        >
+          <div
+            onClick={(e) => {
+              // Tap-to-shrink gesture: clicking anywhere inside or on background closes
+              setPreviewData(null);
+            }}
+            className="relative flex flex-col items-center max-w-lg w-full"
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setPreviewData(null)}
+              className="absolute -top-12 right-0 sm:-right-4 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-zinc-900/90 border border-amber-500/60 text-amber-300 hover:text-white hover:bg-red-900/80 text-xl font-bold transition-all shadow-xl z-10"
+              aria-label="Close artwork preview"
+            >
+              ✕
+            </button>
+
+            {/* Expanded Artwork Display Box */}
+            <div
+              className={`relative max-h-[70vh] w-auto rounded-2xl overflow-hidden border-2 shadow-2xl bg-zinc-950 ${
+                previewData.theme === 'HERO'
+                  ? 'border-amber-500/90 shadow-[0_0_35px_rgba(245,158,11,0.5)]'
+                  : previewData.theme === 'BOSS' || previewData.theme === 'MONSTER'
+                  ? 'border-red-500/90 shadow-[0_0_35px_rgba(239,68,68,0.6)]'
+                  : 'border-cyan-400/90 shadow-[0_0_35px_rgba(6,182,212,0.5)]'
+              }`}
+            >
+              <img
+                src={previewData.src}
+                alt={previewData.title}
+                className="max-h-[65vh] w-auto max-w-[85vw] sm:max-w-md object-contain filter contrast-110"
+              />
+            </div>
+
+            {/* Caption & Metadata Header */}
+            <div className="mt-3 bg-zinc-950/90 border border-amber-900/60 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-2xl text-center max-w-md w-full space-y-0.5">
+              {previewData.badge && (
+                <span
+                  className={`text-[9px] font-mono font-bold tracking-widest uppercase px-2 py-0.5 rounded border ${
+                    previewData.theme === 'HERO'
+                      ? 'bg-amber-950/80 text-amber-300 border-amber-600/60'
+                      : previewData.theme === 'BOSS' || previewData.theme === 'MONSTER'
+                      ? 'bg-red-950/80 text-red-300 border-red-600/60'
+                      : 'bg-cyan-950/80 text-cyan-300 border-cyan-600/60'
+                  }`}
+                >
+                  {previewData.badge}
+                </span>
+              )}
+              <h3 className="text-base sm:text-lg font-cinzel font-bold text-amber-200">
+                {previewData.title}
+              </h3>
+              {previewData.subtitle && (
+                <p className="text-xs font-mono text-zinc-300">
+                  {previewData.subtitle}
+                </p>
+              )}
+              <p className="text-[9px] font-mono text-zinc-500 pt-1">
+                (Tap anywhere or press ESC to shrink)
+              </p>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
