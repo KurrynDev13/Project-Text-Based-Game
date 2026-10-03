@@ -223,21 +223,15 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       }) || elements[0]) as HTMLElement | undefined;
 
       if (targetEl) {
-        const isMobile = window.innerWidth < 768;
-        if (isMobile && currentStep.id === 'inn') {
-          // Precise 1-step smooth scroll for Step 3 on mobile: positions target top at 255px without screen spasms
-          const rect = targetEl.getBoundingClientRect();
-          const desiredTop = 255;
-          const parent = getScrollParent(targetEl);
-          if (parent === window) {
-            window.scrollTo({ top: window.scrollY + (rect.top - desiredTop), behavior: 'smooth' });
-          } else {
-            const pEl = parent as HTMLElement;
-            pEl.scrollTo({ top: pEl.scrollTop + (rect.top - desiredTop), behavior: 'smooth' });
-          }
-        } else {
-          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        const rect = targetEl.getBoundingClientRect();
+        // If element is already nicely visible in the viewport, DO NOT scroll!
+        const isAlreadyVisible = rect.top >= 70 && rect.bottom <= window.innerHeight - 65;
+        if (isAlreadyVisible) {
+          return;
         }
+
+        // Only scroll if outside visible bounds, using nearest block alignment to prevent unnecessary jerks
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
     };
 
@@ -311,7 +305,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
   const getPopoverStyle = (): React.CSSProperties => {
     const isValid = Boolean(targetRect && targetRect.width > 10 && targetRect.height > 10);
     const isMobile = window.innerWidth < 768;
-    const popoverWidth = Math.min(window.innerWidth - (isMobile ? 20 : 32), isMobile ? 340 : 440);
+    const popoverWidth = Math.min(window.innerWidth - (isMobile ? 24 : 32), isMobile ? 350 : 440);
 
     if (!isValid || !targetRect) {
       return {
@@ -325,46 +319,40 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
 
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
-    const estCardHeight = isMobile ? 180 : 220;
     const bottomReserve = isMobile ? 65 : 80;
 
     let isPlacingAbove = false;
     let topPosition: number;
 
-    if (isMobile) {
-      // On mobile: targets in upper area (HUD, Banner, District Tabs like Forge & Alchemist) get popover placed below.
-      const fitsBelow = targetRect.bottom + estCardHeight + 10 <= windowHeight - bottomReserve;
-      const isTargetInUpperHalf = targetRect.top < 260;
+    const spaceBelow = windowHeight - targetRect.bottom - bottomReserve;
 
-      if (isTargetInUpperHalf || fitsBelow) {
+    if (isMobile) {
+      // Place below if target is in the upper area (top < 240) OR if there is ample room below (>= 200px)
+      if (targetRect.top < 240 || spaceBelow >= 200) {
         isPlacingAbove = false;
         topPosition = targetRect.bottom + 10;
       } else {
         isPlacingAbove = true;
-        topPosition = Math.max(12, targetRect.top - estCardHeight - 16);
+        // Position card comfortably above target, ensuring it does not squeeze
+        topPosition = Math.max(12, targetRect.top - 230);
       }
     } else {
-      // On desktop:
-      const fitsBelow = targetRect.bottom + estCardHeight + 10 <= windowHeight - bottomReserve;
-      const isTargetNearTop = targetRect.top < 180;
-      if (isTargetNearTop || fitsBelow) {
+      if (targetRect.top < 180 || spaceBelow >= 240) {
         isPlacingAbove = false;
-        topPosition = targetRect.bottom + 10;
+        topPosition = targetRect.bottom + 12;
       } else {
         isPlacingAbove = true;
-        topPosition = 20;
+        topPosition = 24;
       }
     }
 
-    const spotlightTop = targetRect.top - 6;
-    const safeGap = isMobile ? 10 : 16;
-
+    // Give generous max-height so panel content is never squeezed or clipped
     const maxCardHeight = isPlacingAbove
-      ? Math.max(160, spotlightTop - safeGap - topPosition)
-      : Math.max(180, windowHeight - topPosition - bottomReserve - 8);
+      ? Math.max(220, targetRect.top - 20)
+      : Math.max(220, windowHeight - topPosition - bottomReserve - 6);
 
     // Clamp top position safely inside visible bounds
-    topPosition = Math.max(8, Math.min(topPosition, windowHeight - 120));
+    topPosition = Math.max(8, Math.min(topPosition, windowHeight - 160));
 
     const targetCenterX = targetRect.left + targetRect.width / 2;
     let leftPosition = targetCenterX - popoverWidth / 2;
@@ -416,7 +404,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       {/* ── Popover Tooltip Card ── */}
       <div
         style={getPopoverStyle()}
-        className="pointer-events-auto z-[102] bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-600/70 rounded-xl md:rounded-2xl p-2 md:p-5 shadow-2xl space-y-1 md:space-y-3 overflow-y-auto animate-fade-in flex flex-col justify-between"
+        className="pointer-events-auto z-[102] bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-600/70 rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-5 shadow-2xl space-y-1.5 md:space-y-3 overflow-y-auto animate-fade-in flex flex-col justify-between"
       >
         {/* Header Row */}
         <div className="flex items-center justify-between border-b border-zinc-800 pb-1 md:pb-3">
