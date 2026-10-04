@@ -3,6 +3,7 @@ import { PlayerCharacter, Bounty, SideQuest } from '../types/game';
 import { GAME_LOCATIONS } from '../data/equipmentData';
 import { totalCowriesFromWallet, cowriesToWallet, processExpGain, calcBountyExpReward, calcSideQuestExpReward } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { getQuestGiverImageUrl } from '../utils/assetHelper';
 
 interface JournalViewProps {
   player: PlayerCharacter;
@@ -393,12 +394,18 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
                       : 'bg-zinc-950 border-zinc-800/80'
                   }`}
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[10px] font-bold text-cyan-400 uppercase">
-                        {actLoc?.name.split(':')[0] || 'Act'} • {sq.title}
-                      </span>
-                      <span className="text-[10px] text-zinc-400">Giver: {sq.giver}</span>
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={getQuestGiverImageUrl(sq.giver)}
+                      alt={sq.giver}
+                      className="w-12 h-12 rounded-lg object-cover border border-amber-600/60 shadow-md shrink-0 bg-zinc-950"
+                    />
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-bold text-cyan-400 uppercase">
+                          {actLoc?.name.split(':')[0] || 'Act'} • {sq.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-400">Giver: {sq.giver}</span>
                       {sq.isForfeited ? (
                         <span className="bg-red-900/80 text-red-200 border border-red-500/50 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
                           Permanently Forfeited
@@ -424,6 +431,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
                         {sq.progressCurrent} / {sq.progressRequired} {sq.objectiveText}
                       </strong>
                     </div>
+                  </div>
                   </div>
 
                   <div className="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-end shrink-0">

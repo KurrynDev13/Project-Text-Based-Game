@@ -138,6 +138,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [isCombatBusy, setIsCombatBusy] = useState<boolean>(false);
   const [heroAnim, setHeroAnim] = useState<string>('');
   const [monsterAnim, setMonsterAnim] = useState<string>('');
+  const [fledStatusMessage, setFledStatusMessage] = useState<string | null>(null);
   const stageRef = useRef<TactileCombatStageRef>(null);
 
   // Reset busy state when exiting combat
@@ -623,6 +624,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     soundFX.playAttackSound();
+    setFledStatusMessage(null);
     const newStamina = currentStamina - ventureCost;
 
     // Helper to push persistent narrative feed log entries
@@ -882,6 +884,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return;
     }
 
+    setFledStatusMessage(null);
     const newStamina = currentStamina - searchCost;
 
     const addNarratorLog = (logText: string): string[] => {
@@ -1262,10 +1265,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       setMonsterAnim('anim-hit');
       setTimeout(() => setMonsterAnim(''), 360);
 
-      if (skill.element === 'FIRE') {
+      if (skill.damageType === 'FIRE') {
         stageRef.current?.triggerFireBurst('MONSTER');
         stageRef.current?.triggerRumble();
-      } else if (skill.element === 'POISON') {
+      } else if (skill.effectType === 'POISON' || skill.damageType === 'SHADOW') {
         stageRef.current?.triggerPoisonSpore('MONSTER');
       } else {
         stageRef.current?.triggerSlash('MONSTER', '#06b6d4');
@@ -1430,18 +1433,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     if (roll <= fleeChance) {
       notify('🏃 Escape Successful! Retreating back to sector entrance.', 'info', '🏃');
-      soundFX.playCoinSound();
-
-      if (selectedLocation.id === 'loc_act_infinite') {
-        const reachedWave = battle.survivalWaveTier ?? 1;
-        if (reachedWave > (player.highestSurvivalWave || 0)) {
-          notify(`🏆 NEW PERSONAL BEST RECORD! Logged highest wave reached: Tier #${reachedWave}!`, 'success', '🏆');
-          onUpdatePlayer({
-            ...player,
-            highestSurvivalWave: reachedWave,
-          });
-        }
-      }
+      const enemyName = battle.enemy?.name || 'the enemy';
+      setFledStatusMessage(`You have fled from ${enemyName}! Retreated to sector perimeter.`);
+      onUpdatePlayer({
+        ...player,
+        narratorLogs: [`🏃 You have fled from ${enemyName}! Retreated to safe ground.`, ...(player.narratorLogs || []).slice(0, 14)],
+      });
 
       onUpdateBattle({
         inCombat: false,
@@ -2229,7 +2226,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           explorationEvent={explorationEvent}
           heroAnimClass={heroAnim}
           monsterAnimClass={monsterAnim}
-          isGuarding={player.isGuarding}
+          isGuarding={Boolean(battle.guardedLastTurn)}
+          fledStatusMessage={fledStatusMessage}
         />
 
         {/* VICTORY & LOOT REWARD CARD OVERLAY (When Battle Winner === 'PLAYER') */}

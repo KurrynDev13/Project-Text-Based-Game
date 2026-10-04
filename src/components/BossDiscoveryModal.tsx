@@ -34,7 +34,7 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
   bossName,
   bossTitle,
   bossLore,
-  bossLevel: _bossLevel,
+  bossLevel,
   requiredPower,
   playerPower,
   climaxLevelReq: _climaxLevelReq,

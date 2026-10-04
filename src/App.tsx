@@ -30,6 +30,16 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastBanner, ToastMessage } from './components/ToastBanner';
 import { BackgroundLayer } from './components/BackgroundLayer';
 import { bgmManager } from './utils/musicManager';
+import TitleScreenView from './components/TitleScreenView';
+import SettingsModal from './components/SettingsModal';
+import { RoadmapView } from './components/RoadmapView';
+import {
+  migrateLegacySave,
+  getActiveSlotId,
+  setActiveSlotId,
+  loadGameSlot,
+  saveGameSlot,
+} from './utils/saveManager';
 
 const MUTYA_SKILLS_TUTORIAL_STEPS: TutorialStep[] = [
   {
@@ -212,12 +222,22 @@ const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacte
 };
 
 export function App() {
+  const [viewMode, setViewMode] = useState<'TITLE' | 'GAME'>('TITLE');
+  const [activeSlot, setActiveSlot] = useState<number>(() => {
+    migrateLegacySave();
+    return getActiveSlotId();
+  });
+  const [isCharacterCreationOpen, setIsCharacterCreationOpen] = useState<boolean>(false);
+  const [showInGameSettings, setShowInGameSettings] = useState<boolean>(false);
+  const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
+
   const [player, setPlayer] = useState<PlayerCharacter>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    migrateLegacySave();
+    const curSlot = getActiveSlotId();
+    const saved = loadGameSlot(curSlot);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        return mergePlayerWithMasterData(parsed);
+        return mergePlayerWithMasterData(saved);
       } catch {
         return createInitialPlayer();
       }
@@ -398,10 +418,12 @@ export function App() {
     activeFeatureTutorial,
   ]);
 
-  // Auto Save
+  // Auto Save to Active Slot in LocalStorage
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(player));
-  }, [player]);
+    if (player.hasCreatedCharacter) {
+      saveGameSlot(activeSlot, player);
+    }
+  }, [player, activeSlot]);
 
   // Out-of-Combat Passive HP & MP Regeneration Ticker (Every 10 Seconds)
   useEffect(() => {
@@ -529,7 +551,31 @@ export function App() {
     };
 
     setPlayer(newPlayer);
+    saveGameSlot(activeSlot, newPlayer);
+    setIsCharacterCreationOpen(false);
+    setViewMode('GAME');
     setShowOpeningStory(true);
+  };
+
+  const handleStartGame = (loadedPlayer: PlayerCharacter, slotId: number) => {
+    setActiveSlot(slotId);
+    setActiveSlotId(slotId);
+    setPlayer(mergePlayerWithMasterData(loadedPlayer));
+    setViewMode('GAME');
+    setIsCharacterCreationOpen(false);
+  };
+
+  const handleNewGamePrompt = (slotId: number) => {
+    setActiveSlot(slotId);
+    setActiveSlotId(slotId);
+    setIsCharacterCreationOpen(true);
+  };
+
+  const handleReturnToTitle = () => {
+    if (player.hasCreatedCharacter) {
+      saveGameSlot(activeSlot, player);
+    }
+    setViewMode('TITLE');
   };
 
   const handleMonsterKilled = (enemy: EnemyMonster) => {
@@ -606,35 +652,86 @@ export function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen text-amber-100 flex flex-col font-sans select-none overflow-hidden relative">
-        {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
-        <BackgroundLayer
-          currentTab={currentTab}
-          townDistrict={townDistrictOverride?.district || currentDistrict}
-          locationId={selectedWorldLocationId}
-          showRaidView={showRaidView}
-        />
-        {/* Character Creation Modal — shown for new players before anything else */}
-        {!player.hasCreatedCharacter && (
-          <CharacterCreationModal onComplete={handleCharacterCreate} />
-        )}
+        {viewMode === 'TITLE' ? (
+          <>
+            <TitleScreenView
+              onStartGame={handleStartGame}
+              onNewGamePrompt={handleNewGamePrompt}
+              onOpenRoadmap={() => setShowRoadmapModal(true)}
+              onShowToast={showToast}
+            />
 
-        {/* Opening Story Modal — shown once, immediately after character creation */}
-        {player.hasCreatedCharacter && showOpeningStory && (
-          <OpeningStoryModal
-            heroClass={player.heroClass}
-            heroName={player.name}
-            onClose={() => setShowOpeningStory(false)}
-          />
-        )}
+            {/* Character Creation Modal on Title Screen */}
+            {isCharacterCreationOpen && (
+              <CharacterCreationModal
+                onComplete={handleCharacterCreate}
+                onCancel={() => setIsCharacterCreationOpen(false)}
+              />
+            )}
 
-        {/* [TOP] PERSISTENT HUD */}
-        {player.hasCreatedCharacter && (
-          <PersistentHUD
-            player={player}
-            inCombat={battle.inCombat}
-            onTickerActiveChange={setIsTickerActive}
-          />
-        )}
+            {/* Roadmap Modal on Title Screen */}
+            {showRoadmapModal && (
+              <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fade-in">
+                <div className="bg-zinc-950 border-2 border-amber-500 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative shadow-2xl">
+                  <div className="flex justify-between items-center border-b border-zinc-800 pb-2 mb-3">
+                    <h2 className="font-serif text-amber-200 font-bold text-lg">Development Roadmap</h2>
+                    <button
+                      onClick={() => setShowRoadmapModal(false)}
+                      className="text-zinc-400 hover:text-white w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <RoadmapView />
+                </div>
+              </div>
+            )}
+
+            {/* Global Toast Notification */}
+            <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
+          </>
+        ) : (
+          <>
+            {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
+            <BackgroundLayer
+              currentTab={currentTab}
+              townDistrict={townDistrictOverride?.district || currentDistrict}
+              locationId={selectedWorldLocationId}
+              showRaidView={showRaidView}
+            />
+
+            {/* Character Creation Modal (Fallback if needed) */}
+            {!player.hasCreatedCharacter && (
+              <CharacterCreationModal onComplete={handleCharacterCreate} />
+            )}
+
+            {/* Opening Story Modal — shown once, immediately after character creation */}
+            {player.hasCreatedCharacter && showOpeningStory && (
+              <OpeningStoryModal
+                heroClass={player.heroClass}
+                heroName={player.name}
+                onClose={() => setShowOpeningStory(false)}
+              />
+            )}
+
+            {/* [TOP] PERSISTENT HUD */}
+            {player.hasCreatedCharacter && (
+              <PersistentHUD
+                player={player}
+                inCombat={battle.inCombat}
+                onTickerActiveChange={setIsTickerActive}
+                onOpenSettings={() => setShowInGameSettings(true)}
+              />
+            )}
+
+            {/* In-Game Settings Modal */}
+            <SettingsModal
+              isOpen={showInGameSettings}
+              onClose={() => setShowInGameSettings(false)}
+              player={player}
+              onReturnToTitle={handleReturnToTitle}
+              onShowToast={showToast}
+            />
 
         {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS (Dynamically pushed down when Announcement Ticker is active) */}
         <main
@@ -750,6 +847,8 @@ export function App() {
             onComplete={activeFeatureTutorial.onComplete}
             onSkip={activeFeatureTutorial.onComplete}
           />
+        )}
+          </>
         )}
       </div>
     </ErrorBoundary>

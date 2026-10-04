@@ -42,6 +42,7 @@ interface TactileCombatStageProps {
   heroAnimClass?: string;
   monsterAnimClass?: string;
   isGuarding?: boolean;
+  fledStatusMessage?: string | null;
 }
 
 // Internal Particle & SlashArc classes for procedural Canvas VFX
@@ -144,6 +145,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
   heroAnimClass = '',
   monsterAnimClass = '',
   isGuarding = false,
+  fledStatusMessage = null,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -675,9 +677,16 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                   {locationSubtitle}
                 </p>
               )}
-              <div className="text-[9px] font-mono text-zinc-300 bg-black/60 px-3 py-1 rounded-full border border-amber-900/40 mt-1">
-                Treading carefully through the sector canopy. Venture forward to scout.
-              </div>
+              {fledStatusMessage ? (
+                <div className="text-[9.5px] font-mono text-amber-300 bg-amber-950/80 px-3.5 py-1 rounded-full border border-amber-500/70 shadow-lg mt-1 flex items-center justify-center gap-1.5 animate-pulse">
+                  <span>🏃</span>
+                  <span>{fledStatusMessage}</span>
+                </div>
+              ) : (
+                <div className="text-[9px] font-mono text-zinc-300 bg-black/60 px-3 py-1 rounded-full border border-amber-900/40 mt-1">
+                  Treading carefully through the sector canopy. Venture forward to scout.
+                </div>
+              )}
             </div>
           )}
         </div>

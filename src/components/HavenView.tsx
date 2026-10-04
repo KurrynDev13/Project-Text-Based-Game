@@ -1557,10 +1557,11 @@ export const HavenView: React.FC<HavenViewProps> = ({
       {/* 7. Contextual Feature Tutorials */}
       {activeTutorial && (
         <FeatureTutorialModal
-          isOpen={true}
+          tutorialId={activeTutorial.id}
           featureName={activeTutorial.name}
           steps={activeTutorial.steps}
-          onClose={() => handleCompleteTutorial(activeTutorial.id)}
+          onComplete={() => handleCompleteTutorial(activeTutorial.id)}
+          onSkip={() => handleCompleteTutorial(activeTutorial.id)}
         />
       )}
     </div>

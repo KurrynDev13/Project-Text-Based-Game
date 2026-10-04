@@ -72,3 +72,35 @@ export function getLocationBgUrl(locationId?: string): string {
   return formatAssetUrl('assets/backgrounds/act_1_balete.jpg');
 }
 
+export function getQuestGiverImageUrl(giverNameOrId?: string): string {
+  if (!giverNameOrId) return formatAssetUrl('assets/heroes/hero_babaylan.jpg');
+  const name = giverNameOrId.toLowerCase();
+
+  if (name.includes('tala')) return formatAssetUrl('assets/npcs/npc_tala.jpg');
+  if (name.includes('nuno')) return formatAssetUrl('assets/npcs/npc_nuno_elder.jpg');
+  if (name.includes('ligaya')) return formatAssetUrl('assets/npcs/npc_ligaya.jpg');
+  if (name.includes('fisherman') || name.includes('datu')) return formatAssetUrl('assets/npcs/npc_fisherman_datu.jpg');
+  if (name.includes('lualhati')) return formatAssetUrl('assets/npcs/npc_lualhati.jpg');
+  if (name.includes('urduja')) return formatAssetUrl('assets/npcs/npc_herbalist_urduja.jpg');
+  if (name.includes('kadunung')) return formatAssetUrl('assets/npcs/npc_kadunung.jpg');
+  if (name.includes('marikit')) return formatAssetUrl('assets/npcs/npc_marikit.jpg');
+  if (name.includes('amihan')) return formatAssetUrl('assets/npcs/npc_amihan.jpg');
+  if (name.includes('malakas')) return formatAssetUrl('assets/npcs/npc_fire_malakas.jpg');
+  if (name.includes('danum')) return formatAssetUrl('assets/npcs/npc_noble_danum.jpg');
+  if (name.includes('silayan')) return formatAssetUrl('assets/npcs/npc_scout_silayan.jpg');
+  if (name.includes('bayani')) return formatAssetUrl('assets/npcs/npc_bayani.jpg');
+  if (name.includes('sinag')) return formatAssetUrl('assets/npcs/npc_matron_sinag.jpg');
+  if (name.includes('katana')) return formatAssetUrl('assets/npcs/npc_katana_babaylan.jpg');
+  if (name.includes('makisig')) return formatAssetUrl('assets/npcs/npc_diver_makisig.jpg');
+  if (name.includes('alon') || name.includes('cartographer')) return formatAssetUrl('assets/npcs/npc_cartographer_alon.jpg');
+  if (name.includes('bulalakaw')) return formatAssetUrl('assets/npcs/npc_bulalakaw.jpg');
+  if (name.includes('apolinario')) return formatAssetUrl('assets/npcs/npc_apolinario.jpg');
+  if (name.includes('dayang')) return formatAssetUrl('assets/npcs/npc_paladin_dayang.jpg');
+  if (name.includes('arch-babaylan') || name.includes('arch_maharlika')) return formatAssetUrl('assets/npcs/npc_arch_maharlika.jpg');
+  if (name.includes('bathala')) return formatAssetUrl('assets/npcs/npc_voice_bathala.jpg');
+  if (name.includes('mayari')) return formatAssetUrl('assets/npcs/npc_mayari_warden.jpg');
+  if (name.includes('arbiter')) return formatAssetUrl('assets/npcs/npc_celestial_arbiter.jpg');
+
+  return formatAssetUrl('assets/heroes/hero_babaylan.jpg');
+}
+

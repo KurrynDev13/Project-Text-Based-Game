@@ -205,7 +205,7 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
               </div>
             )}
 
-            {item.classReq && item.classReq.length > 0 && !item.classReq.includes(player.heroClass) && (
+            {item.classReq && item.classReq.length > 0 && !item.classReq.includes(player.heroClass as any) && (
               <div className="bg-red-950/80 border border-red-700/60 p-1.5 rounded text-[10px] text-red-300 font-bold mt-1">
                 ⚠️ Class Mismatch: Requires {item.classReq.join(', ')} (You are {player.heroClass})
               </div>

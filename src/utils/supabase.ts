@@ -299,5 +299,99 @@ export async function claimWeeklyJackpot(
   }
 }
 
+// ============================================================================
+// CLOUD SAVE BACKUP ENGINE (Supabase Multi-Slot Synchronization)
+// ============================================================================
 
+export interface CloudSlotSummary {
+  slot_id: number;
+  hero_name: string;
+  hero_class: string;
+  character_level: number;
+  current_act_name?: string;
+  power_level?: number;
+  updated_at: string;
+}
 
+/**
+ * Uploads a character save slot to Supabase cloud backup table `player_cloud_saves`.
+ */
+export async function uploadCloudSave(
+  deviceId: string,
+  slotId: number,
+  playerData: any,
+  heroName: string,
+  heroClass: string,
+  level: number,
+  currentActName?: string,
+  powerLevel?: number
+): Promise<boolean> {
+  if (!isSupabaseConfigured || !deviceId) return false;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/player_cloud_saves`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        device_id: deviceId,
+        slot_id: slotId,
+        hero_name: heroName,
+        hero_class: heroClass,
+        character_level: level,
+        current_act_name: currentActName || 'Act I',
+        power_level: powerLevel || 0,
+        save_data: playerData,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Fetches cloud save slot summaries for the device */
+export async function fetchCloudSaveSummaries(deviceId: string): Promise<CloudSlotSummary[]> {
+  if (!isSupabaseConfigured || !deviceId) return [];
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/player_cloud_saves?device_id=eq.${encodeURIComponent(deviceId)}&select=slot_id,hero_name,hero_class,character_level,current_act_name,power_level,updated_at&order=slot_id.asc`,
+      {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Downloads complete save data for a slot from Supabase */
+export async function downloadCloudSave(deviceId: string, slotId: number): Promise<any | null> {
+  if (!isSupabaseConfigured || !deviceId) return null;
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/player_cloud_saves?device_id=eq.${encodeURIComponent(deviceId)}&slot_id=eq.${slotId}&select=save_data`,
+      {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data[0] ? data[0].save_data : null;
+  } catch {
+    return null;
+  }
+}

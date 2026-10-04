@@ -8,9 +8,10 @@ interface PersistentHUDProps {
   player: PlayerCharacter;
   inCombat?: boolean;
   onTickerActiveChange?: (isActive: boolean) => void;
+  onOpenSettings?: () => void;
 }
 
-export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, onTickerActiveChange }) => {
+export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, onTickerActiveChange, onOpenSettings }) => {
   const [tickerActive, setTickerActive] = useState<boolean>(false);
 
   const handleTickerChange = (active: boolean) => {
@@ -100,8 +101,17 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
             ⚡ {currentStamina}/{maxStamina}
           </div>
 
-          <div className="border-l border-zinc-700 pl-1.5 md:pl-2">
+          <div className="border-l border-zinc-700 pl-1.5 md:pl-2 flex items-center gap-1.5">
             <BgmControl />
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                title="System Settings & Cloud Saves"
+                className="px-1.5 py-0.5 rounded border border-zinc-700 hover:border-amber-500/60 bg-zinc-800 text-zinc-300 hover:text-amber-300 text-[10px] md:text-xs transition-colors"
+              >
+                ⚙️
+              </button>
+            )}
           </div>
         </div>
       </div>
