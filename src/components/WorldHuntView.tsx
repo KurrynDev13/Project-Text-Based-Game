@@ -12,7 +12,8 @@ import ActStoryOverlayModal from './ActStoryOverlayModal';
 import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
 import { broadcastSystemAnnouncement } from '../utils/supabase';
-import { TactileCombatStage, TactileCombatStageRef } from './TactileCombatStage';
+import { TactileCombatStage, TactileCombatStageRef, ArenaOutcome } from './TactileCombatStage';
+import { WorldHuntTutorialModal } from './WorldHuntTutorialModal';
 
 export interface InteractiveEncounter {
   id: string;
@@ -120,6 +121,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
   useEffect(() => {
     onLocationChange?.(selectedLocation.id);
+    setArenaOutcome(null);
   }, [selectedLocation.id, onLocationChange]);
   const [showSpellPicker, setShowSpellPicker] = useState(false);
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -139,6 +141,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [heroAnim, setHeroAnim] = useState<string>('');
   const [monsterAnim, setMonsterAnim] = useState<string>('');
   const [fledStatusMessage, setFledStatusMessage] = useState<string | null>(null);
+  const [arenaOutcome, setArenaOutcome] = useState<ArenaOutcome | null>(null);
+  const [showWorldTutorialModal, setShowWorldTutorialModal] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('maharlika_world_hunt_tutorial_completed') !== 'true';
+    } catch {
+      return false;
+    }
+  });
   const stageRef = useRef<TactileCombatStageRef>(null);
 
   // Reset busy state when exiting combat
@@ -182,6 +192,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
     setActiveInteractiveEncounter(null);
     setExplorationEvent(null);
+    setArenaOutcome({
+      type: 'MERCHANT',
+      title: 'Wandering Caravan Trade',
+      badge: 'BARTER COMPLETE',
+      description: `Purchased [${item.name}] from the wandering trader for ${formatCostInCowries(costCC)}! Added to your gear bag.`,
+      costOrReward: `Acquired [${item.name}]`,
+      isPositive: true,
+    });
   };
 
   const handleOpenCursedChest = (costType: 'HP' | 'MP') => {
@@ -240,6 +258,19 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         inventory: updatedInventory,
         narratorLogs: updatedNarratorLogs,
       });
+
+      setActiveInteractiveEncounter(null);
+      setExplorationEvent(null);
+      setArenaOutcome({
+        type: 'CHEST',
+        title: 'Blessed Spirit Unsealed!',
+        badge: 'ANCESTRAL BLESSING',
+        description: bonusItem
+          ? `Sacrificed (${sacrificeDesc}). Golden embers coalesce into an ancient spirit blessing!`
+          : `Sacrificed (${sacrificeDesc}). The obsidian runes dissolve into glowing light!`,
+        costOrReward: `+${formatCostInCowries(rewardCC)} • +${rewardMutya} Mutya${bonusItem ? ` • [${bonusItem.name}]` : ''}`,
+        isPositive: true,
+      });
     } else {
       // 35% CURSED BACKFIRE OUTCOME
       const cursePool = [
@@ -275,16 +306,25 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         activeEffects: updatedActiveEffects,
         narratorLogs: updatedNarratorLogs,
       });
-    }
 
-    setActiveInteractiveEncounter(null);
-    setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
+      setExplorationEvent(null);
+      setArenaOutcome({
+        type: 'CHEST',
+        title: 'Cursed Spirit Backfire!',
+        badge: 'VENGEFUL HEX',
+        description: `Sacrificed (${sacrificeDesc}). Blood-red runes explode in obsidian flames as ${chosenCurse.desc}!`,
+        costOrReward: `Inflicted [${chosenCurse.name}] (${chosenCurse.turns} Turns)`,
+        isPositive: false,
+      });
+    }
   };
 
   const handlePassEncounter = () => {
     if (!activeInteractiveEncounter) return;
     soundFX.playClickSound();
-    const logText = activeInteractiveEncounter.type === 'TRADER'
+    const isTrader = activeInteractiveEncounter.type === 'TRADER';
+    const logText = isTrader
       ? `🛍️ Passed on buying from the Wandering Merchant.`
       : `🔮 Left the Cursed Spirit Chest unmolested.`;
 
@@ -295,6 +335,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
     setActiveInteractiveEncounter(null);
     setExplorationEvent(null);
+    setArenaOutcome({
+      type: isTrader ? 'MERCHANT' : 'CHEST',
+      title: isTrader ? 'Caravan Left Behind' : 'Spirit Chest Left Untouched',
+      badge: 'ENCOUNTER RESOLVED',
+      description: isTrader
+        ? 'You bid farewell to the nomadic merchant and kept your pouches intact.'
+        : 'You stepped away from the ominous chest without disturbing its ancient runes.',
+      isPositive: true,
+    });
   };
 
   useEffect(() => {
@@ -625,6 +674,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     soundFX.playAttackSound();
     setFledStatusMessage(null);
+    setArenaOutcome(null);
     const newStamina = currentStamina - ventureCost;
 
     // Helper to push persistent narrative feed log entries
@@ -885,6 +935,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     setFledStatusMessage(null);
+    setArenaOutcome(null);
     const newStamina = currentStamina - searchCost;
 
     const addNarratorLog = (logText: string): string[] => {
@@ -1434,10 +1485,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (roll <= fleeChance) {
       notify('🏃 Escape Successful! Retreating back to sector entrance.', 'info', '🏃');
       const enemyName = battle.enemy?.name || 'the enemy';
-      setFledStatusMessage(`You have fled from ${enemyName}! Retreated to sector perimeter.`);
+      setFledStatusMessage(null);
+      setArenaOutcome({
+        type: 'FLEE',
+        title: 'Tactical Retreat Successful',
+        badge: 'BATTLE EVADED',
+        description: `You gathered your remaining strength, scrambled on the ground, and ran with all your might to successfully flee from ${enemyName}!`,
+        costOrReward: 'Escaped to Safe Perimeter',
+        isPositive: false,
+      });
       onUpdatePlayer({
         ...player,
-        narratorLogs: [`🏃 You have fled from ${enemyName}! Retreated to safe ground.`, ...(player.narratorLogs || []).slice(0, 14)],
+        narratorLogs: [`🏃 You gathered your remaining strength, scrambled on the ground, and successfully fled from ${enemyName}!`, ...(player.narratorLogs || []).slice(0, 14)],
       });
 
       onUpdateBattle({
@@ -2188,24 +2247,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               </button>
             )}
 
-            {/* Stamina Pill */}
-            <span className="bg-black/80 px-2 py-0.5 rounded-full border border-amber-900/60 text-amber-200 font-mono text-[10px] flex items-center gap-1">
-              <span>⚡</span>
-              <span className="font-bold text-amber-400">{player.stamina ?? maxStamina}/{maxStamina}</span>
-            </span>
-
-            {/* Combat Turn counter or Replay Lore button */}
+            {/* Replay Lore button or Combat Turn indicator */}
             {battle.inCombat ? (
-              <span className="bg-black/80 px-1.5 py-0.5 rounded-full border border-amber-900/60 text-amber-300 font-mono text-[9px] font-bold">
-                T<span className="text-amber-400">{battle.turnNumber}</span>
+              <span className="bg-black/80 px-2 py-0.5 rounded-full border border-amber-900/60 text-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                <span>⚔️</span>
+                <span>T{battle.turnNumber}</span>
               </span>
             ) : (
               <button
                 onClick={() => setShowActStoryModal(true)}
                 title="Replay Act Lore"
-                className="bg-amber-950/90 hover:bg-amber-900 text-amber-200 border border-amber-700/60 px-1.5 py-0.5 rounded-full font-mono text-[9px] transition-all active:scale-95 flex items-center gap-0.5"
+                className="bg-amber-950/90 hover:bg-amber-900 text-amber-200 border border-amber-700/60 px-2.5 py-0.5 rounded-full font-mono text-[10px] transition-all active:scale-95 flex items-center gap-1 shadow-sm cursor-pointer"
               >
                 <span>📜</span>
+                <span className="font-serif">Lore</span>
               </button>
             )}
           </div>
@@ -2228,6 +2283,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           monsterAnimClass={monsterAnim}
           isGuarding={Boolean(battle.guardedLastTurn)}
           fledStatusMessage={fledStatusMessage}
+          arenaOutcome={arenaOutcome}
         />
 
         {/* VICTORY & LOOT REWARD CARD OVERLAY (When Battle Winner === 'PLAYER') */}
@@ -2785,6 +2841,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             setActiveBossVictoryReward(null);
             handleClaimBossVictoryAndAdvance();
           }}
+        />
+      )}
+
+      {/* World Hunt Dedicated Interactive Walkthrough Modal */}
+      {showWorldTutorialModal && (
+        <WorldHuntTutorialModal
+          isOpen={showWorldTutorialModal}
+          onComplete={() => setShowWorldTutorialModal(false)}
         />
       )}
     </div>

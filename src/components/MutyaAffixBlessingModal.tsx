@@ -2,6 +2,7 @@ import React from 'react';
 import { PlayerCharacter, EquipmentItem } from '../types/game';
 import { ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
 import { calcItemPowerRating, getEquippedItemForCategory, calcItemDelta } from '../utils/gameFormulas';
+import { formatEquipmentFullName } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 
 interface MutyaAffixBlessingModalProps {
@@ -133,6 +134,7 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
 
     const updatedItem: EquipmentItem = {
       ...item,
+      name: formatEquipmentFullName(item.name, [randomPrefix, randomSuffix]),
       affixes: [randomPrefix, randomSuffix],
       blessingAttempts: currentAttempts + 1,
     };

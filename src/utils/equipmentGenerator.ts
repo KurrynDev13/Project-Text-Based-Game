@@ -24,6 +24,59 @@ const WEAKENING_PREFIXES = ['Novice', 'Crude', 'Worn', 'Rustic', 'Faded', 'Weath
 const EMPOWERING_PREFIXES = ['Refined', 'Tempered', 'Masterwork', "Ancestor's", 'Blessed', 'Dominant'];
 
 /**
+ * Standardized Equipment Naming Engine:
+ * Formats: "[Single Prefix] [Base Name] [Single Suffix]"
+ * Examples:
+ *   - "Dominant Blunt Machete of Combustion"
+ *   - "Flame-tempered Simple Woven Breeches"
+ *   - "Reinforced Abaca Jerkin of Anito Protection"
+ * Rules:
+ *   - Strips weakening prefixes ('Novice', 'Crude', 'Worn', etc.) if empowered or blessed.
+ *   - Never prepends suffixes (suffixes like 'of Combustion' follow the base name).
+ *   - Never stacks multiple prefixes (e.g. no 'Novice Dominant' or 'Dominant Flame-tempered').
+ */
+export function formatEquipmentFullName(
+  rawBaseName: string,
+  affixes?: Affix[],
+  qualityPrefix?: string
+): string {
+  const allKnownPrefixes = [...WEAKENING_PREFIXES, ...EMPOWERING_PREFIXES];
+  let cleanBaseName = rawBaseName.trim();
+  for (const p of allKnownPrefixes) {
+    if (cleanBaseName.startsWith(p + ' ')) {
+      cleanBaseName = cleanBaseName.substring(p.length + 1).trim();
+      break;
+    }
+  }
+
+  let prefixAffixName: string | undefined;
+  let suffixAffixName: string | undefined;
+
+  if (affixes && affixes.length > 0) {
+    for (const aff of affixes) {
+      if (!aff || !aff.name) continue;
+      if (aff.type === 'SUFFIX' || aff.name.toLowerCase().startsWith('of ')) {
+        if (!suffixAffixName) suffixAffixName = aff.name;
+      } else {
+        if (!prefixAffixName) prefixAffixName = aff.name;
+      }
+    }
+  }
+
+  let chosenPrefix = prefixAffixName || qualityPrefix;
+  if (chosenPrefix && WEAKENING_PREFIXES.includes(chosenPrefix) && (prefixAffixName || suffixAffixName)) {
+    chosenPrefix = prefixAffixName;
+  }
+
+  const parts: string[] = [];
+  if (chosenPrefix) parts.push(chosenPrefix);
+  parts.push(cleanBaseName);
+  if (suffixAffixName) parts.push(suffixAffixName);
+
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Calculates level-scaled physical or magic weapon min/max damage.
  */
 export function calcWeaponDamageForLevel(level: number, tier: number): { min: number; max: number } {
@@ -103,13 +156,11 @@ export function generateFullEquipmentCatalog(maxLevel: number = 50): EquipmentIt
       const { min, max } = calcWeaponDamageForLevel(lvl, baseItem.tier || 1);
       const costInCC = calcCostInCowries(lvl, rarity);
 
-      let itemName = baseItem.name;
+      let qualityPrefix: string | undefined = undefined;
       if (lvl < baseItem.levelReq) {
-        const prefix = WEAKENING_PREFIXES[(baseItem.levelReq - lvl) % WEAKENING_PREFIXES.length];
-        itemName = `${prefix} ${baseItem.name}`;
+        qualityPrefix = WEAKENING_PREFIXES[(baseItem.levelReq - lvl) % WEAKENING_PREFIXES.length];
       } else if (lvl > baseItem.levelReq + 3) {
-        const prefix = EMPOWERING_PREFIXES[(lvl - baseItem.levelReq) % EMPOWERING_PREFIXES.length];
-        itemName = `${prefix} ${baseItem.name}`;
+        qualityPrefix = EMPOWERING_PREFIXES[(lvl - baseItem.levelReq) % EMPOWERING_PREFIXES.length];
       }
 
       // Procedural Affixes for Weapons (Inflictions for UNCOMMON+)
@@ -125,7 +176,7 @@ export function generateFullEquipmentCatalog(maxLevel: number = 50): EquipmentIt
 
       generatedCatalog.push({
         id: `gen_${cat.toLowerCase()}_lvl_${lvl}`,
-        name: itemAffixes.length > 0 ? `${itemAffixes[0].name} ${itemName}` : itemName,
+        name: formatEquipmentFullName(baseItem.name, itemAffixes, qualityPrefix),
         category: cat,
         classReq,
         tier: Math.min(10, Math.max(1, Math.ceil(lvl / 5))),
@@ -156,13 +207,11 @@ export function generateFullEquipmentCatalog(maxLevel: number = 50): EquipmentIt
       const baseDefense = calcArmorDefenseForLevel(lvl, cat, baseItem.tier || 1);
       const costInCC = calcCostInCowries(lvl, rarity);
 
-      let itemName = baseItem.name;
+      let qualityPrefix: string | undefined = undefined;
       if (lvl < baseItem.levelReq) {
-        const prefix = WEAKENING_PREFIXES[(baseItem.levelReq - lvl) % WEAKENING_PREFIXES.length];
-        itemName = `${prefix} ${baseItem.name}`;
+        qualityPrefix = WEAKENING_PREFIXES[(baseItem.levelReq - lvl) % WEAKENING_PREFIXES.length];
       } else if (lvl > baseItem.levelReq + 3) {
-        const prefix = EMPOWERING_PREFIXES[(lvl - baseItem.levelReq) % EMPOWERING_PREFIXES.length];
-        itemName = `${prefix} ${baseItem.name}`;
+        qualityPrefix = EMPOWERING_PREFIXES[(lvl - baseItem.levelReq) % EMPOWERING_PREFIXES.length];
       }
 
       // Procedural Affixes for Armors (Mitigations for UNCOMMON+)
@@ -178,7 +227,7 @@ export function generateFullEquipmentCatalog(maxLevel: number = 50): EquipmentIt
 
       generatedCatalog.push({
         id: `gen_${cat.toLowerCase()}_lvl_${lvl}`,
-        name: itemAffixes.length > 0 ? `${itemAffixes[0].name} ${itemName}` : itemName,
+        name: formatEquipmentFullName(baseItem.name, itemAffixes, qualityPrefix),
         category: cat,
         classReq,
         tier: Math.min(10, Math.max(1, Math.ceil(lvl / 5))),
@@ -214,6 +263,31 @@ export function getBaseTemplateId(id: string): string {
 }
 
 /**
+ * Calculates stock amount for store items based on rarity:
+ * Common: 3-5
+ * Uncommon: 2-4
+ * Rare: 1-2
+ * Epic / Legendary / Triumphant: 1
+ */
+export function getInitialStoreStock(item: EquipmentItem): number {
+  const rarity = item.rarity || 'COMMON';
+  const seed = Math.abs(item.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
+  switch (rarity) {
+    case 'COMMON':
+      return 3 + (seed % 3); // 3, 4, or 5
+    case 'UNCOMMON':
+      return 2 + (seed % 3); // 2, 3, or 4
+    case 'RARE':
+      return 1 + (seed % 2); // 1 or 2
+    case 'EPIC':
+    case 'LEGENDARY':
+    case 'TRIUMPHANT':
+    default:
+      return 1;
+  }
+}
+
+/**
  * Returns filtered, level-gated equipment for Panday Pira's Forge store.
  * Sourced from authentic pre-colonial master catalog + level-scaled procedural items with affixes.
  * Always guarantees at least 6-12 class-appropriate weapons and level-scaled armors in stock.
@@ -224,8 +298,7 @@ export function getScaledForgeCatalog(
   categoryFilter: ForgeCategoryFilter = 'ALL',
   filterByHeroClassOnly: boolean = false,
   currentLocationId: string = 'loc_act_1',
-  ngPlusLevel: number = 0,
-  ownedItemIds?: Set<string> | string[]
+  ngPlusLevel: number = 0
 ): EquipmentItem[] {
   const masterItems: EquipmentItem[] = [
     ...SWORDS,
@@ -241,25 +314,13 @@ export function getScaledForgeCatalog(
   const minLevel = ngPlusLevel > 0 ? Math.max(35, playerLevel - 8) : Math.max(1, playerLevel - 6);
   const maxLevel = playerLevel + 3;
 
-  const ownedSet = ownedItemIds
-    ? Array.isArray(ownedItemIds)
-      ? new Set(ownedItemIds)
-      : ownedItemIds
-    : null;
-
   const seenIds = new Set<string>();
 
   let candidates = combinedCatalog.filter((item: EquipmentItem) => {
     // Prevent duplicate entries
     if (seenIds.has(item.id)) return false;
 
-    // 1. Sold-out hiding (strictly matches exact template ID, never generic prefix):
-    if (ownedSet) {
-      const templateId = getBaseTemplateId(item.id);
-      if (ownedSet.has(templateId) || ownedSet.has(item.id)) return false;
-    }
-
-    // 2. Level bracket filtering:
+    // Level bracket filtering:
     if (item.levelReq < minLevel || item.levelReq > maxLevel) return false;
 
     // 3. Class suitability filtering:
@@ -433,13 +494,11 @@ export function getScaledForgeCatalog(
 
     fallbackItems.forEach((fb) => {
       if (!seenIds.has(fb.id)) {
-        if (!ownedSet || (!ownedSet.has(fb.id) && !ownedSet.has(getBaseTemplateId(fb.id)))) {
-          if (categoryFilter === 'ALL' ||
-             (categoryFilter === 'WEAPONS' && fb.category === weaponCategory) ||
-             (categoryFilter === 'ARMOR' && ['UPPER', 'LOWER'].includes(fb.category))) {
-            seenIds.add(fb.id);
-            candidates.push(fb);
-          }
+        if (categoryFilter === 'ALL' ||
+           (categoryFilter === 'WEAPONS' && fb.category === weaponCategory) ||
+           (categoryFilter === 'ARMOR' && ['UPPER', 'LOWER'].includes(fb.category))) {
+          seenIds.add(fb.id);
+          candidates.push(fb);
         }
       }
     });

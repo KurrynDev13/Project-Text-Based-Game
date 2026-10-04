@@ -20,14 +20,14 @@ import SettingsModal from './SettingsModal';
 interface TitleScreenViewProps {
   onStartGame: (loadedPlayer: PlayerCharacter, slotId: number) => void;
   onNewGamePrompt: (slotId: number) => void;
-  onOpenRoadmap?: () => void;
+  onDeleteSlot?: (slotId: number) => void;
   onShowToast?: (msg: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
 }
 
 export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
   onStartGame,
   onNewGamePrompt,
-  onOpenRoadmap,
+  onDeleteSlot,
   onShowToast,
 }) => {
   const [slots, setSlots] = useState<SaveSlotMeta[]>(() => getSaveSlotsMeta());
@@ -48,15 +48,10 @@ export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
   const mostRecentMeta = slots.find((s) => s.slotId === mostRecentSlotId && !s.isEmpty);
   const hasAnySave = slots.some((s) => !s.isEmpty);
 
-  // Continue from most recent save
+  // Continue shows character slots
   const handleContinue = () => {
-    if (!mostRecentSlotId) return;
     soundFX.playClickSound();
-    const loaded = loadGameSlot(mostRecentSlotId);
-    if (loaded && loaded.hasCreatedCharacter) {
-      setActiveSlotId(mostRecentSlotId);
-      onStartGame(loaded, mostRecentSlotId);
-    }
+    setShowSlotsModal(true);
   };
 
   // Load a chosen slot
@@ -94,10 +89,12 @@ export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
   const handleConfirmDelete = () => {
     if (!deleteCandidateSlot) return;
     soundFX.playClickSound();
-    deleteGameSlot(deleteCandidateSlot);
+    const slotToDelete = deleteCandidateSlot;
+    deleteGameSlot(slotToDelete);
+    onDeleteSlot?.(slotToDelete);
     setDeleteCandidateSlot(null);
     refreshSlots();
-    onShowToast?.(`🗑️ Save Slot #${deleteCandidateSlot} deleted.`, 'info', '🗑️');
+    onShowToast?.(`🗑️ Save Slot #${slotToDelete} deleted.`, 'info', '🗑️');
   };
 
   return (
@@ -120,17 +117,6 @@ export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
             Philippine Mythology RPG
           </span>
         </div>
-
-        <button
-          onClick={() => {
-            soundFX.playClickSound();
-            setShowSettingsModal(true);
-          }}
-          className="px-3 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-700/80 text-xs font-mono text-zinc-300 hover:text-amber-300 transition-all flex items-center gap-1.5 shadow-md active:scale-95"
-        >
-          <span>⚙️</span>
-          <span className="hidden xs:inline">Settings</span>
-        </button>
       </header>
 
       {/* CENTER HERO BRANDING & MENU */}
@@ -150,47 +136,31 @@ export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
           </p>
         </div>
 
-        {/* Primary Action Buttons Dock */}
+        {/* Primary Action Buttons Dock: 3 Buttons (Continue, New Game, Settings) */}
         <div className="w-full space-y-3 font-mono">
-          {/* CONTINUE BUTTON */}
-          <button
-            onClick={handleContinue}
-            disabled={!hasAnySave}
-            className={`w-full py-3.5 px-6 rounded-2xl font-bold text-sm sm:text-base uppercase tracking-wider transition-all shadow-xl flex items-center justify-between min-h-[52px] ${
-              hasAnySave
-                ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 shadow-amber-950/80 ring-2 ring-amber-400/40 active:scale-98'
-                : 'bg-zinc-900/90 text-zinc-600 border border-zinc-800 cursor-not-allowed'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-lg">▶</span>
-              <span>Continue</span>
-            </div>
-            {mostRecentMeta && (
-              <span className="text-[10px] sm:text-xs font-normal opacity-90 truncate max-w-[170px]">
-                {mostRecentMeta.heroName} · Lv.{mostRecentMeta.level}
-              </span>
-            )}
-          </button>
+          {/* 1. CONTINUE BUTTON -> Shows Character Slots (Only if saves exist) */}
+          {hasAnySave && (
+            <button
+              onClick={handleContinue}
+              className="w-full py-3.5 px-6 rounded-2xl font-bold text-sm sm:text-base uppercase tracking-wider transition-all shadow-xl flex items-center justify-between min-h-[52px] bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 shadow-amber-950/80 ring-2 ring-amber-400/40 active:scale-98"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">▶</span>
+                <span>Continue</span>
+              </div>
+              {mostRecentMeta ? (
+                <span className="text-[10px] sm:text-xs font-normal opacity-90 truncate max-w-[170px]">
+                  {mostRecentMeta.heroName} · Lv.{mostRecentMeta.level}
+                </span>
+              ) : (
+                <span className="text-[10px] sm:text-xs font-normal opacity-80">
+                  Select Slot
+                </span>
+              )}
+            </button>
+          )}
 
-          {/* 3 CHARACTER SLOTS SELECTOR */}
-          <button
-            onClick={() => {
-              soundFX.playClickSound();
-              setShowSlotsModal(true);
-            }}
-            className="w-full py-3 px-6 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-amber-900/60 hover:border-amber-600/60 text-amber-200 font-bold text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-between min-h-[48px] shadow-lg active:scale-98"
-          >
-            <div className="flex items-center gap-2">
-              <span>👥</span>
-              <span>Select Character (3 Slots)</span>
-            </div>
-            <span className="text-[10px] text-zinc-400 font-normal">
-              {slots.filter((s) => !s.isEmpty).length} / 3 Active
-            </span>
-          </button>
-
-          {/* NEW GAME */}
+          {/* 2. NEW GAME */}
           <button
             onClick={() => handleNewGame()}
             className="w-full py-3 px-6 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 hover:border-amber-600/50 text-zinc-200 hover:text-amber-200 font-bold text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 min-h-[48px] shadow-md active:scale-98"
@@ -199,18 +169,17 @@ export const TitleScreenView: React.FC<TitleScreenViewProps> = ({
             <span>New Game</span>
           </button>
 
-          {/* ROADMAP & LORE */}
-          {onOpenRoadmap && (
-            <button
-              onClick={() => {
-                soundFX.playClickSound();
-                onOpenRoadmap();
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-transparent hover:bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 text-xs tracking-wider transition-colors"
-            >
-              📜 Development Roadmap &amp; Patch Notes
-            </button>
-          )}
+          {/* 3. SETTINGS */}
+          <button
+            onClick={() => {
+              soundFX.playClickSound();
+              setShowSettingsModal(true);
+            }}
+            className="w-full py-3 px-6 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 hover:border-amber-600/50 text-zinc-300 hover:text-amber-300 font-bold text-xs sm:text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 min-h-[48px] shadow-md active:scale-98"
+          >
+            <span>⚙️</span>
+            <span>Settings</span>
+          </button>
         </div>
       </div>
 

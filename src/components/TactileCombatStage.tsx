@@ -30,6 +30,16 @@ export interface TactileCombatStageRef {
   addFloater: (text: string | number, target: 'HERO' | 'MONSTER', type?: 'normal' | 'crit' | 'heal' | 'dodge' | 'parry') => void;
 }
 
+export interface ArenaOutcome {
+  type: 'CHEST' | 'MERCHANT' | 'FLEE' | 'SHRINE' | 'CACHE' | 'TRAP';
+  title: string;
+  description: string;
+  badge?: string;
+  isPositive: boolean;
+  costOrReward?: string;
+  details?: string[];
+}
+
 interface TactileCombatStageProps {
   inCombat: boolean;
   player: PlayerCharacter;
@@ -43,6 +53,7 @@ interface TactileCombatStageProps {
   monsterAnimClass?: string;
   isGuarding?: boolean;
   fledStatusMessage?: string | null;
+  arenaOutcome?: ArenaOutcome | null;
 }
 
 // Internal Particle & SlashArc classes for procedural Canvas VFX
@@ -146,6 +157,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
   monsterAnimClass = '',
   isGuarding = false,
   fledStatusMessage = null,
+  arenaOutcome = null,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -510,12 +522,12 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
               <div className="bg-zinc-950/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-amber-900/80 shadow-2xl flex-1 max-w-[200px] sm:max-w-[240px] text-left mb-0.5">
                 <div className="flex items-center justify-between text-[10px] font-cinzel font-bold text-amber-100">
                   <div className="flex items-center gap-1 truncate">
-                    <span className="truncate font-bold">{player.heroClass || 'Maharlika'}</span>
+                    <span className="truncate font-bold">{player.name || player.heroClass || 'Maharlika'}</span>
                     {isGuarding && (
                       <span className="text-[7px] bg-amber-500 text-zinc-950 font-mono font-bold px-1 rounded">GUARD</span>
                     )}
                   </div>
-                  <span className="text-[8px] font-mono text-amber-400/90 shrink-0 ml-1">Lv.{player.level}</span>
+                  <span className="text-[8px] font-mono text-amber-400/90 shrink-0 ml-1">Lv.{player.level} {player.heroClass ? `(${player.heroClass})` : ''}</span>
                 </div>
                 
                 <div className="mt-0.5">
@@ -661,6 +673,61 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 <p className="text-[9.5px] font-mono text-amber-100 mt-0.5 leading-snug">
                   {explorationEvent}
                 </p>
+              </div>
+            </div>
+          ) : arenaOutcome ? (
+            /* Dedicated Arena Outcome Card (Chest Unsealed, Merchant Trade, Fled from Battle, Shrine) */
+            <div className="flex flex-col items-center animate-fade-in max-w-sm px-2">
+              <div className="relative group max-w-[140px] sm:max-w-[160px] mb-2">
+                <div
+                  className={`absolute -inset-1 rounded-2xl opacity-75 blur-md ${
+                    arenaOutcome.isPositive
+                      ? 'bg-gradient-to-br from-emerald-500 to-amber-500'
+                      : 'bg-gradient-to-br from-amber-600 to-red-600'
+                  }`}
+                />
+                <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-950 flex flex-col items-center justify-center p-2 text-center">
+                  <span className="text-3xl sm:text-4xl drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]">
+                    {arenaOutcome.type === 'FLEE'
+                      ? '🏃'
+                      : arenaOutcome.type === 'CHEST'
+                      ? arenaOutcome.isPositive ? '✨' : '☠️'
+                      : arenaOutcome.type === 'MERCHANT'
+                      ? '🛍️'
+                      : arenaOutcome.type === 'SHRINE'
+                      ? '⛩️'
+                      : '🏺'}
+                  </span>
+                  <span className="text-[8.5px] font-mono font-bold text-amber-300 uppercase tracking-widest mt-1">
+                    {arenaOutcome.badge || (arenaOutcome.isPositive ? 'SECURED' : 'RESOLVED')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-zinc-950/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-amber-900/80 shadow-2xl max-w-[280px] sm:max-w-sm text-center space-y-1">
+                <h3 className="text-xs sm:text-sm font-cinzel font-bold text-amber-200">
+                  {arenaOutcome.title}
+                </h3>
+                <p className="text-[9.5px] font-mono text-zinc-300 leading-snug">
+                  {arenaOutcome.description}
+                </p>
+                {arenaOutcome.costOrReward && (
+                  <div className="text-[10px] font-mono font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-600/40 inline-block mt-0.5">
+                    {arenaOutcome.costOrReward}
+                  </div>
+                )}
+                {arenaOutcome.details && arenaOutcome.details.length > 0 && (
+                  <div className="space-y-0.5 pt-0.5">
+                    {arenaOutcome.details.map((detail, idx) => (
+                      <div key={idx} className="text-[9px] font-mono text-emerald-400">
+                        {detail}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="text-[8.5px] font-mono text-zinc-400 pt-1 border-t border-zinc-800/80">
+                  ⚡ Choose [Venture Forward] or [Search Area] below to scout next
+                </div>
               </div>
             </div>
           ) : (

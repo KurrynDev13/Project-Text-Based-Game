@@ -22,7 +22,7 @@ import {
   sortInventory,
   calcRequiredActPower,
 } from '../utils/gameFormulas';
-import { getScaledForgeCatalog, getBaseTemplateId } from '../utils/equipmentGenerator';
+import { getScaledForgeCatalog, getBaseTemplateId, getInitialStoreStock } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import { broadcastSystemAnnouncement } from '../utils/supabase';
 import { NG_PLUS_REBIRTH_STORY, getActStory } from '../data/actStoryData';
@@ -182,6 +182,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
 
   // Forge state
   const [forgeCategory, setForgeCategory] = useState<'ALL' | 'WEAPONS' | 'ARMOR'>('ALL');
+  const [forgeStock, setForgeStock] = useState<Record<string, number>>({});
 
   // Alchemist state
   const [alchemistFilter, setAlchemistFilter] = useState<'ALL' | 'POTION' | 'ELIXIR' | 'PANACEA'>('ALL');
@@ -330,26 +331,13 @@ export const HavenView: React.FC<HavenViewProps> = ({
   };
 
   // ─── FORGE LOGIC ─────────────────────────────────────────────────────────────
-  // Build set of currently owned base IDs to cleanly hide sold-out items
-  const ownedBaseIds = new Set<string>();
-  const recordOwned = (item: EquipmentItem | ConsumableItem | null | undefined) => {
-    if (!item) return;
-    ownedBaseIds.add(item.id);
-    ownedBaseIds.add(getBaseTemplateId(item.id));
-  };
-  player.inventory.forEach(recordOwned);
-  recordOwned(player.equipment.weapon);
-  recordOwned(player.equipment.upperArmor);
-  recordOwned(player.equipment.lowerArmor);
-
   const forgeCatalog = getScaledForgeCatalog(
     player.level,
     player.heroClass as HeroClass,
     forgeCategory,
     false,
     player.currentLocationId || 'loc_act_1',
-    player.ngPlusLevel || 0,
-    ownedBaseIds
+    player.ngPlusLevel || 0
   );
 
   // ─── ALCHEMIST BREWING LOGIC ────────────────────────────────────────────────
@@ -813,6 +801,9 @@ export const HavenView: React.FC<HavenViewProps> = ({
                   ) : (
                     forgeCatalog.map((item) => {
                       const power = calcItemPowerRating(item);
+                      const itemStock = forgeStock[item.id] !== undefined ? forgeStock[item.id] : getInitialStoreStock(item);
+                      const isSoldOut = itemStock <= 0;
+
                       const icon =
                         item.category === 'SWORD' ? '⚔️' :
                         item.category === 'DAGGER' ? '🗡️' :
@@ -834,12 +825,16 @@ export const HavenView: React.FC<HavenViewProps> = ({
                             soundFX.playClick();
                             setInspectPurchaseItem(item);
                           }}
-                          className="px-2 py-1 bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800/80 hover:border-amber-500/80 rounded-xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group shadow h-[35px] shrink-0 backdrop-blur-sm"
+                          className={`px-2 py-1 border rounded-xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group shadow h-[35px] shrink-0 backdrop-blur-sm ${
+                            isSoldOut
+                              ? 'bg-zinc-950/40 border-zinc-900 opacity-60'
+                              : 'bg-zinc-900/60 hover:bg-zinc-800/80 border-zinc-800/80 hover:border-amber-500/80'
+                          }`}
                         >
                           <div className="flex items-center space-x-2 truncate">
                             <span className="text-sm w-5 text-center shrink-0">{icon}</span>
                             <div className="truncate">
-                              <h4 className="font-serif font-semibold text-[11px] text-white group-hover:text-amber-200 truncate leading-tight">
+                              <h4 className={`font-serif font-semibold text-[11px] truncate leading-tight ${isSoldOut ? 'text-zinc-500 line-through' : 'text-white group-hover:text-amber-200'}`}>
                                 {item.name}
                               </h4>
                               <div className="text-[8.5px] font-mono text-zinc-400 truncate leading-none">
@@ -849,6 +844,13 @@ export const HavenView: React.FC<HavenViewProps> = ({
                           </div>
 
                           <div className="flex items-center space-x-1.5 shrink-0">
+                            <span className={`text-[8.5px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                              isSoldOut
+                                ? 'bg-zinc-900 text-zinc-600 border-zinc-800'
+                                : 'bg-amber-950/80 text-amber-300 border-amber-800/40'
+                            }`}>
+                              {isSoldOut ? 'Sold Out' : `${itemStock} left`}
+                            </span>
                             <span className="text-[9px] font-mono font-bold bg-purple-950/90 text-purple-300 px-1.5 py-0.2 rounded border border-purple-800/40">
                               ⚡ {power}
                             </span>
@@ -1503,6 +1505,13 @@ export const HavenView: React.FC<HavenViewProps> = ({
       {/* 2. Forge Purchase Modal */}
       <ForgePurchaseModal
         item={inspectPurchaseItem}
+        stock={inspectPurchaseItem ? (forgeStock[inspectPurchaseItem.id] !== undefined ? forgeStock[inspectPurchaseItem.id] : getInitialStoreStock(inspectPurchaseItem)) : 0}
+        onPurchaseSuccess={(purchased) => {
+          setForgeStock((prev) => {
+            const cur = prev[purchased.id] !== undefined ? prev[purchased.id] : getInitialStoreStock(purchased);
+            return { ...prev, [purchased.id]: Math.max(0, cur - 1) };
+          });
+        }}
         onClose={() => setInspectPurchaseItem(null)}
         player={player}
         onUpdatePlayer={onUpdatePlayer}

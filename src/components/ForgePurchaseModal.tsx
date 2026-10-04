@@ -16,6 +16,8 @@ interface ForgePurchaseModalProps {
   player: PlayerCharacter;
   onUpdatePlayer: (updated: PlayerCharacter) => void;
   onShowToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error', icon?: string) => void;
+  stock?: number;
+  onPurchaseSuccess?: (item: EquipmentItem) => void;
 }
 
 export function formatPreColonialCurrencyBadge(costInCowries: number): {
@@ -44,6 +46,8 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
   player,
   onUpdatePlayer,
   onShowToast,
+  stock = 1,
+  onPurchaseSuccess,
 }) => {
   if (!item) return null;
 
@@ -55,22 +59,14 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
   const equippedItem = getEquippedItemForCategory(player.equipment, item.category);
   const delta = calcItemDelta(item, equippedItem);
 
-  // Check purchase limit: maximum 1 of the same base equipment in player's inventory or equipped
-  const countInInventory = player.inventory.filter((i) => i.id.startsWith(item.id.split('_')[0])).length;
-  const isEquipped =
-    player.equipment.weapon?.id.startsWith(item.id.split('_')[0]) ||
-    player.equipment.upperArmor?.id.startsWith(item.id.split('_')[0]) ||
-    player.equipment.lowerArmor?.id.startsWith(item.id.split('_')[0]);
-  const totalOwned = countInInventory + (isEquipped ? 1 : 0);
-  const MAX_PURCHASE_LIMIT = 1;
-  const isAtPurchaseLimit = totalOwned >= MAX_PURCHASE_LIMIT;
-
+  // Stock rule (not bound to what's in player inventory)
+  const isOutOfStock = stock <= 0;
   const canAfford = totalCowries >= item.costInCC;
   const isInventoryFull = player.inventory.length >= derived.inventoryCapacity;
 
   const handlePurchase = () => {
-    if (isAtPurchaseLimit) {
-      onShowToast?.(`⚠️ Purchase Limit Reached! You already possess ${item.name}.`, 'warning', '🔒');
+    if (isOutOfStock) {
+      onShowToast?.(`⚠️ Sold Out! ${item.name} is currently out of stock.`, 'warning', '🔒');
       return;
     }
     if (isInventoryFull) {
@@ -97,6 +93,8 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
       wallet: { ...player.wallet, ...newWallet },
       inventory: [...player.inventory, purchased],
     });
+
+    onPurchaseSuccess?.(item);
 
     soundFX.playCoinClink();
     onShowToast?.(`⚒️ Purchased ${item.name} for ${price.formatted}!`, 'success', '⚔️');
@@ -220,11 +218,11 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
             </div>
           )}
 
-          {/* Purchase Limit Indicator */}
+          {/* Stock Indicator */}
           <div className="flex justify-between items-center text-[11px] bg-zinc-950 px-2.5 py-1.5 rounded-lg border border-zinc-800">
-            <span className="text-zinc-400">Stock Limit:</span>
-            <span className={isAtPurchaseLimit ? 'text-red-400 font-bold' : 'text-emerald-400'}>
-              {totalOwned} / {MAX_PURCHASE_LIMIT} Owned {isAtPurchaseLimit ? '(Sold Out)' : '(In Stock)'}
+            <span className="text-zinc-400">Armory Inventory:</span>
+            <span className={isOutOfStock ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+              {isOutOfStock ? '0 In Stock (Sold Out)' : `${stock} In Stock`}
             </span>
           </div>
 
@@ -253,16 +251,16 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
 
           <button
             onClick={handlePurchase}
-            disabled={!canAfford || isAtPurchaseLimit || isInventoryFull}
+            disabled={!canAfford || isOutOfStock || isInventoryFull}
             className={`px-4 py-1.5 rounded-lg font-mono font-bold text-xs uppercase tracking-wider transition-all shadow ${
-              isAtPurchaseLimit
+              isOutOfStock
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                 : !canAfford
                 ? 'bg-zinc-800 text-red-400 cursor-not-allowed border border-red-900/40'
                 : 'bg-amber-600 hover:bg-amber-500 text-zinc-950 active:scale-95'
             }`}
           >
-            {isAtPurchaseLimit ? 'Already Owned' : !canAfford ? 'Cannot Afford' : 'Buy Equipment'}
+            {isOutOfStock ? 'Sold Out' : !canAfford ? 'Cannot Afford' : 'Buy Equipment'}
           </button>
         </div>
       </div>

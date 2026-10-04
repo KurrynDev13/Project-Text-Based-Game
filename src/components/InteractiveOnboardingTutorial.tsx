@@ -303,45 +303,47 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
         transform: 'translate(-50%, -50%)',
         position: 'fixed',
         width: `${popoverWidth}px`,
+        maxHeight: `${window.innerHeight - 80}px`,
       };
     }
 
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
-    const bottomReserve = isMobile ? 65 : 80;
-
-    let isPlacingAbove = false;
-    let topPosition: number;
+    const bottomReserve = isMobile ? 68 : 80;
+    const estCardHeight = isMobile ? 220 : 250;
 
     const spaceBelow = windowHeight - targetRect.bottom - bottomReserve;
+    const spaceAbove = targetRect.top - 12;
 
-    if (isMobile) {
-      // Place below if target is in the upper area (top < 240) OR if there is ample room below (>= 200px)
-      if (targetRect.top < 240 || spaceBelow >= 200) {
-        isPlacingAbove = false;
-        topPosition = targetRect.bottom + 10;
-      } else {
-        isPlacingAbove = true;
-        // Position card comfortably above target, ensuring it does not squeeze
-        topPosition = Math.max(12, targetRect.top - 230);
-      }
+    let topPosition: number;
+
+    if (spaceBelow >= estCardHeight + 10) {
+      // Comfortably fits below target
+      topPosition = targetRect.bottom + 10;
+    } else if (spaceAbove >= estCardHeight + 10) {
+      // Comfortably fits above target
+      topPosition = Math.max(12, targetRect.top - estCardHeight - 10);
     } else {
-      if (targetRect.top < 180 || spaceBelow >= 240) {
-        isPlacingAbove = false;
-        topPosition = targetRect.bottom + 12;
+      // Target fills most of the screen (e.g. large modal in center).
+      // Dock near the bottom or top depending on where more room is available,
+      // strictly clamped so the bottom never exceeds windowHeight - bottomReserve.
+      if (spaceBelow > spaceAbove) {
+        topPosition = Math.max(12, windowHeight - bottomReserve - estCardHeight);
       } else {
-        isPlacingAbove = true;
-        topPosition = 24;
+        topPosition = 12;
       }
     }
 
-    // Give generous max-height so panel content is never squeezed or clipped
-    const maxCardHeight = isPlacingAbove
-      ? Math.max(220, targetRect.top - 20)
-      : Math.max(220, windowHeight - topPosition - bottomReserve - 6);
+    // Determine safe maximum card height
+    let maxCardHeight = Math.min(
+      isMobile ? windowHeight - bottomReserve - 20 : windowHeight - bottomReserve - 30,
+      windowHeight - topPosition - bottomReserve - 6
+    );
 
-    // Clamp top position safely inside visible bounds
-    topPosition = Math.max(8, Math.min(topPosition, windowHeight - 160));
+    // If topPosition + maxCardHeight exceeds bottom bounds, push top up
+    if (topPosition + maxCardHeight > windowHeight - bottomReserve) {
+      topPosition = Math.max(8, windowHeight - bottomReserve - maxCardHeight);
+    }
 
     const targetCenterX = targetRect.left + targetRect.width / 2;
     let leftPosition = targetCenterX - popoverWidth / 2;
@@ -351,7 +353,7 @@ export const InteractiveOnboardingTutorial: React.FC<InteractiveOnboardingTutori
       top: `${topPosition}px`,
       left: `${leftPosition}px`,
       width: `${popoverWidth}px`,
-      maxHeight: `${maxCardHeight}px`,
+      maxHeight: `${Math.max(180, maxCardHeight)}px`,
       position: 'fixed',
     };
   };

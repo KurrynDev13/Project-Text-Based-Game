@@ -269,14 +269,14 @@ export const CharacterCreationModal: React.FC<CharacterCreationModalProps> = ({ 
                       </div>
 
                       {/* Hero Portrait Banner */}
-                      <div className="w-full h-24 xs:h-28 sm:h-32 rounded-xl overflow-hidden relative border border-zinc-800 my-1 shadow-inner group">
+                      <div className="w-full h-28 xs:h-32 sm:h-36 rounded-xl overflow-hidden relative border border-zinc-800 my-1 shadow-inner group">
                         <img
                           src={heroImg}
                           alt={cls.title}
-                          className="w-full h-full object-cover object-center filter contrast-105 group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover object-[center_15%] filter contrast-105 group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
-                        <div className="absolute bottom-1 left-2 text-[9px] font-mono text-amber-300/90">
+                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent" />
+                        <div className="absolute bottom-1 left-2 text-[9px] font-mono text-amber-300 font-bold drop-shadow">
                           ⚔️ {cls.weaponType}
                         </div>
                       </div>
@@ -390,7 +390,7 @@ export const CharacterCreationModal: React.FC<CharacterCreationModalProps> = ({ 
               <img
                 src={getHeroImageUrl(activeClass.heroClass)}
                 alt={activeClass.title}
-                className="w-14 h-14 rounded-lg object-cover border border-amber-500/60"
+                className="w-14 h-14 rounded-lg object-cover object-[center_15%] border border-amber-500/60"
               />
               <div>
                 <div className="flex items-center gap-2">

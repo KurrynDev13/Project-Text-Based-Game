@@ -138,11 +138,9 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         )}
       </div>
 
-      {/* ── STATS TAB: 2:1 RATIO SPLIT (Left 2fr: Attributes & Metrics, Right 1fr: Gear) ── */}
+      {/* ── STATS TAB: Primary Attributes & Combat Metrics Breakdown ── */}
       {activeTab === 'STATS' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-          {/* ════ LEFT PANE (2fr): ATTRIBUTES & COMBAT METRICS ═══════════════ */}
-          <div className="lg:col-span-2 space-y-3 sm:space-y-4">
+        <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto w-full">
             {/* 1. Attributes Allocation Grid (High Density 2x2 Grid) */}
             <div className="bg-zinc-900/80 p-3 sm:p-4 rounded-xl border border-zinc-800 space-y-2.5 shadow-md">
               <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
@@ -311,43 +309,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
               </div>
             </div>
           </div>
-
-          {/* ════ RIGHT PANE (1fr): TITAN GEAR SLOTS ════════════════════════ */}
-          <div className="lg:col-span-1 space-y-3">
-            <div className="bg-zinc-900/80 p-3 sm:p-4 rounded-xl border border-zinc-800 space-y-2.5 shadow-md">
-              <div className="flex justify-between items-center pb-1.5 border-b border-zinc-800">
-                <h3 className="font-serif font-bold text-sm sm:text-base text-amber-200">
-                  Titan Gear Slots
-                </h3>
-                <span className="text-[10px] text-zinc-400 font-mono">Paper Doll</span>
-              </div>
-
-              <div className="space-y-2">
-                <EquippedSlotCard
-                  slotTitle="Weapon"
-                  item={player.equipment.weapon ?? player.equipment.primaryWeapon ?? null}
-                  onUnequip={() => onUnequipItem('weapon')}
-                />
-                <EquippedSlotCard
-                  slotTitle="Upper Armor"
-                  item={player.equipment.upperArmor}
-                  onUnequip={() => onUnequipItem('upperArmor')}
-                />
-                <EquippedSlotCard
-                  slotTitle="Lower Armor"
-                  item={player.equipment.lowerArmor}
-                  onUnequip={() => onUnequipItem('lowerArmor')}
-                />
-                <EquippedSlotCard
-                  slotTitle={player.act6Completed || player.mountUnlocked ? 'Mythical Mount' : 'Mount (Locked: Post-Act 6)'}
-                  item={player.equipment.mount || player.equipment.bike || null}
-                  onUnequip={() => onUnequipItem('mount')}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
 
       {/* SKILLS TAB */}
       {activeTab === 'SKILLS' && (

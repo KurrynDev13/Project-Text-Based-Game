@@ -32,7 +32,6 @@ import { BackgroundLayer } from './components/BackgroundLayer';
 import { bgmManager } from './utils/musicManager';
 import TitleScreenView from './components/TitleScreenView';
 import SettingsModal from './components/SettingsModal';
-import { RoadmapView } from './components/RoadmapView';
 import {
   migrateLegacySave,
   getActiveSlotId,
@@ -229,7 +228,6 @@ export function App() {
   });
   const [isCharacterCreationOpen, setIsCharacterCreationOpen] = useState<boolean>(false);
   const [showInGameSettings, setShowInGameSettings] = useState<boolean>(false);
-  const [showRoadmapModal, setShowRoadmapModal] = useState<boolean>(false);
 
   const [player, setPlayer] = useState<PlayerCharacter>(() => {
     migrateLegacySave();
@@ -418,12 +416,12 @@ export function App() {
     activeFeatureTutorial,
   ]);
 
-  // Auto Save to Active Slot in LocalStorage
+  // Auto Save to Active Slot in LocalStorage (Strictly in GAME mode to prevent cross-slot title screen pollution)
   useEffect(() => {
-    if (player.hasCreatedCharacter) {
+    if (viewMode === 'GAME' && player.hasCreatedCharacter) {
       saveGameSlot(activeSlot, player);
     }
-  }, [player, activeSlot]);
+  }, [player, activeSlot, viewMode]);
 
   // Out-of-Combat Passive HP & MP Regeneration Ticker (Every 10 Seconds)
   useEffect(() => {
@@ -526,8 +524,9 @@ export function App() {
     // New player starting wallet — modest but meaningful
     const newWallet = cowriesToWallet(80 + 5 * 100, 2); // 580 cowries total, 2 Mutya Shards
 
+    const pristine = createInitialPlayer();
     const newPlayer: PlayerCharacter = {
-      ...player,
+      ...pristine,
       name: heroName,
       heroClass,
       attributes,
@@ -568,7 +567,14 @@ export function App() {
   const handleNewGamePrompt = (slotId: number) => {
     setActiveSlot(slotId);
     setActiveSlotId(slotId);
+    setPlayer(createInitialPlayer());
     setIsCharacterCreationOpen(true);
+  };
+
+  const handleDeleteSlot = (slotId: number) => {
+    if (activeSlot === slotId) {
+      setPlayer(createInitialPlayer());
+    }
   };
 
   const handleReturnToTitle = () => {
@@ -657,7 +663,7 @@ export function App() {
             <TitleScreenView
               onStartGame={handleStartGame}
               onNewGamePrompt={handleNewGamePrompt}
-              onOpenRoadmap={() => setShowRoadmapModal(true)}
+              onDeleteSlot={handleDeleteSlot}
               onShowToast={showToast}
             />
 
@@ -667,24 +673,6 @@ export function App() {
                 onComplete={handleCharacterCreate}
                 onCancel={() => setIsCharacterCreationOpen(false)}
               />
-            )}
-
-            {/* Roadmap Modal on Title Screen */}
-            {showRoadmapModal && (
-              <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fade-in">
-                <div className="bg-zinc-950 border-2 border-amber-500 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative shadow-2xl">
-                  <div className="flex justify-between items-center border-b border-zinc-800 pb-2 mb-3">
-                    <h2 className="font-serif text-amber-200 font-bold text-lg">Development Roadmap</h2>
-                    <button
-                      onClick={() => setShowRoadmapModal(false)}
-                      className="text-zinc-400 hover:text-white w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <RoadmapView />
-                </div>
-              </div>
             )}
 
             {/* Global Toast Notification */}
@@ -736,7 +724,11 @@ export function App() {
         {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS (Dynamically pushed down when Announcement Ticker is active) */}
         <main
           className={`flex-1 max-w-7xl w-full mx-auto overflow-y-auto pb-16 md:pb-28 flex flex-col transition-all duration-300 ${
-            isTickerActive
+            battle.inCombat
+              ? isTickerActive
+                ? 'pt-[74px] sm:pt-[76px] md:pt-[60px]'
+                : 'pt-[40px] sm:pt-[44px] md:pt-[40px]'
+              : isTickerActive
               ? 'pt-[124px] sm:pt-[128px] md:pt-[88px]'
               : 'pt-[96px] sm:pt-[100px] md:pt-[64px]'
           }`}
@@ -785,6 +777,7 @@ export function App() {
                   player={player}
                   onUpdatePlayer={setPlayer}
                   onNavigateCodebreaker={() => setCurrentTab('WORLD')}
+                  onOpenSettings={() => setShowInGameSettings(true)}
                   onShowToast={showToast}
                 />
               )}

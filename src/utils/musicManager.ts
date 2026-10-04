@@ -18,12 +18,15 @@ class BackgroundMusicManager {
   private isUnlocked: boolean = false;
   private fadeTimer: number | null = null;
   private listeners: Set<() => void> = new Set();
+  private wasPlayingBeforeUnfocus: boolean = false;
+  private isDocumentFocused: boolean = true;
 
   constructor() {
     this.loadSettings();
     if (typeof window !== 'undefined') {
       this.initAudio();
       this.setupUnlockListeners();
+      this.setupFocusAndVisibilityListeners();
     }
   }
 
@@ -85,6 +88,48 @@ class BackgroundMusicManager {
     });
   }
 
+  private setupFocusAndVisibilityListeners() {
+    const handleUnfocus = () => {
+      this.isDocumentFocused = false;
+      if (this.currentTrackId) {
+        const currentAudio = this.audioElements[this.currentTrackId];
+        if (currentAudio && !currentAudio.paused) {
+          this.wasPlayingBeforeUnfocus = true;
+          currentAudio.pause();
+        }
+      }
+    };
+
+    const handleFocus = () => {
+      this.isDocumentFocused = true;
+      if (this.wasPlayingBeforeUnfocus && this.currentTrackId && !this.muted && this.isUnlocked) {
+        this.wasPlayingBeforeUnfocus = false;
+        const currentAudio = this.audioElements[this.currentTrackId];
+        if (currentAudio && currentAudio.paused) {
+          currentAudio.volume = this.effectiveVolume;
+          currentAudio.play().catch(() => {});
+        }
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          handleUnfocus();
+        } else if (document.visibilityState === 'visible') {
+          handleFocus();
+        }
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', handleUnfocus);
+      window.addEventListener('focus', handleFocus);
+      window.addEventListener('pagehide', handleUnfocus);
+      window.addEventListener('pageshow', handleFocus);
+    }
+  }
+
   public playTrack(trackId: BGMTrackId) {
     this.targetTrackId = trackId;
 
@@ -108,6 +153,11 @@ class BackgroundMusicManager {
 
     if (!this.isUnlocked) {
       // Audio not unlocked by user gesture yet
+      return;
+    }
+
+    if (!this.isDocumentFocused) {
+      this.wasPlayingBeforeUnfocus = true;
       return;
     }
 

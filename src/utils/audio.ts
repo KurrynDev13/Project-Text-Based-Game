@@ -220,6 +220,14 @@ class SoundEffectsManager {
     this.playClick();
   }
 
+  public playSuccessSound() {
+    this.playVictorySound();
+  }
+
+  public playSwordSound() {
+    this.playAttackSound();
+  }
+
   public playFleeSound() {
     if (!this.enabled) return;
     this.initCtx();
