@@ -61,17 +61,6 @@ const STEPS: OnboardingStep[] = [
     tabToSwitch: 'HAVEN',
   },
   {
-    id: 'tavern-bounties',
-    targetId: 'tavern-card',
-    icon: '📜',
-    title: 'Ancestral Notice Board & Bounties',
-    description:
-      'Reaching Character Level 3 unlocks the Bounty Board! Accept up to 3 active contracts concurrently to hunt dangerous beasts for Cowries, EXP, and Mutya Shards.',
-    tip: 'Bounty rewards scale with your character level and unlocked Archipelago Acts.',
-    districtToSwitch: 'TAVERN',
-    tabToSwitch: 'HAVEN',
-  },
-  {
     id: 'forge-view',
     targetId: 'district-forge',
     icon: '⚒️',

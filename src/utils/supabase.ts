@@ -83,11 +83,14 @@ export async function broadcastSystemAnnouncement(text: string): Promise<boolean
   return true;
 }
 
-/** Fetches recent system GM announcements for the floating ticker bar */
+/** Fetches recent system GM announcements for the floating ticker bar (Only today's announcements) */
 export async function fetchRecentAnnouncements(): Promise<string[]> {
   if (!isSupabaseConfigured) return [];
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/global_chat?sender=eq.GM&order=created_at.desc&limit=10`, {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayIso = today.toISOString();
+    const res = await fetch(`${supabaseUrl}/rest/v1/global_chat?sender=eq.GM&created_at=gte.${encodeURIComponent(todayIso)}&order=created_at.desc&limit=10`, {
       headers: {
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${supabaseAnonKey}`,
@@ -95,7 +98,18 @@ export async function fetchRecentAnnouncements(): Promise<string[]> {
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return data.map((row: any) => row.message || row.text || '');
+    return data
+      .filter((row: any) => {
+        if (!row.created_at) return true;
+        const msgDate = new Date(row.created_at);
+        const now = new Date();
+        return (
+          msgDate.getFullYear() === now.getFullYear() &&
+          msgDate.getMonth() === now.getMonth() &&
+          msgDate.getDate() === now.getDate()
+        );
+      })
+      .map((row: any) => row.message || row.text || '');
   } catch {
     return [];
   }

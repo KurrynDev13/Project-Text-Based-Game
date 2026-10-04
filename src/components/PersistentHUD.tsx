@@ -7,10 +7,16 @@ import { AnnouncementTicker } from './AnnouncementTicker';
 interface PersistentHUDProps {
   player: PlayerCharacter;
   inCombat?: boolean;
+  onTickerActiveChange?: (isActive: boolean) => void;
 }
 
-export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }) => {
+export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, onTickerActiveChange }) => {
   const [tickerActive, setTickerActive] = useState<boolean>(false);
+
+  const handleTickerChange = (active: boolean) => {
+    setTickerActive(active);
+    onTickerActiveChange?.(active);
+  };
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
 
   const hpPercent = Math.max(0, Math.min(100, Math.floor((player.currentHp / derived.maxHp) * 100)));
@@ -22,7 +28,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat }
   return (
     <div className="fixed top-0 left-0 right-0 z-40 flex flex-col transition-all duration-300">
       {/* Floating Marquee Announcement Ticker Bar */}
-      <AnnouncementTicker onTickerActiveChange={setTickerActive} />
+      <AnnouncementTicker onTickerActiveChange={handleTickerChange} />
 
       {/* Main Persistent Status HUD Bar */}
       <div data-tutorial-target="persistent-hud" className="bg-zinc-950/95 backdrop-blur-md border-b border-amber-900/60 text-amber-100 px-2 py-1 md:px-3 md:py-2 shadow-2xl font-mono text-[10px] md:text-xs select-none">

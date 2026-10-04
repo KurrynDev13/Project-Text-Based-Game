@@ -2386,15 +2386,26 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               <span className="truncate font-bold tracking-wide">Attack</span>
             </button>
 
-            {/* Row 1, Col 2: Skills */}
-            <button
-              onClick={() => setShowSpellPicker(true)}
-              disabled={battle.winner !== null || isCombatBusy}
-              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
-            >
-              <span className="text-sm">⚡</span>
-              <span className="truncate font-bold tracking-wide">Skills</span>
-            </button>
+            {/* Row 1, Col 2: Skills (Unlocked strictly at Level 2+) OR Guard at Level 1 */}
+            {player.level >= 2 ? (
+              <button
+                onClick={() => setShowSpellPicker(true)}
+                disabled={battle.winner !== null || isCombatBusy}
+                className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+              >
+                <span className="text-sm">⚡</span>
+                <span className="truncate font-bold tracking-wide">Skills</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleGuard}
+                disabled={battle.winner !== null || isCombatBusy}
+                className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-blue-950 to-zinc-900 hover:from-blue-900 hover:to-zinc-800 text-cyan-200 font-cinzel font-bold text-xs border border-cyan-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+              >
+                <span className="text-sm">🛡️</span>
+                <span className="truncate font-bold tracking-wide">Guard</span>
+              </button>
+            )}
 
             {/* Col 3: Flee (spans 2 rows) */}
             {(() => {
@@ -2419,25 +2430,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               );
             })()}
 
-            {/* Row 2, Col 1: Items */}
+            {/* Row 2, Col 1: Items (takes col-span-2 at Level 1, normal at Level 2+) */}
             <button
               onClick={() => setShowItemPicker(true)}
               disabled={battle.winner !== null || isCombatBusy}
-              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-emerald-950 to-zinc-900 hover:from-emerald-900 hover:to-zinc-800 text-emerald-200 font-cinzel font-bold text-xs border border-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+              className={`min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-emerald-950 to-zinc-900 hover:from-emerald-900 hover:to-zinc-800 text-emerald-200 font-cinzel font-bold text-xs border border-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40 ${
+                player.level < 2 ? 'col-span-2' : ''
+              }`}
             >
               <span className="text-sm">🎒</span>
               <span className="truncate font-bold tracking-wide">Items</span>
             </button>
 
-            {/* Row 2, Col 2: Guard */}
-            <button
-              onClick={handleGuard}
-              disabled={battle.winner !== null || isCombatBusy}
-              className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-blue-950 to-zinc-900 hover:from-blue-900 hover:to-zinc-800 text-cyan-200 font-cinzel font-bold text-xs border border-cyan-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
-            >
-              <span className="text-sm">🛡️</span>
-              <span className="truncate font-bold tracking-wide">Guard</span>
-            </button>
+            {/* Row 2, Col 2: Guard (only rendered here at Level 2+, since at Level 1 Guard was in Row 1) */}
+            {player.level >= 2 && (
+              <button
+                onClick={handleGuard}
+                disabled={battle.winner !== null || isCombatBusy}
+                className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-blue-950 to-zinc-900 hover:from-blue-900 hover:to-zinc-800 text-cyan-200 font-cinzel font-bold text-xs border border-cyan-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+              >
+                <span className="text-sm">🛡️</span>
+                <span className="truncate font-bold tracking-wide">Guard</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -2723,31 +2738,36 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       {/* Boss Discovery Warning Card Modal (Phase 8.2) */}
       {showBossDiscoveryModal && selectedLocation.bossId && (() => {
-        const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
-        return (
-          <BossDiscoveryModal
-            bossId={selectedLocation.bossId}
-            bossName={boss.name}
-            bossTitle={boss.title}
-            bossLore={boss.specialAbility || `The legendary climax boss guarding ${selectedLocation.name}.`}
-            bossLevel={boss.level}
-            requiredPower={bossPowerReq}
-            playerPower={derived.powerLevel}
-            onDismiss={() => setShowBossDiscoveryModal(false)}
-            onChallenge={() => {
-              setShowBossDiscoveryModal(false);
-              if (isBossLevelLocked) {
-                notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
-                return;
-              }
-              if (hasUncompleted) {
-                setShowBossWarningModal(true);
-              } else {
-                startBossBattle(false);
-              }
-            }}
-          />
-        );
+        try {
+          const boss = generateMonsterForLocation(selectedLocation.minLevel, selectedLocation.bossId, undefined, player.ngPlusLevel || 0, player.ngPlusStartLevel || 0, playerContext);
+          return (
+            <BossDiscoveryModal
+              bossId={selectedLocation.bossId}
+              bossName={boss.name}
+              bossTitle={boss.title}
+              bossLore={boss.specialAbility || `The legendary climax boss guarding ${selectedLocation.name}.`}
+              bossLevel={boss.level}
+              requiredPower={bossPowerReq}
+              playerPower={derived.powerLevel}
+              onDismiss={() => setShowBossDiscoveryModal(false)}
+              onChallenge={() => {
+                setShowBossDiscoveryModal(false);
+                if (isBossLevelLocked) {
+                  notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+                  return;
+                }
+                if (hasUncompleted) {
+                  setShowBossWarningModal(true);
+                } else {
+                  startBossBattle(false);
+                }
+              }}
+            />
+          );
+        } catch (err) {
+          console.error('[WorldHuntView] Error rendering BossDiscoveryModal:', err);
+          return null;
+        }
       })()}
 
       {/* Act Guardian Climax Victory Loot Modal */}

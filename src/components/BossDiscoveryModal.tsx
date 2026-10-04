@@ -44,7 +44,11 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
 }) => {
   // Play the boss warning sound effect on mount
   useEffect(() => {
-    soundFX.playBossWarningSound();
+    try {
+      soundFX.playBossWarningSound();
+    } catch (err) {
+      console.warn('[BossDiscoveryModal] Audio warning skipped:', err);
+    }
   }, []);
 
   const isUnderPowered = playerPower < requiredPower;
@@ -52,9 +56,9 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
   const modalContent = (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div
-        className="bg-gradient-to-b from-red-950/90 to-zinc-950 border-2 border-red-700/60
-          rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-5
-          shadow-2xl shadow-red-950/60 animate-pulse-border my-auto"
+        className="bg-gradient-to-b from-red-950/95 to-zinc-950 border-2 border-red-700/60
+          rounded-2xl max-w-lg w-full max-h-[92dvh] overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-5
+          shadow-2xl shadow-red-950/60 my-auto text-amber-100"
       >
         {/* ── Warning Badge ── */}
         <div className="flex items-center justify-center gap-2">

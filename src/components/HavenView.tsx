@@ -580,6 +580,49 @@ export const HavenView: React.FC<HavenViewProps> = ({
     ...(isStablesUnlocked ? [{ id: 'STABLES' as const, label: 'Stables', icon: '🐃' }] : []),
   ];
 
+  // Mobile Touch Swipe Gesture: Tavern > Forge > Alchemist > Gate > Stash > Stables (if unlocked)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (e.changedTouches.length === 0) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - start.x;
+    const diffY = endY - start.y;
+
+    // Predominantly horizontal swipe of at least 45px
+    if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.3) {
+      const availableTabs = districtTabs.map((t) => t.id);
+      const currentIndex = availableTabs.indexOf(district);
+      if (currentIndex === -1) return;
+
+      if (diffX < 0) {
+        // Swiped left -> Next district
+        if (currentIndex < availableTabs.length - 1) {
+          handleSelectDistrict(availableTabs[currentIndex + 1]);
+        }
+      } else {
+        // Swiped right -> Previous district
+        if (currentIndex > 0) {
+          handleSelectDistrict(availableTabs[currentIndex - 1]);
+        }
+      }
+    }
+  };
+
   return (
     <div className="w-full flex-1 flex flex-col h-full overflow-hidden bg-black/25 text-zinc-100 select-none font-sans">
       {/* ─── AUTHENTIC PRE-COLONIAL SANCTUARY BANNER (TUTORIAL COMPATIBLE) ───── */}
@@ -652,8 +695,12 @@ export const HavenView: React.FC<HavenViewProps> = ({
         })}
       </nav>
 
-      {/* ─── DISTRICT CANVAS ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden flex flex-col p-2 sm:p-2.5 pb-20 md:pb-4 min-h-0">
+      {/* ─── DISTRICT CANVAS (WITH SWIPE GESTURE SUPPORT) ───────────────────── */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="flex-1 overflow-hidden flex flex-col p-2 sm:p-2.5 pb-20 md:pb-4 min-h-0"
+      >
         {/* ===================================================================== */}
         {/* DISTRICT 1: TAVERN                                                    */}
         {/* ===================================================================== */}
@@ -681,39 +728,41 @@ export const HavenView: React.FC<HavenViewProps> = ({
               />
             </div>
 
-            {/* Bounty Notice Board Card (Bounty Contract Tracker) */}
-            <div
-              data-tutorial-target="tavern-card"
-              className="w-full lg:w-80 bg-zinc-950/70 backdrop-blur-md border border-purple-800/60 rounded-3xl p-3 sm:p-4 flex flex-col justify-between shrink-0 shadow-xl gap-2 sm:gap-2.5"
-            >
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-2xl">📜</span>
-                    <div>
-                      <h4 className="font-serif font-bold text-purple-200 text-sm tracking-wide">
-                        Poblacion Notice Board
-                      </h4>
-                      <div className="text-[10px] font-mono text-zinc-400">
-                        Act {currentActNumber} Wanted Contracts
+            {/* Bounty Notice Board Card (Bounty Contract Tracker - Strictly Unlocked at Level 3+) */}
+            {player.level >= 3 && (
+              <div
+                data-tutorial-target="tavern-card"
+                className="w-full lg:w-80 bg-zinc-950/70 backdrop-blur-md border border-purple-800/60 rounded-3xl p-3 sm:p-4 flex flex-col justify-between shrink-0 shadow-xl gap-2 sm:gap-2.5"
+              >
+                <div className="space-y-1.5 sm:space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-2xl">📜</span>
+                      <div>
+                        <h4 className="font-serif font-bold text-purple-200 text-sm tracking-wide">
+                          Poblacion Notice Board
+                        </h4>
+                        <div className="text-[10px] font-mono text-zinc-400">
+                          Act {currentActNumber} Wanted Contracts
+                        </div>
                       </div>
                     </div>
+
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/50">
+                      {availableContractsCount} Available
+                    </span>
                   </div>
-
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/50">
-                    {availableContractsCount} Available
-                  </span>
                 </div>
-              </div>
 
-              <button
-                onClick={handleOpenBountyBoard}
-                className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-600 hover:from-purple-600 hover:to-indigo-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-950/60 active:scale-95 transition-all text-center min-h-[42px] sm:min-h-[44px] flex items-center justify-center space-x-1.5"
-              >
-                <span>Inspect Notice Board</span>
-                <span>➔</span>
-              </button>
-            </div>
+                <button
+                  onClick={handleOpenBountyBoard}
+                  className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-600 hover:from-purple-600 hover:to-indigo-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-purple-950/60 active:scale-95 transition-all text-center min-h-[42px] sm:min-h-[44px] flex items-center justify-center space-x-1.5"
+                >
+                  <span>Inspect Notice Board</span>
+                  <span>➔</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

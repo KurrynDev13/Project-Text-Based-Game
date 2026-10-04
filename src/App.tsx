@@ -25,10 +25,56 @@ import { TitanRaidView } from './components/TitanRaidView';
 import CharacterCreationModal from './components/CharacterCreationModal';
 import OpeningStoryModal from './components/OpeningStoryModal';
 import InteractiveOnboardingTutorial from './components/InteractiveOnboardingTutorial';
+import FeatureTutorialModal, { TutorialStep } from './components/FeatureTutorialModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastBanner, ToastMessage } from './components/ToastBanner';
 import { BackgroundLayer } from './components/BackgroundLayer';
 import { bgmManager } from './utils/musicManager';
-// SkillTreeView is used inside CharacterSheet now
+
+const MUTYA_SKILLS_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    title: 'Mutya Skills Unlocked (Level 2)',
+    icon: '✨',
+    description: 'You have ascended to Character Level 2! The ancient martial techniques of the archipelago are now accessible through your Mutya Skill Tree.',
+    tip: 'Invest Mutya Pearls and AP to specialize your hero.',
+  },
+  {
+    title: 'Equipping Active Skills',
+    icon: '⚔️',
+    description: 'You can equip up to 3 active Mutya Skills concurrently. Equipped skills appear directly on your combat action dock during battles.',
+    tip: 'Skills consume Mana (MP) to deal heavy elemental damage, heal, or provide vital tactical buffs.',
+  },
+];
+
+const NOTICE_BOARD_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    title: 'Poblacion Notice Board Unlocked (Level 3)',
+    icon: '📜',
+    description: 'Reaching Character Level 3 opens the Chieftain\'s Wanted Contracts! The Poblacion Notice Board in Haven Tavern is now active.',
+    tip: 'Accept contracts to hunt specific beasts across the islands.',
+  },
+  {
+    title: 'Earn Cowries, EXP & Mutya',
+    icon: '💰',
+    description: 'You can accept up to 3 active bounties simultaneously. Completing contracts awards massive EXP, trade currency, and rare Mutya Shards.',
+    tip: 'Check your Journal or inspect the Notice Board in Tavern anytime to review contract progress.',
+  },
+];
+
+const STABLES_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    title: 'Beastmaster Stables Unlocked',
+    icon: '🐎',
+    description: 'Having vanquished the primordial titan Tambanokano, you have unlocked the legendary Beastmaster Stables in Poblacion Citadel!',
+    tip: 'Tame mystical archipelago beasts to ride across the archipelago.',
+  },
+  {
+    title: 'Mount Traversal & Passives',
+    icon: '🛡️',
+    description: 'Mounts provide substantial passive attribute bonuses, reduced stamina travel costs, and unique traversal auras.',
+    tip: 'Equip and manage your steeds in the Stables district in Haven.',
+  },
+];
 
 const LOCAL_STORAGE_KEY = 'maharlika_player_save_v1';
 
@@ -203,6 +249,17 @@ export function App() {
   const [showOpeningStory, setShowOpeningStory] = useState<boolean>(false);
   const [isRaidBattleActive, setIsRaidBattleActive] = useState<boolean>(false);
 
+  // Exploration & Battle State
+  const [battle, setBattle] = useState<BattleState>({
+    inCombat: false,
+    turnNumber: 0,
+    playerActionGauge: 100,
+    enemyActionGauge: 0,
+    enemy: null,
+    logs: [],
+    winner: null,
+  });
+
   // Interactive Onboarding Tutorial state
   const [showOnboardingTutorial, setShowOnboardingTutorial] = useState<boolean>(() => {
     return Boolean(player.hasCreatedCharacter && !(player.tutorialsSeen ?? []).includes('tut_onboarding'));
@@ -234,6 +291,19 @@ export function App() {
     setCurrentTab(tab);
   }, []);
 
+  // Persistent Announcement Ticker Active State (for dynamic viewport offset)
+  const [isTickerActive, setIsTickerActive] = useState<boolean>(false);
+
+  // Standalone Feature Tutorials Queue (Mutya Skills Lv 2, Notice Board Lv 3, Stables Post-Act 6)
+  const [activeFeatureTutorial, setActiveFeatureTutorial] = useState<{
+    id: string;
+    featureName: string;
+    steps: TutorialStep[];
+    onComplete: () => void;
+  } | null>(null);
+
+  const [characterTabOverride, setCharacterTabOverride] = useState<'STATS' | 'SKILLS'>('STATS');
+
   // Check onboarding trigger on load or when player character state changes
   useEffect(() => {
     if (player.hasCreatedCharacter && !(player.tutorialsSeen ?? []).includes('tut_onboarding')) {
@@ -241,16 +311,92 @@ export function App() {
     }
   }, [player.hasCreatedCharacter, player.tutorialsSeen]);
 
-  // Exploration & Battle State
-  const [battle, setBattle] = useState<BattleState>({
-    inCombat: false,
-    turnNumber: 0,
-    playerActionGauge: 100,
-    enemyActionGauge: 0,
-    enemy: null,
-    logs: [],
-    winner: null,
-  });
+  // Proactive Standalone Feature Tutorials (Triggered immediately upon unlocking)
+  useEffect(() => {
+    if (
+      !player.hasCreatedCharacter ||
+      battle.inCombat ||
+      isRaidBattleActive ||
+      showOpeningStory ||
+      showOnboardingTutorial ||
+      activeFeatureTutorial
+    ) {
+      return;
+    }
+
+    const seen = player.tutorialsSeen ?? [];
+
+    // 1. Mutya Skills Unlock at Level 2
+    if (player.level >= 2 && !seen.includes('tut_skills')) {
+      setShowRaidView(false);
+      setCurrentTab('CHARACTER');
+      setCharacterTabOverride('SKILLS');
+      setActiveFeatureTutorial({
+        id: 'tut_skills',
+        featureName: 'Mutya Skill Tree',
+        steps: MUTYA_SKILLS_TUTORIAL_STEPS,
+        onComplete: () => {
+          const updatedSeen = Array.from(new Set([...(player.tutorialsSeen ?? []), 'tut_skills']));
+          setPlayer((prev) => ({ ...prev, tutorialsSeen: updatedSeen }));
+          setActiveFeatureTutorial(null);
+        },
+      });
+      return;
+    }
+
+    // 2. Poblacion Notice Board Unlock at Level 3
+    if (player.level >= 3 && !seen.includes('tut_bounties')) {
+      setShowRaidView(false);
+      setCurrentTab('HAVEN');
+      setTownDistrictOverride({ district: 'TAVERN', key: Date.now() });
+      setActiveFeatureTutorial({
+        id: 'tut_bounties',
+        featureName: 'Poblacion Notice Board',
+        steps: NOTICE_BOARD_TUTORIAL_STEPS,
+        onComplete: () => {
+          const updatedSeen = Array.from(new Set([...(player.tutorialsSeen ?? []), 'tut_bounties']));
+          setPlayer((prev) => ({ ...prev, tutorialsSeen: updatedSeen }));
+          setActiveFeatureTutorial(null);
+        },
+      });
+      return;
+    }
+
+    // 3. Beastmaster Stables Unlock (Post-Act 6)
+    const isAct6Beaten = Boolean(
+      player.mountUnlocked ||
+      player.act6Completed ||
+      (player.completedBossIds ?? []).includes('boss_act_6')
+    );
+    if (isAct6Beaten && !seen.includes('tut_stables')) {
+      setShowRaidView(false);
+      setCurrentTab('HAVEN');
+      setTownDistrictOverride({ district: 'STABLES', key: Date.now() });
+      setActiveFeatureTutorial({
+        id: 'tut_stables',
+        featureName: 'Beastmaster Stables',
+        steps: STABLES_TUTORIAL_STEPS,
+        onComplete: () => {
+          const updatedSeen = Array.from(new Set([...(player.tutorialsSeen ?? []), 'tut_stables']));
+          setPlayer((prev) => ({ ...prev, tutorialsSeen: updatedSeen }));
+          setActiveFeatureTutorial(null);
+        },
+      });
+      return;
+    }
+  }, [
+    player.hasCreatedCharacter,
+    player.level,
+    player.mountUnlocked,
+    player.act6Completed,
+    player.completedBossIds,
+    player.tutorialsSeen,
+    battle.inCombat,
+    isRaidBattleActive,
+    showOpeningStory,
+    showOnboardingTutorial,
+    activeFeatureTutorial,
+  ]);
 
   // Auto Save
   useEffect(() => {
@@ -458,131 +604,155 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen text-amber-100 flex flex-col font-sans select-none overflow-hidden relative">
-      {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
-      <BackgroundLayer
-        currentTab={currentTab}
-        townDistrict={townDistrictOverride?.district || currentDistrict}
-        locationId={selectedWorldLocationId}
-        showRaidView={showRaidView}
-      />
-      {/* Character Creation Modal — shown for new players before anything else */}
-      {!player.hasCreatedCharacter && (
-        <CharacterCreationModal onComplete={handleCharacterCreate} />
-      )}
-
-      {/* Opening Story Modal — shown once, immediately after character creation */}
-      {player.hasCreatedCharacter && showOpeningStory && (
-        <OpeningStoryModal
-          heroClass={player.heroClass}
-          heroName={player.name}
-          onClose={() => setShowOpeningStory(false)}
-        />
-      )}
-
-      {/* [TOP] PERSISTENT HUD */}
-      {player.hasCreatedCharacter && (
-        <PersistentHUD player={player} inCombat={battle.inCombat} />
-      )}
-
-      {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS */}
-      <main className="flex-1 max-w-7xl w-full mx-auto overflow-y-auto pt-[96px] sm:pt-[100px] md:pt-[64px] pb-16 md:pb-28 flex flex-col">
-        {showRaidView ? (
-          <TitanRaidView
-            player={player}
-            onUpdatePlayer={setPlayer}
-            onNavigateToHaven={() => {
-              setIsRaidBattleActive(false);
-              setShowRaidView(false);
-            }}
-            onShowToast={showToast}
-            onRaidBattleStateChange={setIsRaidBattleActive}
-          />
-        ) : (
-          <>
-            {currentTab === 'HAVEN' && (
-              <HavenView
-                player={player}
-                onUpdatePlayer={setPlayer}
-                onNavigateToWorld={() => setCurrentTab('WORLD')}
-                onNavigateToTitanRaid={() => setShowRaidView(true)}
-                onShowToast={showToast}
-                activeDistrictOverride={townDistrictOverride}
-                onDistrictChange={setCurrentDistrict}
-              />
-            )}
-
-            {currentTab === 'WORLD' && (
-              <WorldHuntView
-                player={player}
-                battle={battle}
-                onUpdatePlayer={setPlayer}
-                onUpdateBattle={setBattle}
-                onNavigateToHaven={() => setCurrentTab('HAVEN')}
-                onMonsterKilled={handleMonsterKilled}
-                suppressActStory={showOnboardingTutorial}
-                onShowToast={showToast}
-                onLocationChange={setSelectedWorldLocationId}
-              />
-            )}
-
-            {currentTab === 'INVENTORY' && (
-              <InventoryView
-                player={player}
-                onUpdatePlayer={setPlayer}
-                onNavigateCodebreaker={() => setCurrentTab('WORLD')}
-                onShowToast={showToast}
-              />
-            )}
-
-            {currentTab === 'CHARACTER' && (
-              <CharacterSheet
-                player={player}
-                setPlayer={setPlayer}
-                onUnequipItem={handleUnequipItem}
-              />
-            )}
-
-            {currentTab === 'LOG' && (
-              <GameLogView
-                player={player}
-                battleLogs={battle.logs}
-                onUpdatePlayer={setPlayer}
-                onShowToast={showToast}
-              />
-            )}
-          </>
-        )}
-      </main>
-
-      {/* Global Toast Notification Popup Banner (Swipes down from top) */}
-      <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
-
-      {/* [FOOTER] GLOBAL NAVIGATION BAR */}
-      {player.hasCreatedCharacter && !showOpeningStory && (
-        <Navbar
+    <ErrorBoundary>
+      <div className="min-h-screen text-amber-100 flex flex-col font-sans select-none overflow-hidden relative">
+        {/* Smooth Dynamic Blurred Backdrop from ./src/bg/ */}
+        <BackgroundLayer
           currentTab={currentTab}
-          onSelectTab={(tab) => {
-            setShowRaidView(false);
-            setCurrentTab(tab);
-          }}
-          player={player}
-          inCombat={battle.inCombat || isRaidBattleActive}
-          isRaidBattle={isRaidBattleActive}
-          onShowToast={showToast}
+          townDistrict={townDistrictOverride?.district || currentDistrict}
+          locationId={selectedWorldLocationId}
+          showRaidView={showRaidView}
         />
-      )}
+        {/* Character Creation Modal — shown for new players before anything else */}
+        {!player.hasCreatedCharacter && (
+          <CharacterCreationModal onComplete={handleCharacterCreate} />
+        )}
 
-      {/* Interactive Onboarding Tutorial Modal */}
-      {player.hasCreatedCharacter && !showOpeningStory && showOnboardingTutorial && (
-        <InteractiveOnboardingTutorial
-          onComplete={handleCompleteOnboarding}
-          onSkip={handleCompleteOnboarding}
-          onSelectDistrict={handleSelectDistrictForTutorial}
-          onSelectTab={handleSelectTabForTutorial}
-        />
-      )}
-    </div>
+        {/* Opening Story Modal — shown once, immediately after character creation */}
+        {player.hasCreatedCharacter && showOpeningStory && (
+          <OpeningStoryModal
+            heroClass={player.heroClass}
+            heroName={player.name}
+            onClose={() => setShowOpeningStory(false)}
+          />
+        )}
+
+        {/* [TOP] PERSISTENT HUD */}
+        {player.hasCreatedCharacter && (
+          <PersistentHUD
+            player={player}
+            inCombat={battle.inCombat}
+            onTickerActiveChange={setIsTickerActive}
+          />
+        )}
+
+        {/* [CENTER] MAIN VIEWPORT & CONTEXTUAL ACTION PADS (Dynamically pushed down when Announcement Ticker is active) */}
+        <main
+          className={`flex-1 max-w-7xl w-full mx-auto overflow-y-auto pb-16 md:pb-28 flex flex-col transition-all duration-300 ${
+            isTickerActive
+              ? 'pt-[124px] sm:pt-[128px] md:pt-[88px]'
+              : 'pt-[96px] sm:pt-[100px] md:pt-[64px]'
+          }`}
+        >
+          {showRaidView ? (
+            <TitanRaidView
+              player={player}
+              onUpdatePlayer={setPlayer}
+              onNavigateToHaven={() => {
+                setIsRaidBattleActive(false);
+                setShowRaidView(false);
+              }}
+              onShowToast={showToast}
+              onRaidBattleStateChange={setIsRaidBattleActive}
+            />
+          ) : (
+            <>
+              {currentTab === 'HAVEN' && (
+                <HavenView
+                  player={player}
+                  onUpdatePlayer={setPlayer}
+                  onNavigateToWorld={() => setCurrentTab('WORLD')}
+                  onNavigateToTitanRaid={() => setShowRaidView(true)}
+                  onShowToast={showToast}
+                  activeDistrictOverride={townDistrictOverride}
+                  onDistrictChange={setCurrentDistrict}
+                />
+              )}
+
+              {currentTab === 'WORLD' && (
+                <WorldHuntView
+                  player={player}
+                  battle={battle}
+                  onUpdatePlayer={setPlayer}
+                  onUpdateBattle={setBattle}
+                  onNavigateToHaven={() => setCurrentTab('HAVEN')}
+                  onMonsterKilled={handleMonsterKilled}
+                  suppressActStory={showOnboardingTutorial}
+                  onShowToast={showToast}
+                  onLocationChange={setSelectedWorldLocationId}
+                />
+              )}
+
+              {currentTab === 'INVENTORY' && (
+                <InventoryView
+                  player={player}
+                  onUpdatePlayer={setPlayer}
+                  onNavigateCodebreaker={() => setCurrentTab('WORLD')}
+                  onShowToast={showToast}
+                />
+              )}
+
+              {currentTab === 'CHARACTER' && (
+                <CharacterSheet
+                  player={player}
+                  setPlayer={setPlayer}
+                  onUnequipItem={handleUnequipItem}
+                  initialTab={characterTabOverride}
+                />
+              )}
+
+              {currentTab === 'LOG' && (
+                <GameLogView
+                  player={player}
+                  battleLogs={battle.logs}
+                  onUpdatePlayer={setPlayer}
+                  onShowToast={showToast}
+                />
+              )}
+            </>
+          )}
+        </main>
+
+        {/* Global Toast Notification Popup Banner (Swipes down from top) */}
+        <ToastBanner toast={toast} onDismiss={() => setToast(null)} />
+
+        {/* [FOOTER] GLOBAL NAVIGATION BAR */}
+        {player.hasCreatedCharacter && !showOpeningStory && (
+          <Navbar
+            currentTab={currentTab}
+            onSelectTab={(tab) => {
+              setShowRaidView(false);
+              setCurrentTab(tab);
+            }}
+            player={player}
+            inCombat={battle.inCombat || isRaidBattleActive}
+            isRaidBattle={isRaidBattleActive}
+            onShowToast={showToast}
+          />
+        )}
+
+        {/* Interactive Onboarding Tutorial Modal */}
+        {player.hasCreatedCharacter && !showOpeningStory && showOnboardingTutorial && (
+          <InteractiveOnboardingTutorial
+            onComplete={handleCompleteOnboarding}
+            onSkip={handleCompleteOnboarding}
+            onSelectDistrict={handleSelectDistrictForTutorial}
+            onSelectTab={handleSelectTabForTutorial}
+          />
+        )}
+
+        {/* Proactive Standalone Feature Unlock Tutorial Modal */}
+        {activeFeatureTutorial && (
+          <FeatureTutorialModal
+            tutorialId={activeFeatureTutorial.id}
+            featureName={activeFeatureTutorial.featureName}
+            steps={activeFeatureTutorial.steps}
+            onComplete={activeFeatureTutorial.onComplete}
+            onSkip={activeFeatureTutorial.onComplete}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
 

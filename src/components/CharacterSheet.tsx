@@ -9,18 +9,34 @@ interface CharacterSheetProps {
   player: PlayerCharacter;
   setPlayer: React.Dispatch<React.SetStateAction<PlayerCharacter>>;
   onUnequipItem: (slot: 'upperArmor' | 'lowerArmor' | 'weapon' | 'mount') => void;
+  initialTab?: 'STATS' | 'SKILLS';
 }
 
 export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   player,
   setPlayer,
   onUnequipItem,
+  initialTab,
 }) => {
-  // Tab system: STATS or SKILLS
-  const [activeTab, setActiveTab] = useState<'STATS' | 'SKILLS'>('STATS');
+  // Tab system: STATS or SKILLS (Skills strictly requires Level 2+)
+  const isSkillsUnlocked = player.level >= 2;
+  const [activeTab, setActiveTab] = useState<'STATS' | 'SKILLS'>(() => {
+    if (initialTab === 'SKILLS' && isSkillsUnlocked) return 'SKILLS';
+    return 'STATS';
+  });
   const [showSkillsTutorial, setShowSkillsTutorial] = useState(false);
 
+  // Auto-revert if level drops or initialTab changes
+  React.useEffect(() => {
+    if (initialTab === 'SKILLS' && isSkillsUnlocked) {
+      setActiveTab('SKILLS');
+    } else if (!isSkillsUnlocked && activeTab === 'SKILLS') {
+      setActiveTab('STATS');
+    }
+  }, [initialTab, isSkillsUnlocked, activeTab]);
+
   const handleSelectSkillsTab = () => {
+    if (!isSkillsUnlocked) return;
     setActiveTab('SKILLS');
     if (!(player.tutorialsSeen ?? []).includes('tut_skills')) {
       setShowSkillsTutorial(true);
@@ -93,16 +109,18 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
         >
           ⚔️ Stats
         </button>
-        <button
-          onClick={handleSelectSkillsTab}
-          className={`px-5 py-2 rounded-t-lg text-sm font-bold font-mono uppercase tracking-wider transition-colors ${
-            activeTab === 'SKILLS'
-              ? 'bg-amber-600 text-zinc-950'
-              : 'text-zinc-400 hover:text-amber-300'
-          }`}
-        >
-          ✨ Mutya Skills
-        </button>
+        {isSkillsUnlocked && (
+          <button
+            onClick={handleSelectSkillsTab}
+            className={`px-5 py-2 rounded-t-lg text-sm font-bold font-mono uppercase tracking-wider transition-colors ${
+              activeTab === 'SKILLS'
+                ? 'bg-amber-600 text-zinc-950'
+                : 'text-zinc-400 hover:text-amber-300'
+            }`}
+          >
+            ✨ Mutya Skills
+          </button>
+        )}
       </div>
 
       {/* STATS TAB */}
