@@ -15,6 +15,12 @@ export interface DerivedStats {
   magicDRPercent: number; // [MagicDef / (MagicDef + 100)] * 100
   dodgeChancePercent: number;
   critChancePercent: number;
+  critDamageMultiplier: number; // 1.50 + STR * 0.015 + bonus
+  armorPenetrationPercent: number; // min(40, AGI * 0.3)
+  combatHpRegen: number; // Math.floor(VIT * 0.15)
+  combatMpRegen: number; // Math.floor(INT / 10)
+  potionPotencyPercent: number; // 100 + Math.floor(INT * 1.5)
+  debuffTenacityPercent: number; // min(50, Math.floor(VIT * 0.5))
   meleeDamage: number;
   rangedDamage: number;
   magicDamage: number;
@@ -29,7 +35,7 @@ export interface Wallet {
   cowrieShells: number; // Base everyday trade currency (replaces CC)
   silverPieces: number; // 1 Silver Piece = 100 Cowrie Shells (replaces SS)
   goldIngots: number; // 1 Gold Ingot = 100 Silver Pieces = 10,000 Cowrie Shells (replaces GS)
-  mutyaShards: number; // Sacred dungeon pearls & anting-anting fragments for affix rerolling (replaces PS)
+  mutyaShards: number; // Sacred dungeon pearls & anting-anting fragments reserved for forge affix blessings
   // Mirror fields for seamless type compatibility across all components
   copperCoins: number;
   silverShillings: number;
@@ -217,15 +223,22 @@ export interface SideQuest {
 
 // Skills System
 export type SkillDamageType = 'PHYSICAL' | 'MAGIC' | 'FIRE' | 'FROST' | 'LIGHTNING' | 'SHADOW' | 'RADIANT' | 'HEAL';
+export type SkillNodeType = 'ACTIVE' | 'PASSIVE';
 
 export interface Skill {
   id: string;
   name: string;
   icon: string; // emoji
   classReq: HeroClass;
-  tier: number; // 1-4 (tier 1 = basic, tier 4 = ultimate)
-  minLevel?: number; // Minimum character level required to unlock (Lv 1, 8, 16, 25)
-  mutyaCost: number; // 0 for basic attack, 1-3 for others
+  pillarId?: string; // e.g. 'pillar_mand_1'
+  pillarName?: string; // e.g. 'The Blood-Cleaver'
+  type?: SkillNodeType; // 'ACTIVE' or 'PASSIVE'
+  tier: number; // 1-4 (tier 1 = basic, tier 4 = capstone)
+  minLevel?: number; // Minimum character level required to unlock
+  spCost?: number; // 1 SP per rank or keystone
+  mutyaCost?: number; // Kept optional for backward compatibility
+  maxRank?: number; // 5 for active skills, 1 for passive keystones
+  synergyTags?: string[]; // e.g. ['[Combo: Bleed]', '[Barrier]']
   description: string;
   flavorText: string; // pre-colonial lore quote
   mpCost: number;
@@ -237,6 +250,9 @@ export interface Skill {
   effectType?: StatusEffectType;
   healsPercent?: number; // % of max HP restored
   shieldPercent?: number; // % of max HP as shield
+  barrierPercent?: number; // % of max HP as barrier
+  nextRankPreview?: string; // Human-readable delta preview for inspector modal
+  parentSkillId?: string; // Prerequisite active skill ID required to unlock this passive
 }
 
 // Player Character State
@@ -246,6 +262,8 @@ export interface PlayerCharacter {
   level: number;
   exp: number;
   availableAP: number; // Attribute Points
+  skillPoints: number; // Skill Points (SP) for ARPG tree
+  availableSP?: number; // Backward-compatible alias
   attributes: PrimaryAttributes;
   currentHp: number;
   currentMp: number;
@@ -274,8 +292,8 @@ export interface PlayerCharacter {
   isEmpoweredNextTurn?: boolean;
   isCoveredNextTurn?: boolean;
   hasCreatedCharacter?: boolean; // True after character creation flow is complete
-  unlockedSkillIds?: string[]; // IDs of purchased Mutya skills
-  equippedSkillIds?: string[]; // Max 3 active skill IDs in combat
+  unlockedSkillIds?: string[]; // IDs of learned skills
+  equippedSkillIds?: string[]; // Strictly 3 active skill IDs in combat hotbar
   skillRanks?: Record<string, number>; // Map of skillId -> Rank (1 to 5)
   tutorialsSeen?: string[]; // Tutorial IDs that have been shown
   unlockedActStoryIds?: string[]; // Act story overlays already shown

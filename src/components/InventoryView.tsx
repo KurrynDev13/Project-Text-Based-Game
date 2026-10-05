@@ -419,7 +419,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="flex flex-col h-full max-h-full bg-transparent text-amber-100 p-2 sm:p-3 space-y-2 overflow-hidden font-sans select-none"
+      className="flex flex-col flex-1 h-full min-h-full bg-transparent text-amber-100 p-2 sm:p-3 space-y-2 overflow-hidden font-sans select-none"
     >
 
       {/* ── 1. EQUIPPED GEAR (Compact 2x2 Grid with Unequip) ────────────────── */}
@@ -597,160 +597,178 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       )}
 
       {/* ── 4. SCROLLABLE ITEMS PANE (Shows >= 6 items initially without scrolling, Swipe Enabled) ── */}
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pr-0.5 touch-pan-y">
+      <div className="flex-1 overflow-y-auto min-h-[320px] sm:min-h-[380px] space-y-1.5 pr-0.5 touch-pan-y flex flex-col">
         {/* GEAR TAB */}
         {activeTab === 'GEAR' && (
           displayedGearItems.length === 0 ? (
-            <div className="p-8 text-center bg-zinc-950/50 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 font-mono text-xs">
-              No gear found in this category.
+            <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center p-8 text-center bg-zinc-950/40 border border-dashed border-zinc-800/80 rounded-2xl text-zinc-500 font-mono text-xs select-none">
+              <span className="text-2xl mb-2 opacity-50">🎒</span>
+              <span>No gear found in this category.</span>
+              <span className="text-[10px] text-zinc-600 mt-1">Swipe left or right to switch inventory tabs</span>
             </div>
           ) : (
-            displayedGearItems.map((item) => {
-              const equipped = getEquippedItemForCategory(player.equipment, item.category);
-              const delta = calcItemDelta(item, equipped);
-              const isWearable = isItemWearableForClass(item, player.heroClass as any);
-              const icon =
-                item.category === 'SWORD' ? '⚔️' :
-                item.category === 'DAGGER' ? '🗡️' :
-                item.category === 'BOW' ? '🏹' :
-                item.category === 'STAFF' ? '🔮' :
-                item.category === 'UPPER' ? '🥋' :
-                item.category === 'LOWER' ? '👖' : '🐎';
+            <>
+              {displayedGearItems.map((item) => {
+                const equipped = getEquippedItemForCategory(player.equipment, item.category);
+                const delta = calcItemDelta(item, equipped);
+                const isWearable = isItemWearableForClass(item, player.heroClass as any);
+                const icon =
+                  item.category === 'SWORD' ? '⚔️' :
+                  item.category === 'DAGGER' ? '🗡️' :
+                  item.category === 'BOW' ? '🏹' :
+                  item.category === 'STAFF' ? '🔮' :
+                  item.category === 'UPPER' ? '🥋' :
+                  item.category === 'LOWER' ? '👖' : '🐎';
 
-              const statSummary = item.baseDefense !== undefined
-                ? `+${item.baseDefense} Armor`
-                : item.baseDamageMin !== undefined
-                ? `${item.baseDamageMin}-${item.baseDamageMax} Dmg`
-                : item.archetype;
+                const statSummary = item.baseDefense !== undefined
+                  ? `+${item.baseDefense} Armor`
+                  : item.baseDamageMin !== undefined
+                  ? `${item.baseDamageMin}-${item.baseDamageMax} Dmg`
+                  : item.archetype;
 
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => {
-                    soundFX.playClickSound();
-                    setSelectedInspectItem(item);
-                  }}
-                  className={`relative overflow-hidden px-2.5 py-1.5 rounded-xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group shadow ${
-                    !isWearable
-                      ? 'bg-red-950/20 hover:bg-red-950/30 border border-red-900/60'
-                      : 'bg-zinc-950/80 hover:bg-zinc-900/90 border border-zinc-800/80 hover:border-amber-600/70'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2 truncate">
-                    <span className="text-sm w-5 text-center shrink-0">{icon}</span>
-                    <div className="truncate">
-                      <h4 className="font-serif font-bold text-xs text-white group-hover:text-amber-200 truncate leading-snug">
-                        {item.name}
-                      </h4>
-                      <div className="text-[9px] font-mono text-zinc-400 truncate">
-                        Tier {item.tier} • {statSummary}
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      soundFX.playClickSound();
+                      setSelectedInspectItem(item);
+                    }}
+                    className={`relative overflow-hidden px-2.5 py-1.5 rounded-xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group shadow ${
+                      !isWearable
+                        ? 'bg-red-950/20 hover:bg-red-950/30 border border-red-900/60'
+                        : 'bg-zinc-950/80 hover:bg-zinc-900/90 border border-zinc-800/80 hover:border-amber-600/70'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2 truncate">
+                      <span className="text-sm w-5 text-center shrink-0">{icon}</span>
+                      <div className="truncate">
+                        <h4 className="font-serif font-bold text-xs text-white group-hover:text-amber-200 truncate leading-snug">
+                          {item.name}
+                        </h4>
+                        <div className="text-[9px] font-mono text-zinc-400 truncate">
+                          Tier {item.tier} • {statSummary}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center space-x-1.5 shrink-0 font-mono text-[10px]">
-                    <span
-                      className={`px-1.5 py-0.5 rounded border font-bold flex items-center gap-1 ${
-                        delta.deltaPower > 0
-                          ? 'bg-emerald-950/80 border-emerald-600/50 text-emerald-300'
-                          : delta.deltaPower < 0
-                          ? 'bg-rose-950/80 border-rose-800/50 text-rose-300'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400'
-                      }`}
-                    >
-                      <span>📈</span>
-                      <span>{delta.deltaPower > 0 ? `+${delta.deltaPower}` : delta.deltaPower} PWR</span>
-                    </span>
-                    <span className="text-zinc-500 group-hover:text-amber-400 font-bold text-xs">›</span>
-                  </div>
+                    <div className="flex items-center space-x-1.5 shrink-0 font-mono text-[10px]">
+                      <span
+                        className={`px-1.5 py-0.5 rounded border font-bold flex items-center gap-1 ${
+                          delta.deltaPower > 0
+                            ? 'bg-emerald-950/80 border-emerald-600/50 text-emerald-300'
+                            : delta.deltaPower < 0
+                            ? 'bg-rose-950/80 border-rose-800/50 text-rose-300'
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        <span>📈</span>
+                        <span>{delta.deltaPower > 0 ? `+${delta.deltaPower}` : delta.deltaPower} PWR</span>
+                      </span>
+                      <span className="text-zinc-500 group-hover:text-amber-400 font-bold text-xs">›</span>
+                    </div>
 
-                  {/* Class Mismatch Overlay (Image 1) */}
-                  {!isWearable && (
-                    <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-[0.5px] flex items-center justify-between px-3 pointer-events-none border border-red-500/40">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-red-400 text-xs">⚠️</span>
-                        <span className="text-[10px] font-mono font-bold text-red-300 uppercase tracking-wider">
-                          Class Mismatch
+                    {/* Class Mismatch Overlay (Image 1) */}
+                    {!isWearable && (
+                      <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-[0.5px] flex items-center justify-between px-3 pointer-events-none border border-red-500/40">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-red-400 text-xs">⚠️</span>
+                          <span className="text-[10px] font-mono font-bold text-red-300 uppercase tracking-wider">
+                            Class Mismatch
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-mono text-red-300/80 truncate ml-2">
+                          Requires {getAllowedClassesText(item)}
                         </span>
                       </div>
-                      <span className="text-[9px] font-mono text-red-300/80 truncate ml-2">
-                        Requires {getAllowedClassesText(item)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+                    )}
+                  </div>
+                );
+              })}
+              {/* Flexible touch-receiver bottom spacer to guarantee full panel height and horizontal swipe registration */}
+              <div className="flex-1 min-h-[140px] w-full pointer-events-auto" />
+            </>
           )
         )}
 
         {/* CONSUMABLES TAB (Renamed from Potions) */}
         {activeTab === 'CONSUMABLES' && (
           consumableItems.length === 0 ? (
-            <div className="p-8 text-center bg-zinc-950/50 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 font-mono text-xs">
-              No consumables in your bag.
+            <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center p-8 text-center bg-zinc-950/40 border border-dashed border-zinc-800/80 rounded-2xl text-zinc-500 font-mono text-xs select-none">
+              <span className="text-2xl mb-2 opacity-50">🧪</span>
+              <span>No consumables in your bag.</span>
+              <span className="text-[10px] text-zinc-600 mt-1">Swipe left or right to switch inventory tabs</span>
             </div>
           ) : (
-            consumableItems.map((potion) => (
-              <div
-                key={potion.id}
-                className="px-2.5 py-1.5 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between shadow"
-              >
-                <div className="flex items-center space-x-2 truncate">
-                  <span className="text-sm w-5 text-center shrink-0">🧪</span>
-                  <div className="truncate">
-                    <h4 className="font-serif font-bold text-xs text-emerald-300 truncate leading-snug">
-                      {potion.name}
-                    </h4>
-                    <div className="text-[9px] font-mono text-zinc-400 truncate">
-                      {potion.effectDescription}
+            <>
+              {consumableItems.map((potion) => (
+                <div
+                  key={potion.id}
+                  className="px-2.5 py-1.5 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between shadow"
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <span className="text-sm w-5 text-center shrink-0">🧪</span>
+                    <div className="truncate">
+                      <h4 className="font-serif font-bold text-xs text-emerald-300 truncate leading-snug">
+                        {potion.name}
+                      </h4>
+                      <div className="text-[9px] font-mono text-zinc-400 truncate">
+                        {potion.effectDescription}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={() => handleUseConsumable(potion)}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold text-[11px] uppercase font-mono rounded-lg transition-all active:scale-95 shrink-0 shadow"
-                >
-                  Use
-                </button>
-              </div>
-            ))
+                  <button
+                    onClick={() => handleUseConsumable(potion)}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-bold text-[11px] uppercase font-mono rounded-lg transition-all active:scale-95 shrink-0 shadow"
+                  >
+                    Use
+                  </button>
+                </div>
+              ))}
+              {/* Flexible touch-receiver bottom spacer */}
+              <div className="flex-1 min-h-[140px] w-full pointer-events-auto" />
+            </>
           )
         )}
 
         {/* MEMORIES TAB */}
         {activeTab === 'MEMORIES' && (
           memoriesList.length === 0 ? (
-            <div className="p-8 text-center bg-zinc-950/50 border border-dashed border-zinc-800 rounded-2xl text-zinc-500 font-mono text-xs">
-              No encrypted memories currently in your spirit bag.
+            <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center p-8 text-center bg-zinc-950/40 border border-dashed border-zinc-800/80 rounded-2xl text-zinc-500 font-mono text-xs select-none">
+              <span className="text-2xl mb-2 opacity-50">💎</span>
+              <span>No encrypted memories currently in your spirit bag.</span>
+              <span className="text-[10px] text-zinc-600 mt-1">Swipe left or right to switch inventory tabs</span>
             </div>
           ) : (
-            memoriesList.map((mem) => (
-              <div
-                key={mem.id}
-                className="px-2.5 py-1.5 bg-zinc-950/80 border border-purple-900/50 rounded-xl flex items-center justify-between shadow"
-              >
-                <div className="flex items-center space-x-2 truncate">
-                  <span className="text-sm w-5 text-center shrink-0">💎</span>
-                  <div className="truncate">
-                    <h4 className="font-serif font-bold text-xs text-purple-200 truncate leading-snug">
-                      {mem.name}
-                    </h4>
-                    <div className="text-[9px] font-mono text-zinc-400 truncate">
-                      Min Level {mem.minLevel} • {mem.rarity} Quality
+            <>
+              {memoriesList.map((mem) => (
+                <div
+                  key={mem.id}
+                  className="px-2.5 py-1.5 bg-zinc-950/80 border border-purple-900/50 rounded-xl flex items-center justify-between shadow"
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    <span className="text-sm w-5 text-center shrink-0">💎</span>
+                    <div className="truncate">
+                      <h4 className="font-serif font-bold text-xs text-purple-200 truncate leading-snug">
+                        {mem.name}
+                      </h4>
+                      <div className="text-[9px] font-mono text-zinc-400 truncate">
+                        Min Level {mem.minLevel} • {mem.rarity} Quality
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={() => handleStartDecryptMemory(mem)}
-                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] uppercase font-mono rounded-lg transition-all active:scale-95 shrink-0 shadow"
-                >
-                  Decrypt
-                </button>
-              </div>
-            ))
+                  <button
+                    onClick={() => handleStartDecryptMemory(mem)}
+                    className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] uppercase font-mono rounded-lg transition-all active:scale-95 shrink-0 shadow"
+                  >
+                    Decrypt
+                  </button>
+                </div>
+              ))}
+              {/* Flexible touch-receiver bottom spacer */}
+              <div className="flex-1 min-h-[140px] w-full pointer-events-auto" />
+            </>
           )
         )}
       </div>

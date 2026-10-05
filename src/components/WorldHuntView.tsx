@@ -391,12 +391,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
   };
 
-  const rawSkillIds = player.equippedSkillIds && player.equippedSkillIds.length > 0
-    ? player.equippedSkillIds
-    : getDefaultSkillIds((player.heroClass || 'Mandirigma') as any);
+  const rawSkillIds = player.equippedSkillIds || [];
 
   const equippedSkills: Skill[] = rawSkillIds
-    .map((id) => ALL_SKILLS.find((s) => s.id === id))
+    .map((id) => ALL_SKILLS.find((s) => s.id === id && !s.isBasicAttack))
     .filter((s): s is Skill => s !== undefined)
     .slice(0, 3);
 
@@ -1124,20 +1122,23 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ? 'MAGIC'
         : dmgType;
 
+    const armPen = Math.min(0.60, (derived.armorPenetrationPercent || 0) / 100);
+    const effectiveArmor = Math.max(0, armor * (1 - armPen));
+
     switch (effectiveDmgType) {
       case 'MAGIC':
       case 'SHADOW':
       case 'RADIANT':
-        return armor / (armor + 400);
+        return effectiveArmor / (effectiveArmor + 400);
       case 'LIGHTNING':
-        return armor / (armor + 350);
+        return effectiveArmor / (effectiveArmor + 350);
       case 'FIRE':
       case 'FROST':
       case 'POISON':
-        return armor / (armor + 250);
+        return effectiveArmor / (effectiveArmor + 250);
       case 'PHYSICAL':
       default:
-        return armor / (armor + 150);
+        return effectiveArmor / (effectiveArmor + 150);
     }
   };
 
@@ -1184,14 +1185,21 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       setMonsterAnim('anim-hit');
       setTimeout(() => setMonsterAnim(''), 360);
 
+      let leechHp = 0;
       if (isCrit) {
-        appliedDmg = Math.floor(finalDmg * 2.0);
+        appliedDmg = Math.floor(finalDmg * (derived.critDamageMultiplier || 1.8));
         enemy.currentHp -= appliedDmg;
         soundFX.playCritSound();
         logs = addLog(logs, `⚡ CRITICAL STRIKE! ${activeWeapon?.name || 'Strike'} devastated ${enemy.name} for ${appliedDmg} damage! (+5 MP)`, 'CRIT', 'PLAYER');
         const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
         enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
         logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+
+        if (player.heroClass === 'Bagani') {
+          leechHp = Math.max(1, Math.floor(appliedDmg * 0.12));
+          logs = addLog(logs, `🩸 Blood Tithe: Bagani drained +${leechHp} HP from the critical strike!`, 'HEAL', 'PLAYER');
+          stageRef.current?.addFloater(`+${leechHp}`, 'HERO', 'heal');
+        }
       } else {
         enemy.currentHp -= appliedDmg;
         logs = addLog(logs, `⚔️ ${activeWeapon?.name || 'Basic Strike'} hit ${enemy.name} for ${appliedDmg} damage! (+5 MP)`, 'DAMAGE', 'PLAYER');
@@ -1211,7 +1219,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         }
       }
 
-      const updatedPlayer = { ...player, currentMp: regenedMp };
+      const updatedPlayer = {
+        ...player,
+        currentMp: regenedMp,
+        currentHp: Math.min(derived.maxHp, player.currentHp + leechHp),
+      };
       onUpdatePlayer(updatedPlayer);
 
       if (enemy.currentHp <= 0) {
@@ -1326,16 +1338,31 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       if (isCrit) {
-        appliedDmg = Math.floor(finalDmg * 2.0);
+        appliedDmg = Math.floor(finalDmg * (derived.critDamageMultiplier || 1.8));
         enemy.currentHp -= appliedDmg;
         soundFX.playCritSound();
         logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} [${skill.name}]${rankLabel} devastated ${enemy.name} for ${appliedDmg}!`, 'CRIT', 'PLAYER');
         const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
         enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
         logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+
+        if (player.heroClass === 'Bagani') {
+          const leechHp = Math.max(1, Math.floor(appliedDmg * 0.12));
+          updatedPlayer.currentHp = Math.min(derived.maxHp, updatedPlayer.currentHp + leechHp);
+          logs = addLog(logs, `🩸 Blood Tithe: Bagani drained +${leechHp} HP from the critical strike!`, 'HEAL', 'PLAYER');
+          stageRef.current?.addFloater(`+${leechHp}`, 'HERO', 'heal');
+        }
       } else {
         enemy.currentHp -= appliedDmg;
         logs = addLog(logs, `${skill.icon} [${skill.name}]${rankLabel} dealt ${appliedDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      }
+
+      if (skill.barrierPercent) {
+        const barrierAmount = Math.max(1, Math.floor(appliedDmg * skill.barrierPercent));
+        updatedPlayer.currentHp = Math.min(derived.maxHp, updatedPlayer.currentHp + barrierAmount);
+        stageRef.current?.triggerGuardAura('HERO');
+        stageRef.current?.addFloater(`+${barrierAmount}`, 'HERO', 'heal');
+        logs = addLog(logs, `🛡️ Warrior's Grit: Generated +${barrierAmount} protective barrier from heavy cleave!`, 'BUFF', 'PLAYER');
       }
 
       stageRef.current?.addFloater(appliedDmg, 'MONSTER', isCrit ? 'crit' : 'normal');
@@ -1392,22 +1419,29 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let updatedHp = player.currentHp;
     let updatedMp = player.currentMp;
 
+    // Potion Potency multiplier from INT (+1.5% per INT above baseline)
+    const potencyMult = 1 + ((derived.potionPotencyPercent || 0) / 100);
+
     if (item.hpRestore) {
-      updatedHp = Math.min(derived.maxHp, player.currentHp + item.hpRestore);
-      stageRef.current?.addFloater(`+${item.hpRestore}`, 'HERO', 'heal');
+      // In combat, healing draughts scale with a base amount + 15% Max HP, amplified by INT potion potency
+      const maxHpScaling = Math.floor(derived.maxHp * 0.15);
+      const effectiveHeal = Math.floor((item.hpRestore + maxHpScaling) * potencyMult);
+      updatedHp = Math.min(derived.maxHp, player.currentHp + effectiveHeal);
+      stageRef.current?.addFloater(`+${effectiveHeal}`, 'HERO', 'heal');
     }
     if (item.mpRestore) {
-      updatedMp = Math.min(derived.maxMp, player.currentMp + item.mpRestore);
-      stageRef.current?.addFloater(`+${item.mpRestore}`, 'HERO', 'heal');
+      const effectiveMp = Math.floor(item.mpRestore * potencyMult);
+      updatedMp = Math.min(derived.maxMp, player.currentMp + effectiveMp);
+      stageRef.current?.addFloater(`+${effectiveMp}`, 'HERO', 'heal');
     }
 
     const restoreSummary = [
-      item.hpRestore ? `+${item.hpRestore} HP` : null,
-      item.mpRestore ? `+${item.mpRestore} MP` : null,
+      item.hpRestore ? `HP restored (scaled)` : null,
+      item.mpRestore ? `MP restored` : null,
       item.cleansesDebuffs ? `Cleansed Debuffs` : null,
     ].filter(Boolean).join(', ');
 
-    logs = addLog(logs, `🧪 Consumed [${item.name}]! (${restoreSummary})`, 'HEAL', 'PLAYER');
+    logs = addLog(logs, `🧪 Consumed [${item.name}]! (${restoreSummary}) • Spirit Ward active (+20% DR this turn)!`, 'HEAL', 'PLAYER');
 
     const updatedInventory = player.inventory.filter((_, idx) => idx !== itemIndexInBag);
     const updatedPlayer = {
@@ -1415,6 +1449,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       currentHp: updatedHp,
       currentMp: updatedMp,
       inventory: updatedInventory,
+      isCoveredNextTurn: true, // Potion grants 1-turn Spirit Ward
     };
 
     onUpdatePlayer(updatedPlayer);
@@ -1441,11 +1476,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     let logs = battle.logs;
     const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
-    const parryChance = Math.min(40, Math.floor(8 + player.attributes.agi * 0.25));
+    const parryChance = Math.min(45, Math.floor(10 + player.attributes.agi * 0.3));
+
+    const isMandirigma = player.heroClass === 'Mandirigma';
+    const guardDRLabel = isMandirigma ? '35% + STR Poise' : '20%';
 
     logs = addLog(
       logs,
-      `🛡️ Raised Guard! (+5 MP, +15% DR, ${parryChance}% Parry active)`,
+      `🛡️ Raised Guard! (+5 MP, +${guardDRLabel} DR, ${parryChance}% Parry active)`,
       'BUFF',
       'PLAYER'
     );
@@ -1625,6 +1663,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         stageRef.current?.addFloater('Dodge', 'HERO', 'dodge');
         const isAgiClass = player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso';
         const counterChance = isAgiClass ? Math.min(40, Math.floor(p.attributes.agi * 0.4)) : 0;
+        
+        let updatedPlayerAfterDodge = { ...p, isCoveredNextTurn: false };
+        // Bagani Spirit Acrobatics: Dodging restores +10 MP
+        if (player.heroClass === 'Bagani') {
+          const restoredMp = Math.min(derived.maxMp, p.currentMp + 10);
+          updatedPlayerAfterDodge.currentMp = restoredMp;
+          logs = addLog(logs, `💨 Bagani Agility: Dodged and restored +10 MP!`, 'BUFF', 'PLAYER');
+        }
+
         if (isAgiClass && Math.random() * 100 < counterChance) {
           const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon;
           const counterDmg = Math.max(1, Math.floor((activeWpn?.baseDamageMin ?? 10) * 0.6));
@@ -1635,7 +1682,16 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         } else {
           logs = addLog(logs, `💨 Evaded ${enemy.name}'s strike! No damage taken.`, 'INFO', 'PLAYER');
         }
-        onUpdatePlayer({ ...p, isCoveredNextTurn: false });
+
+        // Apply In-Combat Regen on successful turn pass
+        if ((derived.combatHpRegen || 0) > 0 || (derived.combatMpRegen || 0) > 0) {
+          const regenHp = Math.min(derived.maxHp, updatedPlayerAfterDodge.currentHp + (derived.combatHpRegen || 0));
+          const regenMp = Math.min(derived.maxMp, updatedPlayerAfterDodge.currentMp + (derived.combatMpRegen || 0));
+          updatedPlayerAfterDodge.currentHp = regenHp;
+          updatedPlayerAfterDodge.currentMp = regenMp;
+        }
+
+        onUpdatePlayer(updatedPlayerAfterDodge);
         onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false });
         setTimeout(() => {
           setIsCombatBusy(false);
@@ -1696,13 +1752,23 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         stageRef.current?.triggerSlash('HERO', '#ef4444');
       }
 
+      // Calculate Physical vs Magic/Elemental Mitigation
       let playerDR = derived.damageReductionPercent / 100;
+      const isElementalEnemy = ['FIRE', 'FROST', 'LIGHTNING', 'MAGIC', 'SHADOW', 'RADIANT'].includes(enemy.damageType || '');
+      if (isElementalEnemy) {
+        const magicDR = (derived.magicDRPercent || 0) / 100;
+        // Blend: 60% magic defense, 40% physical armor against elemental attacks
+        playerDR = Math.max(magicDR, (magicDR * 0.6) + (playerDR * 0.4));
+      }
+
       if (p.isCoveredNextTurn) {
-        playerDR = Math.min(0.85, playerDR + 0.15);
+        const isMandirigma = player.heroClass === 'Mandirigma';
+        const poiseDR = isMandirigma ? 0.35 + (player.attributes.str * 0.005) : 0.20;
+        playerDR = Math.min(0.85, playerDR + poiseDR);
       }
 
       const finalEnemyDmg = Math.max(1, Math.floor(enemyDmg * (1 - playerDR)));
-      const newPlayerHp = Math.max(0, p.currentHp - finalEnemyDmg);
+      let newPlayerHp = Math.max(0, p.currentHp - finalEnemyDmg);
       stageRef.current?.addFloater(finalEnemyDmg, 'HERO', 'normal');
 
       if (p.isCoveredNextTurn) {
@@ -1769,9 +1835,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         return;
       }
 
+      // Apply In-Combat Regen at end of turn if survived
+      let regenPlayerHp = newPlayerHp;
+      let regenPlayerMp = p.currentMp;
+      if ((derived.combatHpRegen || 0) > 0 || (derived.combatMpRegen || 0) > 0) {
+        regenPlayerHp = Math.min(derived.maxHp, newPlayerHp + (derived.combatHpRegen || 0));
+        regenPlayerMp = Math.min(derived.maxMp, p.currentMp + (derived.combatMpRegen || 0));
+      }
+
       onUpdatePlayer({
         ...p,
-        currentHp: newPlayerHp,
+        currentHp: regenPlayerHp,
+        currentMp: regenPlayerMp,
         isCoveredNextTurn: false,
       });
 
@@ -1885,6 +1960,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let newLevel = player.level;
     let newExp = player.exp;
     let newAP = player.availableAP;
+    let newSP = player.skillPoints ?? 0;
 
     let updatedCompletedBossIds = player.completedBossIds || [];
     let act6Done = player.act6Completed;
@@ -1904,13 +1980,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       newLevel = expResult.newLevel;
       newExp = expResult.newExp;
       newAP = player.availableAP + expResult.apGained;
+      newSP += (expResult.spGained || 0);
 
       if (actClimaxCap && player.level >= actClimaxCap && expResult.levelsGained === 0) {
         logs = addLog(logs, `🌑 [PRIMORDIAL SPIRIT BARRIER] Battle spirit is capped at 65% of Level ${actClimaxCap}! Awaken and challenge the Guardian of ${selectedLocation.name} to transcend to the next realm!`, 'DEBUFF', 'SYSTEM');
       }
 
       if (expResult.levelsGained > 0) {
-        logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${expResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
+        logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${expResult.apGained} AP & +${expResult.spGained} SP. EXP reset to 0.`, 'CRIT', 'SYSTEM');
       }
 
       if (isSurvivalRealm) {
@@ -1969,9 +2046,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         newLevel = firstWinExpResult.newLevel;
         newExp = firstWinExpResult.newExp;
         newAP = player.availableAP + firstWinExpResult.apGained;
+        newSP += (firstWinExpResult.spGained || 0);
 
         if (firstWinExpResult.levelsGained > 0) {
-          logs = addLog(logs, `🌟 BOUNDLESS BREAKTHROUGH! Reached Level ${newLevel}! Earned +${firstWinExpResult.apGained} Attribute Points. EXP reset to 0.`, 'CRIT', 'SYSTEM');
+          logs = addLog(logs, `🌟 BOUNDLESS BREAKTHROUGH! Reached Level ${newLevel}! Earned +${firstWinExpResult.apGained} AP & +${firstWinExpResult.spGained} SP. EXP reset to 0.`, 'CRIT', 'SYSTEM');
         }
 
         // 2. Generate Guaranteed Superior Legendary Boss Equipment Artifact
@@ -2062,9 +2140,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         newLevel = reattemptExpResult.newLevel;
         newExp = reattemptExpResult.newExp;
         newAP = player.availableAP + reattemptExpResult.apGained;
+        newSP += (reattemptExpResult.spGained || 0);
 
         if (reattemptExpResult.levelsGained > 0) {
-          logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${reattemptExpResult.apGained} Attribute Points.`, 'CRIT', 'SYSTEM');
+          logs = addLog(logs, `🌟 LEVEL UP! Reached Level ${newLevel}! Earned +${reattemptExpResult.apGained} AP & +${reattemptExpResult.spGained} SP.`, 'CRIT', 'SYSTEM');
         }
 
         // 2. Generate Equivalent / Better Boss Loot Artifact
@@ -2086,6 +2165,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       level: newLevel,
       exp: newExp,
       availableAP: newAP,
+      skillPoints: newSP,
       locationPoints: player.locationPoints + 15,
       equipment: updatedEquipment,
       inventory: updatedInventory,
@@ -2440,8 +2520,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               <span className="truncate font-bold tracking-wide">Attack</span>
             </button>
 
-            {/* Row 1, Col 2: Skills (Unlocked strictly at Level 2+) OR Guard at Level 1 */}
-            {player.level >= 2 ? (
+            {/* Row 1, Col 2: Skills (Shown when >= 1 skill equipped) OR Guard if no skills equipped */}
+            {equippedSkills.length > 0 ? (
               <button
                 onClick={() => setShowSpellPicker(true)}
                 disabled={battle.winner !== null || isCombatBusy}
@@ -2472,7 +2552,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                   className={`row-span-2 min-h-[92px] rounded-xl font-cinzel font-bold text-xs transition-all active:scale-95 flex flex-col items-center justify-center gap-1 ${
                     isExhausted
                       ? 'bg-zinc-950 border border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'
-                      : 'bg-gradient-to-b from-stone-900 to-zinc-950 hover:from-stone-800 hover:to-zinc-900 text-amber-200/90 border border-amber-900/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] disabled:opacity-40'
+                      : 'bg-gradient-to-b from-stone-900 to-zinc-950 hover:from-stone-800 hover:to-zinc-900 text-amber-200/90 border border-amber-900/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] disabled:opacity-40'
                   }`}
                 >
                   <span className="text-xl">🏃</span>
@@ -2484,20 +2564,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               );
             })()}
 
-            {/* Row 2, Col 1: Items (takes col-span-2 at Level 1, normal at Level 2+) */}
+            {/* Row 2, Col 1: Items (takes col-span-2 if no skills equipped, normal if skills equipped) */}
             <button
               onClick={() => setShowItemPicker(true)}
               disabled={battle.winner !== null || isCombatBusy}
               className={`min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-emerald-950 to-zinc-900 hover:from-emerald-900 hover:to-zinc-800 text-emerald-200 font-cinzel font-bold text-xs border border-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40 ${
-                player.level < 2 ? 'col-span-2' : ''
+                equippedSkills.length === 0 ? 'col-span-2' : ''
               }`}
             >
               <span className="text-sm">🎒</span>
               <span className="truncate font-bold tracking-wide">Items</span>
             </button>
 
-            {/* Row 2, Col 2: Guard (only rendered here at Level 2+, since at Level 1 Guard was in Row 1) */}
-            {player.level >= 2 && (
+            {/* Row 2, Col 2: Guard (rendered here when skills are equipped in Row 1) */}
+            {equippedSkills.length > 0 && (
               <button
                 onClick={handleGuard}
                 disabled={battle.winner !== null || isCombatBusy}

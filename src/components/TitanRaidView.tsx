@@ -243,6 +243,7 @@ export const TitanRaidView: React.FC<TitanRaidViewProps> = ({
         level: expResult.newLevel,
         exp: expResult.newExp,
         availableAP: player.availableAP + expResult.apGained,
+        skillPoints: (player.skillPoints || 0) + (expResult.spGained || 0),
         wallet: newWallet,
         encryptedMemories: [...(player.encryptedMemories || []), mythicRedMemory],
       });

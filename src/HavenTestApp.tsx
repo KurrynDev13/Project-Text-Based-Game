@@ -34,6 +34,7 @@ const createTestPlayer = (): PlayerCharacter => {
     level: 1,
     exp: 0,
     availableAP: 0,
+    skillPoints: 1,
     attributes: startingAttributes,
     currentHp: derived.maxHp,
     currentMp: derived.maxMp,

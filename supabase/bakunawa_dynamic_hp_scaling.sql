@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.global_raid_event (
     cycle_number INT NOT NULL DEFAULT 1,                      -- Mon-to-Mon cycle counter
     cycle_start_date DATE NOT NULL DEFAULT CURRENT_DATE,
     cycle_end_date DATE NOT NULL DEFAULT (CURRENT_DATE + 7),
-    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DEFEATED')),
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DEFEATED', 'DORMANT')),
     active_players_count INT NOT NULL DEFAULT 0,
     total_participants INT NOT NULL DEFAULT 0,
     last_reset_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -272,10 +272,11 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- ----------------------------------------------------------------------------
+-- -- ----------------------------------------------------------------------------
 -- STEP 5: Core Procedure 1 — Weekly Monday Reset (`reset_weekly_bakunawa_raid`)
 -- ----------------------------------------------------------------------------
 -- Executes every Monday at 12:00 Midnight Local Time (Sunday 16:00 UTC).
+-- CONDITION: Only sets the weekly raid if at least 1 player has reached Level 40 (Raid Unlock Level).
 -- Locks Bakunawa's Max HP for the entire 7 days based on preceding 7-day activity.
 CREATE OR REPLACE FUNCTION public.reset_weekly_bakunawa_raid()
 RETURNS JSONB
@@ -284,6 +285,8 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_event_id CONSTANT TEXT := 'bakunawa_eclipse_raid';
+    v_raid_unlock_level CONSTANT INT := 40;       -- Level that unlocks the Raid Event
+    v_eligible_players INT := 0;
     v_active_players INT := 0;
     v_base_hp BIGINT := 1500000;                  -- Solo trial floor: 1,500,000 HP
     v_target_weekly_quota BIGINT := 1600000;      -- 42 attempts * ~38k dmg/attempt
@@ -300,7 +303,30 @@ DECLARE
     v_top_slayer RECORD;
     v_announcement_text TEXT;
 BEGIN
-    -- 1. Fetch previous cycle info into explicit variables to prevent record field mismatches
+    -- 1. Check if at least 1 player has reached the level that unlocks the Raid Event (Level 40+)
+    SELECT COUNT(DISTINCT player_name)
+    INTO v_eligible_players
+    FROM public.player_activity_logs
+    WHERE character_level >= v_raid_unlock_level;
+
+    IF COALESCE(v_eligible_players, 0) < 1 THEN
+        -- No players have reached Level 40 yet. Keep raid dormant and skip cycle initialization.
+        UPDATE public.global_raid_event
+        SET
+            status = 'DORMANT',
+            rally_modifier = 1.00,
+            updated_at = timezone('utc'::text, now())
+        WHERE id = v_event_id;
+
+        RETURN jsonb_build_object(
+            'status', 'SKIPPED',
+            'reason', 'NO_ELIGIBLE_PLAYERS',
+            'message', 'Weekly raid was not set: Requires at least 1 player at or above Raid unlock level (Level 40+).',
+            'eligible_players_count', 0
+        );
+    END IF;
+
+    -- 2. Fetch previous cycle info into explicit variables to prevent record field mismatches
     SELECT 
         COALESCE(cycle_number, 1),
         COALESCE(cycle_start_date, CURRENT_DATE - 7),
@@ -312,7 +338,7 @@ BEGIN
         COALESCE(status, 'ACTIVE'),
         COALESCE(base_hp, 1500000),
         COALESCE(per_player_contribution, 1600000)
-    INTO
+    INTO 
         v_prev_cycle,
         v_prev_start_date,
         v_prev_end_date,
@@ -326,7 +352,7 @@ BEGIN
     FROM public.global_raid_event
     WHERE id = v_event_id;
 
-    IF FOUND THEN
+    IF FOUND AND v_prev_status != 'DORMANT' THEN
         v_new_cycle := v_prev_cycle + 1;
 
         -- Fetch top contributor of concluding week
@@ -336,7 +362,7 @@ BEGIN
         ORDER BY damage_dealt DESC
         LIMIT 1;
 
-        -- Archive concluded weekly cycle into global_raid_history (including cycle_date)
+        -- Archive concluded weekly cycle into global_raid_history
         INSERT INTO public.global_raid_history (
             event_id, cycle_date, cycle_number, cycle_start_date, cycle_end_date, final_hp, max_hp,
             active_players_count, total_participants, status, top_contributor, top_damage, archived_at
@@ -349,15 +375,16 @@ BEGIN
         );
     END IF;
 
-    -- 2. Count distinct active players over the past 7 days
+    -- 3. Count distinct active players who unlocked the raid (Level 40+) over the past 7 days
     SELECT COUNT(DISTINCT player_name)
     INTO v_active_players
     FROM public.player_activity_logs
-    WHERE last_active_at >= (timezone('utc'::text, now()) - INTERVAL '7 days');
+    WHERE character_level >= v_raid_unlock_level
+      AND last_active_at >= (timezone('utc'::text, now()) - INTERVAL '7 days');
 
-    v_active_players := GREATEST(0, COALESCE(v_active_players, 0));
+    v_active_players := GREATEST(1, COALESCE(v_active_players, 1));
 
-    -- 3. Weekly Locked HP Formula:
+    -- 4. Weekly Locked HP Formula:
     -- Base HP Floor (1.5M) + (Active Players * 1.6M Target Weekly Damage)
     -- Guarded between 1.5M (Solo Trial Floor) and 1,000,000,000 HP (Safety Ceiling)
     IF v_active_players <= 1 THEN
@@ -366,7 +393,7 @@ BEGIN
         v_locked_max_hp := LEAST(1000000000::BIGINT, v_base_hp + ((v_active_players - 1)::BIGINT * v_target_weekly_quota));
     END IF;
 
-    -- 4. Lock Bakunawa's HP for the entire week
+    -- 5. Lock Bakunawa's HP for the entire week
     UPDATE public.global_raid_event
     SET
         max_hp = v_locked_max_hp,
@@ -383,7 +410,7 @@ BEGIN
         updated_at = timezone('utc'::text, now())
     WHERE id = v_event_id;
 
-    -- 5. Broadcast Monday Weekly Reset Announcement
+    -- 6. Broadcast Monday Weekly Reset Announcement
     v_announcement_text := '📢 Announcement! 🌕 Maharlika! The blood moon rises once again! Bakunawa has descended for the 7-day celestial siege! Defend the seven moons!';
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'global_chat') THEN
@@ -394,6 +421,7 @@ BEGIN
     RETURN jsonb_build_object(
         'status', 'SUCCESS',
         'cycle_number', v_new_cycle,
+        'eligible_players_total', v_eligible_players,
         'active_players_7d', v_active_players,
         'locked_max_hp', v_locked_max_hp,
         'cycle_start', CURRENT_DATE,
@@ -406,7 +434,8 @@ $$;
 -- STEP 6: Core Procedure 2 — Daily Midnight Rally & Attempt Reset
 -- ----------------------------------------------------------------------------
 -- Executes every night at 12:00 Midnight Local Time (Daily 16:00 UTC).
--- Evaluates community lagging pace and applies a server rally damage modifier (1.00 - 1.50).
+-- TIMING: The bonus damage check occurs ONLY after the first full day of setting the
+-- weekly cycle is finished (i.e. starts Monday -> evaluates Tuesday midnight and onward).
 -- Resets daily attempt counters for all participants.
 CREATE OR REPLACE FUNCTION public.evaluate_daily_raid_rally_and_reset_attempts()
 RETURNS JSONB
@@ -418,23 +447,27 @@ DECLARE
     v_status TEXT := 'ACTIVE';
     v_max_hp BIGINT := 1500000;
     v_current_hp BIGINT := 1500000;
+    v_cycle_number INT := 1;
     v_cycle_start DATE := CURRENT_DATE;
-    v_days_elapsed INT := 1;
+    v_days_elapsed INT := 0;
     v_target_ratio NUMERIC := 0.14;
     v_actual_ratio NUMERIC := 0.00;
     v_progress_deficit NUMERIC := 0.00;
     v_rally_modifier NUMERIC(4, 2) := 1.00;
+    v_players_damaged_count INT := 0;
     v_announcement_text TEXT;
 BEGIN
     SELECT 
         COALESCE(status, 'ACTIVE'),
         COALESCE(max_hp, 1500000),
         COALESCE(current_hp, 1500000),
+        COALESCE(cycle_number, 1),
         COALESCE(cycle_start_date, CURRENT_DATE)
     INTO 
         v_status,
         v_max_hp,
         v_current_hp,
+        v_cycle_number,
         v_cycle_start
     FROM public.global_raid_event
     WHERE id = v_event_id;
@@ -443,50 +476,104 @@ BEGIN
         RAISE EXCEPTION 'Raid event % not found', v_event_id;
     END IF;
 
-    -- Reset daily attempt counters for all players in current cycle
+    -- 1. Always reset daily attempt counters for all players in current cycle
     UPDATE public.global_raid_contributions
     SET daily_battles_count = 0
     WHERE event_id = v_event_id;
 
-    -- Only evaluate rally if boss is still ACTIVE
-    IF v_status = 'ACTIVE' AND v_max_hp > 0 THEN
-        v_days_elapsed := GREATEST(1, LEAST(7, (CURRENT_DATE - v_cycle_start) + 1));
-        v_target_ratio := v_days_elapsed::NUMERIC / 7.0;
-        v_actual_ratio := (v_max_hp - v_current_hp)::NUMERIC / v_max_hp::NUMERIC;
-        v_progress_deficit := GREATEST(0.0, v_target_ratio - v_actual_ratio);
+    -- If raid is not active (DORMANT or DEFEATED), return immediately
+    IF v_status != 'ACTIVE' OR v_max_hp <= 0 THEN
+        RETURN jsonb_build_object(
+            'status', v_status,
+            'message', 'Raid is not active. Daily battle attempts reset.',
+            'daily_attempts_reset', true
+        );
+    END IF;
 
-        -- Calculate Server Rally Damage Modifier
+    -- 2. Day-Elapsed Evaluation Gate:
+    -- Bonus damage is evaluated ONLY AFTER the first full day of setting the weekly cycle is finished.
+    -- Monday (cycle start): CURRENT_DATE - cycle_start_date = 0 (Day 1 in progress).
+    -- Tuesday Midnight: CURRENT_DATE - cycle_start_date >= 1 (First day finished).
+    v_days_elapsed := (CURRENT_DATE - v_cycle_start);
+
+    IF v_days_elapsed < 1 THEN
+        -- First day is still active; maintain base modifier 1.00 without triggering bonus damage early
+        RETURN jsonb_build_object(
+            'status', 'SUCCESS',
+            'phase', 'DAY_1_IN_PROGRESS',
+            'message', 'First day of weekly raid cycle is in progress. Bonus damage check will occur Tuesday midnight after Day 1 concludes.',
+            'days_elapsed', v_days_elapsed,
+            'daily_attempts_reset', true,
+            'rally_modifier', 1.00
+        );
+    END IF;
+
+    -- 3. Day 1 is finished: Count how many unique players have actually damaged the Raid Boss in this cycle
+    SELECT COUNT(DISTINCT player_name)
+    INTO v_players_damaged_count
+    FROM public.global_raid_contributions
+    WHERE event_id = v_event_id
+      AND cycle_number = v_cycle_number
+      AND damage_dealt > 0;
+
+    v_players_damaged_count := COALESCE(v_players_damaged_count, 0);
+
+    -- 4. Calculate progress deficit against expected pace (1/7th per elapsed day)
+    v_target_ratio := LEAST(1.0, (v_days_elapsed + 1)::NUMERIC / 7.0);
+    v_actual_ratio := (v_max_hp - v_current_hp)::NUMERIC / v_max_hp::NUMERIC;
+    v_progress_deficit := GREATEST(0.0, v_target_ratio - v_actual_ratio);
+
+    -- 5. Calculate Server Bonus Damage (Rally Modifier):
+    -- Evaluated if only a small amount of players damaged the boss, or if pace is severely lagging
+    IF v_players_damaged_count <= 1 THEN
+        v_rally_modifier := 1.50; -- +50% Ancestral Awakening (Only 1 or 0 warriors attacking)
+    ELSIF v_players_damaged_count <= 3 THEN
+        v_rally_modifier := 1.30; -- +30% Tribal Warhorns (Small strike team of 2-3 players)
+    ELSIF v_players_damaged_count <= 5 OR v_progress_deficit > 0.05 THEN
+        v_rally_modifier := 1.15; -- +15% Community Rally Boost
+    ELSE
+        -- Pace deficit overrides if community is falling behind
         IF v_progress_deficit > 0.25 THEN
-            v_rally_modifier := 1.50; -- +50% Ancestral Awakening
+            v_rally_modifier := 1.50;
         ELSIF v_progress_deficit > 0.15 THEN
-            v_rally_modifier := 1.30; -- +30% Tribal Warhorns
-        ELSIF v_progress_deficit > 0.05 THEN
-            v_rally_modifier := 1.15; -- +15% Community Rally Boost
+            v_rally_modifier := 1.30;
         ELSE
-            v_rally_modifier := 1.00; -- On track
+            v_rally_modifier := 1.00; -- Healthy pace & adequate participation
         END IF;
+    END IF;
 
-        UPDATE public.global_raid_event
-        SET 
-            rally_modifier = v_rally_modifier,
-            updated_at = timezone('utc'::text, now())
-        WHERE id = v_event_id;
+    -- 6. Persist updated rally modifier
+    UPDATE public.global_raid_event
+    SET 
+        rally_modifier = v_rally_modifier,
+        updated_at = timezone('utc'::text, now())
+    WHERE id = v_event_id;
 
-        IF v_rally_modifier > 1.00 THEN
+    -- 7. Broadcast bonus damage announcement if active
+    IF v_rally_modifier > 1.00 THEN
+        IF v_players_damaged_count <= 3 THEN
+            v_announcement_text := format(
+                '📢 Announcement! 🔥 [RALLY BONUS ACTIVATED] Only %s warrior(s) have struck Bakunawa! Ancestral spirits awaken: Server-wide Raid Damage is boosted by +%s%%!',
+                v_players_damaged_count,
+                ROUND((v_rally_modifier - 1.00) * 100)
+            );
+        ELSE
             v_announcement_text := format(
                 '📢 Announcement! 🔥 [COMMUNITY RALLY ACTIVATED] Bakunawa resists! Tribal shamans invoke Ancestral Spirits! Server-wide Raid Damage is boosted by +%s%%!',
                 ROUND((v_rally_modifier - 1.00) * 100)
             );
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'global_chat') THEN
-                INSERT INTO public.global_chat (sender, message, created_at)
-                VALUES ('GM', v_announcement_text, timezone('utc'::text, now()));
-            END IF;
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'global_chat') THEN
+            INSERT INTO public.global_chat (sender, message, created_at)
+            VALUES ('GM', v_announcement_text, timezone('utc'::text, now()));
         END IF;
     END IF;
 
     RETURN jsonb_build_object(
         'status', 'SUCCESS',
         'days_elapsed', v_days_elapsed,
+        'players_damaged_count', v_players_damaged_count,
         'target_progress_percent', ROUND(v_target_ratio * 100, 1),
         'actual_progress_percent', ROUND(v_actual_ratio * 100, 1),
         'deficit_percent', ROUND(v_progress_deficit * 100, 1),
@@ -525,6 +612,15 @@ BEGIN
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Event % not found', p_event_id;
+    END IF;
+
+    IF v_event.status = 'DORMANT' THEN
+        RETURN jsonb_build_object(
+            'status', 'DORMANT',
+            'current_hp', v_event.current_hp,
+            'max_hp', v_event.max_hp,
+            'message', 'The Celestial Raid is currently dormant until at least 1 hero reaches Level 40 to unlock the event!'
+        );
     END IF;
 
     IF v_event.status = 'DEFEATED' THEN

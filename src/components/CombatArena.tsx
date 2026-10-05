@@ -426,13 +426,11 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
 
   const currentEnemy = battle.enemy;
 
-  // Resolve the player's equipped skill objects (up to 3 slots, with fallback to default class skills)
-  const rawSkillIds = player.equippedSkillIds && player.equippedSkillIds.length > 0
-    ? player.equippedSkillIds
-    : getDefaultSkillIds((player.heroClass || 'Mandirigma') as any);
+  // Resolve the player's equipped skill objects (up to 3 slots)
+  const rawSkillIds = player.equippedSkillIds || [];
 
   const equippedSkills: Skill[] = rawSkillIds
-    .map(id => ALL_SKILLS.find(s => s.id === id))
+    .map(id => ALL_SKILLS.find(s => s.id === id && !s.isBasicAttack))
     .filter((s): s is Skill => s !== undefined)
     .slice(0, 3);
 

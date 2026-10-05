@@ -98,12 +98,10 @@ export const RaidBattleArena: React.FC<RaidBattleArenaProps> = ({
   };
 
   // Resolve Player's Equipped Skills (Up to 3)
-  const rawSkillIds = player.equippedSkillIds && player.equippedSkillIds.length > 0
-    ? player.equippedSkillIds
-    : getDefaultSkillIds((player.heroClass || 'Mandirigma') as any);
+  const rawSkillIds = player.equippedSkillIds || [];
 
   const equippedSkills: Skill[] = rawSkillIds
-    .map((id) => ALL_SKILLS.find((s) => s.id === id))
+    .map((id) => ALL_SKILLS.find((s) => s.id === id && !s.isBasicAttack))
     .filter((s): s is Skill => s !== undefined)
     .slice(0, 3);
 
@@ -166,6 +164,7 @@ export const RaidBattleArena: React.FC<RaidBattleArenaProps> = ({
       level: expResult.newLevel,
       exp: expResult.newExp,
       availableAP: player.availableAP + expResult.apGained,
+      skillPoints: (player.skillPoints || 0) + (expResult.spGained || 0),
       wallet: newWallet,
     });
 

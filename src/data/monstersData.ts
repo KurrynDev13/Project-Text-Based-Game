@@ -71,10 +71,10 @@ export const MONSTER_TEMPLATES: MonsterTemplate[] = [
     id: 'boss_act_1',
     name: 'The Ancient Kapre',
     title: 'Act I Guardian • Colossus of the Whispering Balete',
-    baseHp: 750,
-    baseArmor: 22,
-    baseMinDmg: 28,
-    baseMaxDmg: 40,
+    baseHp: 560,
+    baseArmor: 16,
+    baseMinDmg: 18,
+    baseMaxDmg: 26,
     damageType: 'FIRE',
     expMult: 5.0,
     copperMult: 6.0,
@@ -848,27 +848,35 @@ export function generateMonsterForLocation(
     const floorDmgMin = Math.floor(template.baseMinDmg * statScale);
     const floorDmgMax = Math.floor(template.baseMaxDmg * statScale);
 
-    // Baseline expected player metrics per act tier
-    const expectedDmg = locationMinLevel * 8 + 20;
-    const expectedHp = locationMinLevel * 45 + 300;
-
-    const dmgExcessRatio = Math.max(1.0, playerDmg / expectedDmg);
-    const hpExcessRatio = Math.max(1.0, playerHp / expectedHp);
-
-    if (playerContext && (dmgExcessRatio > 1.05 || hpExcessRatio > 1.05)) {
-      // Scale monster stats up smoothly if player stats outgrow the baseline
-      const hpScale = Math.min(2.5, dmgExcessRatio);
-      const dmgScale = Math.min(2.0, hpExcessRatio);
-
-      maxHp = Math.floor(floorHp * hpScale);
-      attackMin = Math.floor(floorDmgMin * dmgScale);
-      attackMax = Math.floor(floorDmgMax * dmgScale);
-      armor = Math.floor(floorArmor * (1 + (playerLvl - locationMinLevel) * 0.04));
-    } else {
+    // Act Guardians in Normal Mode have curated, fair challenge stats and do not inflate
+    if (template.isBoss) {
       maxHp = floorHp;
       armor = floorArmor;
       attackMin = floorDmgMin;
       attackMax = floorDmgMax;
+    } else {
+      // Baseline expected player metrics per act tier
+      const expectedDmg = locationMinLevel * 8 + 20;
+      const expectedHp = locationMinLevel * 45 + 300;
+
+      const dmgExcessRatio = Math.max(1.0, playerDmg / expectedDmg);
+      const hpExcessRatio = Math.max(1.0, playerHp / expectedHp);
+
+      if (playerContext && playerLvl > locationMinLevel + 3 && (dmgExcessRatio > 1.1 || hpExcessRatio > 1.1)) {
+        // Scale regular monster stats up smoothly if player vastly overlevels the zone
+        const hpScale = Math.min(1.8, dmgExcessRatio);
+        const dmgScale = Math.min(1.5, hpExcessRatio);
+
+        maxHp = Math.floor(floorHp * hpScale);
+        attackMin = Math.floor(floorDmgMin * dmgScale);
+        attackMax = Math.floor(floorDmgMax * dmgScale);
+        armor = Math.floor(floorArmor * (1 + (playerLvl - locationMinLevel) * 0.04));
+      } else {
+        maxHp = floorHp;
+        armor = floorArmor;
+        attackMin = floorDmgMin;
+        attackMax = floorDmgMax;
+      }
     }
   }
 

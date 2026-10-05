@@ -70,27 +70,36 @@ You operate as a **Senior Android & Responsive Game Developer** building a high-
 
 ---
 
-### B. Attributes, Derived Stats & Economy
-1. **Attributes**:
+### B. Attributes, Skill Progression & Economy
+1. **Attributes & Cross-Stat Utility**:
    - Starting: 10 STR, 10 AGI, 10 INT, 10 VIT.
-   - Level-up: +3 Attribute Points (AP) to allocate.
-   - Primary attribute effects:
-     - **Strength (STR)**: +2.5 Flat Physical Damage (Melee), +1 Inventory Capacity per 2 points.
-     - **Agility (AGI)**: +2.5 Flat Physical Damage (Bows/Daggers), +0.3% Dodge Rate, +0.5% Critical Hit Chance.
-     - **Intelligence (INT)**: +3.0 Magic Damage (Staves), +10 Max Mana, +0.5 Magic Defense.
-     - **Vitality (VIT)**: +25 Max Health, +0.8 Physical Armor, +1 HP regen/tick outside combat.
+   - Level-up: +3 Attribute Points (AP) and +1 Skill Point (SP) to allocate.
+   - Primary attribute effects with cross-stat synergies:
+     - **Strength (STR)**: +2.5 Flat Physical Damage (Melee), +1.5% Crit Damage Multiplier, +0.4 Bonus Armor & Shield Poise, +1 Bag Slot per 3 points.
+     - **Agility (AGI)**: +2.5 Flat Physical Damage (Bows/Daggers), +0.35% Dodge Rate, +0.4% Critical Hit Chance, +0.3% Armor Penetration.
+     - **Intelligence (INT)**: +3.0 Magic Damage (Staves), +8 Max MP, +0.8 Magic Defense (Elemental Mitigation), +1 In-Combat MP/turn per 10 INT, +1.5% Potion Recovery Potency.
+     - **Vitality (VIT)**: +25 Max Health, +0.8 Physical Armor, +0.15 In-Combat HP/turn, +0.5% Debuff Tenacity, (1 + VIT * 0.2) out-of-combat HP regen/tick.
    - Mathematical Formulas:
      - `Max HP = 100 + (VIT * 25) + (Level * 15) + Bonus HP`
-     - `Max MP = 50 + (INT * 10) + (Level * 8) + Bonus MP`
+     - `Max MP = 30 + (INT * 8) + (Level * 5) + Bonus MP`
      - `Damage Reduction (%) = [Armor / (Armor + 150)] * 100` (capped at 85%)
-     - `Dodge Rate (%) = min(60, AGI * 0.3 + Bonus Dodge)`
-     - `Crit Rate (%) = min(75, AGI * 0.5 + Bonus Crit)`
+     - `Magic DR (%) = [MagicDef / (MagicDef + 100)] * 100` (capped at 75%)
+     - `Crit Multiplier = 1.50 + (STR * 0.015) + Bonus Crit DMG`
+     - `Dodge Rate (%) = min(60, AGI * 0.35 + Bonus Dodge)`
+     - `Crit Rate (%) = min(75, AGI * 0.4 + Bonus Crit)`
+     - `Armor Pen (%) = min(40, AGI * 0.3)`
      - `EXP Required for Level N = 120 * (1.28 ^ (N - 1)) + 80 * N`
-2. **Pre-Colonial Tiered Economy (100:1 Ratio)**:
+2. **3-Pillar ARPG Skill Tree System**:
+   - 1 Skill Point (SP) earned per character level starting at Level 1.
+   - Each of the 4 Hero Classes features 3 Thematic Specialization Pillars (15–18 nodes per class).
+   - Active skills scale across Ranks 1–5 (costing 1 SP per rank); Passive Keystones cost 1 SP (single allocation).
+   - Strict 3-slot combat hotbar: players can only equip up to 3 active skills in battle.
+   - Synergy Tag System (`[Combo: Bleed]`, `[Consumes: Burn]`, `[Barrier]`, etc.) highlights matching nodes across all pillars.
+3. **Pre-Colonial Tiered Economy (100:1 Ratio) & Crafting**:
    - **Cowrie Shells (Base Coin)**: Base everyday trade currency.
-   - **Silver Pieces**: 1 Silver Piece = 100 Cowrie Shells.
+   - **Silver Pieces**: 1 Silver Piece = 100 Cowrie Shells (used for gear, sanctuary rests, and "Ritual of Cleansing" SP respec).
    - **Gold Ingots / Piloncitos**: 1 Gold Ingot = 100 Silver Pieces = 10,000 Cowrie Shells.
-   - **Mutya Shards**: Sacred dungeon pearls used to reroll magical affixes.
+   - **Mutya Shards**: Sacred pearls reserved strictly for "Mutya Affix Blessings" at Panday Pira's Forge (affix rerolls with dynamic break risk, ancestral affix locking, and tier implicits). Completely decoupled from skill unlocking.
 
 ---
 

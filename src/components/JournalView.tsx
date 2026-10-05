@@ -87,13 +87,14 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
       level: expResult.newLevel,
       exp: expResult.newExp,
       availableAP: player.availableAP + expResult.apGained,
+      skillPoints: (player.skillPoints || 0) + (expResult.spGained || 0),
       encryptedMemories: newMemories,
       bounties: updatedBounties,
       wallet: updatedWallet,
     });
 
     if (expResult.levelsGained > 0) {
-      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points.`, 'success', '🎉');
+      notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} AP & +${expResult.spGained} Skill Point!`, 'success', '🎉');
     } else {
       notify(`🎉 Bounty Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries, and 1x Mutya Shard!`, 'success', '🎉');
     }
@@ -132,12 +133,13 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
       level: expResult.newLevel,
       exp: expResult.newExp,
       availableAP: player.availableAP + expResult.apGained,
+      skillPoints: (player.skillPoints || 0) + (expResult.spGained || 0),
       sideQuests: updatedSideQuests,
       wallet: updatedWallet,
     });
 
     if (expResult.levelsGained > 0) {
-      notify(`✨ Side Quest Claimed! ${sq.rewardText}\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} Attribute Points.`, 'success', '✨');
+      notify(`✨ Side Quest Claimed! ${sq.rewardText}\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} AP & +${expResult.spGained} Skill Point!`, 'success', '✨');
     } else {
       notify(`✨ Side Quest Claimed! ${sq.rewardText}`, 'success', '✨');
     }

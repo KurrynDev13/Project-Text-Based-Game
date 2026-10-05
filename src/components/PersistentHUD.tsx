@@ -82,6 +82,16 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
                   LVL {player.level} {player.heroClass || 'Wayfarer'}
                 </span>
                 <span className="font-bold text-white tracking-wide truncate max-w-[100px] md:max-w-none text-[11px] md:text-xs">{player.name}</span>
+                {(player.availableAP ?? 0) > 0 && (
+                  <span className="bg-amber-500 text-stone-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] animate-pulse shrink-0">
+                    +{player.availableAP} AP
+                  </span>
+                )}
+                {(player.skillPoints ?? 0) > 0 && (
+                  <span className="bg-amber-500 text-stone-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] animate-pulse shrink-0">
+                    +{player.skillPoints} SP
+                  </span>
+                )}
               </div>
 
               <div className="md:hidden text-[10px] md:text-[11px] text-emerald-400 font-bold">

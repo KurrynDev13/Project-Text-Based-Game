@@ -228,6 +228,14 @@ class SoundEffectsManager {
     this.playAttackSound();
   }
 
+  public playEquipSound() {
+    this.playClick();
+  }
+
+  public playUnequipSound() {
+    this.playClick();
+  }
+
   public playFleeSound() {
     if (!this.enabled) return;
     this.initCtx();

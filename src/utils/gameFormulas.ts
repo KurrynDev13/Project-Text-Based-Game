@@ -145,17 +145,19 @@ export function calcItemDelta(candidate: EquipmentItem, equipped: EquipmentItem 
 }
 
 // Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.
+// Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.
 export function processExpGain(
   currentLevel: number,
   currentExp: number,
   expGained: number,
   maxLevelCap?: number,
   freezePercent: number = 0.65
-): { newLevel: number; newExp: number; levelsGained: number; apGained: number } {
+): { newLevel: number; newExp: number; levelsGained: number; apGained: number; spGained: number } {
   let level = currentLevel;
   let exp = currentExp + expGained;
   let levelsGained = 0;
   let apGained = 0;
+  let spGained = 0;
 
   while (true) {
     if (maxLevelCap && level >= maxLevelCap) {
@@ -175,13 +177,19 @@ export function processExpGain(
       level += 1;
       levelsGained += 1;
       apGained += 3;
+      spGained += 1;
       exp = 0; // Resets to zero after level up
     } else {
       break;
     }
   }
 
-  return { newLevel: level, newExp: exp, levelsGained, apGained };
+  return { newLevel: level, newExp: exp, levelsGained, apGained, spGained };
+}
+
+/** Respec Cost in Silver Pieces (Salapi): 1 Silver Piece per 2 levels (minimum 1 Silver Piece) */
+export function calcRespecCostInSS(playerLevel: number): number {
+  return Math.max(1, Math.floor(playerLevel * 0.5));
 }
 
 // Derived Stats Calculator
@@ -223,6 +231,7 @@ export function calcDerivedStats(
             if (affix.statBonus.flatMp) bonusMp += affix.statBonus.flatMp;
             if (affix.statBonus.dodgePercent) bonusDodge += affix.statBonus.dodgePercent;
             if (affix.statBonus.critPercent) bonusCrit += affix.statBonus.critPercent;
+            if (affix.statBonus.magicResist) bonusMagicDef += affix.statBonus.magicResist;
             if (affix.statBonus.str) bonusHp += affix.statBonus.str * 10;
           }
         });
@@ -254,26 +263,47 @@ export function calcDerivedStats(
   });
 
   // Formulas from Game Design Document:
-  // Max HP: 100 + (VIT * 25) + (Level * 15)
+  // Max HP: 100 + (VIT * 25) + (Level * 15) + bonus
   const maxHp = Math.floor(100 + vit * 25 + level * 15 + bonusHp);
 
-  // Max MP: 30 + (INT * 5) + (Level * 4) (balanced to prevent skill spamming)
-  const maxMp = Math.floor(30 + int * 5 + level * 4 + bonusMp);
+  // Max MP: 30 + (INT * 8) + (Level * 5) + bonus (supports tactical skill rotations)
+  const maxMp = Math.floor(30 + int * 8 + level * 5 + bonusMp);
 
-  // Physical Armor: VIT * 0.8 + Equipment
-  const totalArmor = Math.floor(vit * 0.8 + bonusArmor);
+  // Physical Armor: VIT * 0.8 + STR * 0.4 (Muscle poise) + Equipment
+  const totalArmor = Math.floor(vit * 0.8 + str * 0.4 + bonusArmor);
 
-  // Damage Reduction (%): [Armor / (Armor + 150)] * 100
+  // Damage Reduction (%): [Armor / (Armor + 150)] * 100 (capped at 85%)
   const damageReductionPercent = Math.min(85, (totalArmor / (totalArmor + 150)) * 100);
 
-  // Dodge Rate: AGI * 0.5% + bonus (increased from 0.3 for more impactful AGI builds)
-  const dodgeChancePercent = Math.min(60, agi * 0.5 + bonusDodge);
+  // Magic Defense: INT * 0.8 + bonus
+  const magicDefense = Math.floor(int * 0.8 + bonusMagicDef);
 
-  // Crit Hit Chance: AGI * 0.5% + bonus
-  const critChancePercent = Math.min(75, agi * 0.5 + bonusCrit);
+  // Magic Damage Reduction (%): [MagicDef / (MagicDef + 100)] * 100 (capped at 75%)
+  const magicDRPercent = Math.min(75, (magicDefense / (magicDefense + 100)) * 100);
 
-  // Magic Defense: INT * 0.5 + bonus
-  const magicDefense = int * 0.5 + bonusMagicDef;
+  // Dodge Rate: min(60, AGI * 0.35 + bonus)
+  const dodgeChancePercent = Math.min(60, agi * 0.35 + bonusDodge);
+
+  // Crit Hit Chance: min(75, AGI * 0.4 + bonus)
+  const critChancePercent = Math.min(75, agi * 0.4 + bonusCrit);
+
+  // Critical Strike Multiplier: 1.50 + STR * 0.015 (STR empowers crits for all classes)
+  const critDamageMultiplier = Number((1.50 + str * 0.015).toFixed(3));
+
+  // Armor Penetration (%): min(40, AGI * 0.3)
+  const armorPenetrationPercent = Math.min(40, Number((agi * 0.3).toFixed(1)));
+
+  // In-Combat HP Recovery per Turn: Math.floor(VIT * 0.15)
+  const combatHpRegen = Math.floor(vit * 0.15);
+
+  // In-Combat MP Recovery per Turn: Math.floor(INT / 10)
+  const combatMpRegen = Math.floor(int / 10);
+
+  // Consumable Potion Recovery Potency (%): 100 + Math.floor(INT * 1.5)
+  const potionPotencyPercent = 100 + Math.floor(int * 1.5);
+
+  // Debuff Tenacity (%): min(50, Math.floor(VIT * 0.5))
+  const debuffTenacityPercent = Math.min(50, Math.floor(vit * 0.5));
 
   let weaponAvgDmg = 0;
   if (equippedWeapon && equippedWeapon.baseDamageMin !== undefined && equippedWeapon.baseDamageMax !== undefined) {
@@ -292,11 +322,8 @@ export function calcDerivedStats(
   // Out-of-Combat HP Regen: Base 1 + (VIT * 0.2)
   const hpRegenRate = Math.floor(1 + vit * 0.2);
 
-  // Magic Damage Reduction (%): [MagicDef / (MagicDef + 100)] * 100
-  const magicDRPercent = Math.min(75, (magicDefense / (magicDefense + 100)) * 100);
-
-  // Inventory Capacity: Base 12 + 1 slot per 2 STR points
-  const inventoryCapacity = 12 + Math.floor(str / 2);
+  // Inventory Capacity: Base 12 + 1 slot per 3 STR points
+  const inventoryCapacity = 12 + Math.floor(str / 3);
 
   const expRequiredNextLevel = calcExpRequired(level);
 
@@ -319,6 +346,12 @@ export function calcDerivedStats(
     magicDRPercent,
     dodgeChancePercent,
     critChancePercent,
+    critDamageMultiplier,
+    armorPenetrationPercent,
+    combatHpRegen,
+    combatMpRegen,
+    potionPotencyPercent,
+    debuffTenacityPercent,
     meleeDamage,
     rangedDamage,
     magicDamage,

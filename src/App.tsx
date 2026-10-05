@@ -40,18 +40,18 @@ import {
   saveGameSlot,
 } from './utils/saveManager';
 
-const MUTYA_SKILLS_TUTORIAL_STEPS: TutorialStep[] = [
+const ANCESTRAL_SKILLS_TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: 'Mutya Skills Unlocked (Level 2)',
+    title: 'Ancestral Skills Unlocked',
     icon: '✨',
-    description: 'You have ascended to Character Level 2! The ancient martial techniques of the archipelago are now accessible through your Mutya Skill Tree.',
-    tip: 'Invest Mutya Pearls and AP to specialize your hero.',
+    description: 'The ancient martial techniques and spirit powers of the archipelago are accessible through your Ancestral Skill Tree. You earn 1 Skill Point (SP) per character level.',
+    tip: 'Spend Skill Points across the 3 thematic pillars to master abilities and passive keystones.',
   },
   {
-    title: 'Equipping Active Skills',
+    title: '3-Slot Combat Hotbar',
     icon: '⚔️',
-    description: 'You can equip up to 3 active Mutya Skills concurrently. Equipped skills appear directly on your combat action dock during battles.',
-    tip: 'Skills consume Mana (MP) to deal heavy elemental damage, heal, or provide vital tactical buffs.',
+    description: 'You can equip up to 3 active skills into your active combat loadout. Equipped skills appear directly on your combat action dock during battles.',
+    tip: 'Skills consume Mana (MP) to deal heavy damage, provide barriers, or apply status ailments.',
   },
 ];
 
@@ -112,6 +112,7 @@ const createInitialPlayer = (): PlayerCharacter => {
     level: 1,
     exp: 0,
     availableAP: 0,
+    skillPoints: 1,
     attributes: startingAttributes,
     currentHp: derived.maxHp,
     currentMp: derived.maxMp,
@@ -211,6 +212,7 @@ const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacte
     completedBossIds: savedPlayer.completedBossIds || [],
     // Ensure new fields are initialized for existing saves
     hasCreatedCharacter: savedPlayer.hasCreatedCharacter ?? false,
+    skillPoints: savedPlayer.skillPoints ?? Math.max(1, savedPlayer.level || 1),
     unlockedSkillIds: savedPlayer.unlockedSkillIds ?? [],
     equippedSkillIds: Array.from(new Set(sanitizedEquipped)),
     tutorialsSeen: savedPlayer.tutorialsSeen ?? [],
@@ -344,15 +346,15 @@ export function App() {
 
     const seen = player.tutorialsSeen ?? [];
 
-    // 1. Mutya Skills Unlock at Level 2
-    if (player.level >= 2 && !seen.includes('tut_skills')) {
+    // 1. Ancestral Skills Unlock at Level 1
+    if (player.level >= 1 && !seen.includes('tut_skills')) {
       setShowRaidView(false);
       setCurrentTab('CHARACTER');
       setCharacterTabOverride('SKILLS');
       setActiveFeatureTutorial({
         id: 'tut_skills',
-        featureName: 'Mutya Skill Tree',
-        steps: MUTYA_SKILLS_TUTORIAL_STEPS,
+        featureName: 'Ancestral Skill Tree',
+        steps: ANCESTRAL_SKILLS_TUTORIAL_STEPS,
         onComplete: () => {
           const updatedSeen = Array.from(new Set([...(player.tutorialsSeen ?? []), 'tut_skills']));
           setPlayer((prev) => ({ ...prev, tutorialsSeen: updatedSeen }));
@@ -517,10 +519,6 @@ export function App() {
 
     const derived = calcDerivedStats(attributes, 1, initialEquipment);
 
-    // Skill IDs: starting character gets ONLY the basic attack unlocked & equipped (1 skill)
-    const defaultIds = getDefaultSkillIds(heroClass);
-    const equippedIds = [...defaultIds];
-
     // New player starting wallet — modest but meaningful
     const newWallet = cowriesToWallet(80 + 5 * 100, 2); // 580 cowries total, 2 Mutya Shards
 
@@ -544,8 +542,10 @@ export function App() {
         goldSovereigns: 0,
         prismaticShards: 2,
       },
-      unlockedSkillIds: defaultIds,
-      equippedSkillIds: equippedIds,
+      skillPoints: 1,
+      unlockedSkillIds: [],
+      equippedSkillIds: [],
+      skillRanks: {},
       hasCreatedCharacter: true,
     };
 
