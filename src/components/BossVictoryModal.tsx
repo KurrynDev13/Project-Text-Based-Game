@@ -6,8 +6,9 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { EquipmentItem, EncryptedMemory } from '../types/game';
-import { formatCostInCowries } from '../utils/gameFormulas';
+import { formatCostInCowries, formatCompactNumber } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 import { ACT8_VICTORY_STORY, ACT8_NG_PLUS_VICTORY_STORY, NG_PLUS_BOSS_GLYPH_FRAGMENTS } from '../data/actStoryData';
 
 interface BossVictoryModalProps {
@@ -39,7 +40,11 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
 }) => {
   useEffect(() => {
     soundFX.playLevelUpSound();
-  }, []);
+    return registerBackHandler(() => {
+      onClaim();
+      return true;
+    });
+  }, [onClaim]);
 
   const glyphFragment = isNgPlus && bossId ? NG_PLUS_BOSS_GLYPH_FRAGMENTS[bossId] : null;
 
@@ -153,15 +158,15 @@ export const BossVictoryModal: React.FC<BossVictoryModalProps> = ({
           {/* Currency, Mutya Shards & EXP Breakdown */}
           <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-[11px] text-center">
             <div className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-lg">
-              <div className="text-emerald-400 font-bold">+{expEarned} EXP</div>
+              <div className="text-emerald-400 font-bold">+{formatCompactNumber(expEarned)} EXP</div>
               <div className="text-[9px] text-zinc-500">Climax XP</div>
             </div>
             <div className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-lg">
               <div className="text-amber-400 font-bold">+{formatCostInCowries(cowriesEarned)}</div>
-              <div className="text-[9px] text-zinc-500">Cowrie Wealth</div>
+              <div className="text-[9px] text-zinc-500">Wealth</div>
             </div>
             <div className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-lg">
-              <div className="text-purple-300 font-bold">+{mutyaShardsEarned} Mutya</div>
+              <div className="text-purple-300 font-bold">+{mutyaShardsEarned}🔮</div>
               <div className="text-[9px] text-zinc-500">Pearl Shards</div>
             </div>
           </div>

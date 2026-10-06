@@ -21,13 +21,17 @@ export function sanitizeItemIds<T extends { id?: string }>(items: T[]): T[] {
   });
 }
 
-// Formula-driven Level-scaled EXP reward helpers (scales smoothly with 1.24^level progression curve)
-export function calcBountyExpReward(targetLevel: number, baseReward: number = 150): number {
-  return Math.floor(baseReward * Math.pow(1.24, Math.max(0, targetLevel - 1)));
+// Formula-driven Level-scaled EXP reward helpers:
+// Scaled proportionally to next level requirement so bounties reward ~22% and side quests ~38% of a level.
+// Bounties alone will never award >= 100% of a level, preventing single-contract auto-leveling.
+export function calcBountyExpReward(playerLevel: number): number {
+  const req = calcExpRequired(Math.max(1, playerLevel));
+  return Math.max(40, Math.round(req * 0.22));
 }
 
-export function calcSideQuestExpReward(targetLevel: number, baseReward: number = 250): number {
-  return Math.floor(baseReward * Math.pow(1.24, Math.max(0, targetLevel - 1)));
+export function calcSideQuestExpReward(playerLevel: number): number {
+  const req = calcExpRequired(Math.max(1, playerLevel));
+  return Math.max(75, Math.round(req * 0.38));
 }
 
 // ─── Equipment Rating & Delta vs Equipped Comparison ─────────────────────────
@@ -144,8 +148,7 @@ export function calcItemDelta(candidate: EquipmentItem, equipped: EquipmentItem 
   };
 }
 
-// Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.
-// Process EXP Gain: After leveling up, EXP resets to zero. Enforces 65% freeze cap when maxLevelCap is active.
+// Process EXP Gain: Carries over excess EXP to the next level. Enforces 65% freeze cap when maxLevelCap is active.
 export function processExpGain(
   currentLevel: number,
   currentExp: number,
@@ -170,6 +173,9 @@ export function processExpGain(
     if (exp >= required) {
       if (maxLevelCap && level + 1 >= maxLevelCap) {
         level = maxLevelCap;
+        levelsGained += 1;
+        apGained += 3;
+        spGained += 1;
         const requiredCap = calcExpRequired(maxLevelCap);
         exp = Math.floor(requiredCap * freezePercent);
         break;
@@ -178,7 +184,7 @@ export function processExpGain(
       levelsGained += 1;
       apGained += 3;
       spGained += 1;
-      exp = 0; // Resets to zero after level up
+      exp -= required; // Excess exp carries over to the next level
     } else {
       break;
     }
@@ -390,16 +396,44 @@ export function cowriesToWallet(totalCowries: number, mutya: number = 0): Wallet
   };
 }
 
+/**
+ * Formats large numbers compactly:
+ * 1000 -> 1K
+ * 10250 -> 10.25K
+ * 1240350 -> 1.24M
+ * 1500000000 -> 1.5B
+ */
+export function formatCompactNumber(num: number): string {
+  if (isNaN(num) || num === null || num === undefined) return '0';
+  const safe = Math.max(0, num);
+  if (safe < 1000) return `${Math.floor(safe)}`;
+  if (safe < 1_000_000) {
+    const val = safe / 1000;
+    const formatted = val.toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted}K`;
+  }
+  if (safe < 1_000_000_000) {
+    const val = safe / 1_000_000;
+    const formatted = val.toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted}M`;
+  }
+  const val = safe / 1_000_000_000;
+  const formatted = val.toFixed(2).replace(/\.?0+$/, '');
+  return `${formatted}B`;
+}
+
+export const formatCompactExp = formatCompactNumber;
+
 export function formatCowriesShort(wallet: Wallet): string {
   const gold = wallet.goldIngots ?? wallet.goldSovereigns ?? 0;
   const silver = wallet.silverPieces ?? wallet.silverShillings ?? 0;
   const cowries = wallet.cowrieShells ?? wallet.copperCoins ?? 0;
 
   const parts: string[] = [];
-  if (gold > 0) parts.push(`${gold} Gold`);
-  if (silver > 0 || gold > 0) parts.push(`${silver} Silver`);
-  parts.push(`${cowries} Shells`);
-  return parts.join(' ');
+  if (gold > 0) parts.push(`${gold}🪙`);
+  if (silver > 0) parts.push(`${silver}🔘`);
+  if (cowries > 0 || parts.length === 0) parts.push(`${cowries}🐚`);
+  return parts.join('');
 }
 
 export function formatCostInCowries(costInCowries: number): string {

@@ -49,14 +49,14 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
 
             {/* Right: Currencies, Stamina, Audio & Settings Controls */}
             <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/90 px-2 py-0.5 md:px-2.5 md:py-1 rounded-xl border border-zinc-800">
-              <div className="flex items-center space-x-1.5 md:space-x-2 font-bold">
-                <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0} 🪙 Gold</span>
-                <span className="text-zinc-300 font-semibold">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0} 🥈 Silver</span>
-                <span className="text-amber-500 font-semibold">{player.wallet.cowrieShells ?? player.wallet.copperCoins ?? 0} 🐚 Shells</span>
+              <div className="flex items-center space-x-1.5 md:space-x-2 font-bold font-mono">
+                <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0}🪙</span>
+                <span className="text-zinc-300 font-semibold">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0}🔘</span>
+                <span className="text-amber-500 font-semibold">{player.wallet.cowrieShells ?? player.wallet.copperCoins ?? 0}🐚</span>
               </div>
 
-              <div className="text-purple-300 font-bold border-l border-zinc-700/80 pl-1.5">
-                🔮 {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0} Mutya
+              <div className="text-purple-300 font-bold border-l border-zinc-700/80 pl-1.5 font-mono">
+                {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0}🔮
               </div>
 
               <div className="border-l border-zinc-700/80 pl-1.5 flex items-center gap-1.5">
@@ -141,14 +141,14 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
             {/* Wallet & Stamina Summary */}
             <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/90 px-2 py-0.5 md:px-3 md:py-1 rounded-xl border border-zinc-800 w-full md:w-auto justify-between md:justify-end shadow-inner">
               {/* Pre-Colonial Currency Tiers */}
-              <div className="flex items-center space-x-1.5 md:space-x-2 font-bold">
-                <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0} 🪙 Gold</span>
-                <span className="text-zinc-300 font-semibold">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0} 🥈 Silver</span>
-                <span className="text-amber-500 font-semibold">{player.wallet.cowrieShells ?? player.wallet.copperCoins ?? 0} 🐚 Shells</span>
+              <div className="flex items-center space-x-1.5 md:space-x-2 font-bold font-mono">
+                <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0}🪙</span>
+                <span className="text-zinc-300 font-semibold">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0}🔘</span>
+                <span className="text-amber-500 font-semibold">{player.wallet.cowrieShells ?? player.wallet.copperCoins ?? 0}🐚</span>
               </div>
 
-              <div className="text-purple-300 font-bold border-l border-zinc-700/80 pl-1.5 md:pl-2">
-                🔮 {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0} Mutya
+              <div className="text-purple-300 font-bold border-l border-zinc-700/80 pl-1.5 md:pl-2 font-mono">
+                {player.wallet.mutyaShards ?? player.wallet.prismaticShards ?? 0}🔮
               </div>
 
               <div className="hidden md:flex items-center space-x-1 text-emerald-400 font-bold border-l border-zinc-700/80 pl-2">

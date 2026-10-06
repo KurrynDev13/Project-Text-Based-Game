@@ -56,17 +56,23 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
 
   // Touch swipe handling for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };
 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
   const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (touchStartX.current === null || touchStartY.current === null) return;
     const diffX = e.changedTouches[0].clientX - touchStartX.current;
     const diffY = e.changedTouches[0].clientY - touchStartY.current;
 
     // Only swipe if horizontal motion exceeds vertical motion
-    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 30) {
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 25) {
       if (diffX < 0 && currentIndex < options.length - 1) {
         soundFX.playClick();
         onChangeIndex(currentIndex + 1);
@@ -96,13 +102,16 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
   const centerOffset = containerWidth / 2 - (currentIndex * (cardWidth + cardGap) + cardWidth / 2);
 
   return (
-    <div className="w-full flex flex-col items-center justify-center select-none py-0.5">
+    <div
+      className="w-full flex flex-col items-center justify-center select-none py-0.5 touch-pan-y"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* ─── HORIZONTAL CAROUSEL STAGE ────────────────────────────────────────── */}
       <div
         ref={containerRef}
         className="w-full h-[300px] xs:h-[320px] sm:h-[360px] md:h-[400px] relative overflow-hidden flex items-center touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
       >
         {/* Sliding Track containing all 8 Hearth Cards */}
         <div

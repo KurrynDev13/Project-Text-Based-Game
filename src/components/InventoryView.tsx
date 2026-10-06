@@ -8,8 +8,10 @@
 // 6. Interactive Modal for Item Inspection (Equip, Power-Rated Sell)
 // 7. Decrypt Memories Flow with "Claim to Bag" Modal
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PlayerCharacter, EquipmentItem, ConsumableItem, EncryptedMemory, ItemRarity, Affix, HeroClass } from '../types/game';
+import { registerBackHandler } from '../utils/navigationStack';
 import {
   UPPER_ARMORS,
   LOWER_ARMORS,
@@ -134,9 +136,35 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [activeTab, setActiveTab] = useState<'GEAR' | 'CONSUMABLES' | 'MEMORIES'>('GEAR');
   const [gearFilter, setGearFilter] = useState<'ALL' | 'WEAPONS' | 'ARMOR'>('ALL');
   const [selectedInspectItem, setSelectedInspectItem] = useState<EquipmentItem | null>(null);
+  const [isInspectEquipped, setIsInspectEquipped] = useState<boolean>(false);
   const [pendingDecryption, setPendingDecryption] = useState<{ memory: EncryptedMemory; item: EquipmentItem } | null>(null);
   const [sortMode, setSortMode] = useState<'POWER' | 'CLASS' | 'TYPE'>('POWER');
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
+
+  useEffect(() => {
+    if (!selectedInspectItem) return;
+    return registerBackHandler(() => {
+      setSelectedInspectItem(null);
+      return true;
+    });
+  }, [selectedInspectItem]);
+
+  useEffect(() => {
+    if (!pendingDecryption) return;
+    return registerBackHandler(() => {
+      setPendingDecryption(null);
+      return true;
+    });
+  }, [pendingDecryption]);
+
+  useEffect(() => {
+    if (activeTab !== 'GEAR') {
+      return registerBackHandler(() => {
+        setActiveTab('GEAR');
+        return true;
+      });
+    }
+  }, [activeTab]);
 
   // Touch gesture swipe state for switching tabs: Gear > Consumables > Memories
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -436,7 +464,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
         <div className="grid grid-cols-2 gap-1.5">
           {/* Slot 1: UPPER ARMOR */}
-          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
+          <div
+            onClick={() => {
+              if (player.equipment.upperArmor) {
+                soundFX.playClickSound();
+                setIsInspectEquipped(true);
+                setSelectedInspectItem(player.equipment.upperArmor);
+              }
+            }}
+            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+              player.equipment.upperArmor ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
+            }`}
+          >
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">UPR:</span>
@@ -449,7 +488,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </p>
             </div>
             <button
-              onClick={() => handleUnequip('upperArmor')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnequip('upperArmor');
+              }}
               disabled={!player.equipment.upperArmor}
               className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
@@ -458,7 +500,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </div>
 
           {/* Slot 2: LOWER ARMOR */}
-          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
+          <div
+            onClick={() => {
+              if (player.equipment.lowerArmor) {
+                soundFX.playClickSound();
+                setIsInspectEquipped(true);
+                setSelectedInspectItem(player.equipment.lowerArmor);
+              }
+            }}
+            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+              player.equipment.lowerArmor ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
+            }`}
+          >
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">LWR:</span>
@@ -471,7 +524,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </p>
             </div>
             <button
-              onClick={() => handleUnequip('lowerArmor')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnequip('lowerArmor');
+              }}
               disabled={!player.equipment.lowerArmor}
               className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
@@ -480,7 +536,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </div>
 
           {/* Slot 3: WEAPON */}
-          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
+          <div
+            onClick={() => {
+              if (equippedWeapon) {
+                soundFX.playClickSound();
+                setIsInspectEquipped(true);
+                setSelectedInspectItem(equippedWeapon);
+              }
+            }}
+            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+              equippedWeapon ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
+            }`}
+          >
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">WPN:</span>
@@ -493,7 +560,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </p>
             </div>
             <button
-              onClick={() => handleUnequip('weapon')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnequip('weapon');
+              }}
               disabled={!equippedWeapon}
               className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
@@ -502,7 +572,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </div>
 
           {/* Slot 4: MYTHICAL MOUNT */}
-          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
+          <div
+            onClick={() => {
+              if (equippedMount) {
+                soundFX.playClickSound();
+                setIsInspectEquipped(true);
+                setSelectedInspectItem(equippedMount);
+              }
+            }}
+            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+              equippedMount ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
+            }`}
+          >
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">MNT:</span>
@@ -515,7 +596,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </p>
             </div>
             <button
-              onClick={() => handleUnequip('mount')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUnequip('mount');
+              }}
               disabled={!isMountUnlocked || !equippedMount}
               className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
@@ -779,10 +863,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         const isInspectWearable = isItemWearableForClass(selectedInspectItem, player.heroClass as any);
         const allowedClasses = getAllowedClassesText(selectedInspectItem);
 
-        return (
+        return createPortal(
           <div
-            onClick={() => setSelectedInspectItem(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-zinc-950/85 backdrop-blur-sm animate-fade-in font-sans"
+            onClick={() => {
+              setSelectedInspectItem(null);
+              setIsInspectEquipped(false);
+            }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-zinc-950/85 backdrop-blur-sm animate-fade-in font-sans"
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -799,7 +886,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </h3>
                 </div>
                 <button
-                  onClick={() => setSelectedInspectItem(null)}
+                  onClick={() => {
+                    setSelectedInspectItem(null);
+                    setIsInspectEquipped(false);
+                  }}
                   className="text-zinc-400 hover:text-white w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-xs"
                 >
                   ✕
@@ -867,7 +957,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                 {/* Dynamic Power-Rated Sell Price */}
                 <div className="bg-zinc-950 p-2.5 rounded-xl border border-amber-900/40 space-y-1">
-                  <span className="text-[10px] text-zinc-400 uppercase block">Market Resale Value:</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-zinc-400 uppercase">
+                      {isInspectEquipped ? 'Bound Gear Value:' : 'Market Resale Value:'}
+                    </span>
+                    {isInspectEquipped && (
+                      <span className="text-[9px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-700/40">
+                        Equipped & Bound
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm font-bold text-amber-300">
                     {formatPreColonialCurrencyBadge(calcItemSellValueInCC(selectedInspectItem)).formatted}
                   </div>
@@ -879,99 +978,116 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               {/* Modal Actions Footer */}
               <div className="bg-zinc-950 p-3 border-t border-zinc-800 flex justify-between gap-2">
-                <button
-                  onClick={() => handleSellGear(selectedInspectItem)}
-                  className="flex-1 py-2 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95"
-                >
-                  💰 Sell Item
-                </button>
-                <button
-                  onClick={() => {
-                    if (!isInspectWearable) {
-                      notify(`🔒 Class Mismatch! ${player.heroClass} cannot equip this item.`, 'warning', '🔒');
-                      return;
-                    }
-                    handleEquipGear(selectedInspectItem);
-                  }}
-                  disabled={!isInspectWearable}
-                  className={`flex-1 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow ${
-                    isInspectWearable
-                      ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 active:scale-95'
-                      : 'bg-zinc-900 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
-                  }`}
-                >
-                  {isInspectWearable ? '⚔️ Equip Item' : '🔒 Class Mismatch'}
-                </button>
+                {isInspectEquipped ? (
+                  <button
+                    onClick={() => {
+                      setSelectedInspectItem(null);
+                      setIsInspectEquipped(false);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-750 border border-zinc-750 text-zinc-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow"
+                  >
+                    Close
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleSellGear(selectedInspectItem)}
+                      className="flex-1 py-2 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95"
+                    >
+                      💰 Sell Item
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!isInspectWearable) {
+                          notify(`🔒 Class Mismatch! ${player.heroClass} cannot equip this item.`, 'warning', '🔒');
+                          return;
+                        }
+                        handleEquipGear(selectedInspectItem);
+                      }}
+                      disabled={!isInspectWearable}
+                      className={`flex-1 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow ${
+                        isInspectWearable
+                          ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 active:scale-95'
+                          : 'bg-zinc-900 text-zinc-500 border border-zinc-800 cursor-not-allowed opacity-60'
+                      }`}
+                    >
+                      {isInspectWearable ? '⚔️ Equip Item' : '🔒 Class Mismatch'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
       {/* ── 7. CLAIM DECRYPTED MEMORY MODAL ─────────────────────────────────── */}
-      {pendingDecryption && (
-        <div
-          onClick={() => setPendingDecryption(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/90 backdrop-blur-md animate-fade-in font-sans"
-        >
+      {pendingDecryption &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-950 border-2 border-purple-500 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl font-mono space-y-3 p-4"
+            onClick={() => setPendingDecryption(null)}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-zinc-950/85 backdrop-blur-sm animate-fade-in font-sans"
           >
-            <div className="text-center space-y-1">
-              <div className="text-3xl">✨</div>
-              <span className="text-[10px] text-purple-400 uppercase font-bold tracking-widest">
-                MEMORY DECRYPTED!
-              </span>
-              <h3 className="font-serif text-lg font-bold text-amber-200">
-                {pendingDecryption.item.name}
-              </h3>
-              <p className="text-[10px] text-zinc-400">
-                Tier {pendingDecryption.item.tier} • {pendingDecryption.item.rarity}
-              </p>
-            </div>
-
-            <div className="bg-zinc-900 p-2.5 rounded-xl border border-zinc-800 space-y-1 text-xs">
-              {pendingDecryption.item.baseDefense !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Armor:</span>
-                  <span className="text-emerald-400 font-bold">+{pendingDecryption.item.baseDefense}</span>
-                </div>
-              )}
-              {pendingDecryption.item.baseDamageMin !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Damage:</span>
-                  <span className="text-cyan-400 font-bold">
-                    {pendingDecryption.item.baseDamageMin} - {pendingDecryption.item.baseDamageMax}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Power Rating:</span>
-                <span className="text-purple-300 font-bold">⚡ {calcItemPowerRating(pendingDecryption.item)}</span>
-              </div>
-            </div>
-
-            {pendingDecryption.item.affixes && pendingDecryption.item.affixes.length > 0 && (
-              <div className="bg-purple-950/40 p-2.5 rounded-xl border border-purple-800/40 space-y-1 text-xs">
-                <span className="text-[10px] text-purple-300 font-bold uppercase">Rolled Affixes:</span>
-                {pendingDecryption.item.affixes.map((aff, i) => (
-                  <div key={i} className="text-[10px] text-purple-200">
-                    ✨ {aff.name} ({aff.type})
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={handleClaimDecrypted}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95"
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-zinc-950 border-2 border-purple-500 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl font-mono space-y-3 p-4"
             >
-              🎒 Claim to Bag
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="text-center space-y-1">
+                <div className="text-3xl">✨</div>
+                <span className="text-[10px] text-purple-400 uppercase font-bold tracking-widest">
+                  MEMORY DECRYPTED!
+                </span>
+                <h3 className="font-serif text-lg font-bold text-amber-200">
+                  {pendingDecryption.item.name}
+                </h3>
+                <p className="text-[10px] text-zinc-400">
+                  Tier {pendingDecryption.item.tier} • {pendingDecryption.item.rarity}
+                </p>
+              </div>
+
+              <div className="bg-zinc-900 p-2.5 rounded-xl border border-zinc-800 space-y-1 text-xs">
+                {pendingDecryption.item.baseDefense !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Armor:</span>
+                    <span className="text-emerald-400 font-bold">+{pendingDecryption.item.baseDefense}</span>
+                  </div>
+                )}
+                {pendingDecryption.item.baseDamageMin !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Damage:</span>
+                    <span className="text-cyan-400 font-bold">
+                      {pendingDecryption.item.baseDamageMin} - {pendingDecryption.item.baseDamageMax}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Power Rating:</span>
+                  <span className="text-purple-300 font-bold">⚡ {calcItemPowerRating(pendingDecryption.item)}</span>
+                </div>
+              </div>
+
+              {pendingDecryption.item.affixes && pendingDecryption.item.affixes.length > 0 && (
+                <div className="bg-purple-950/40 p-2.5 rounded-xl border border-purple-800/40 space-y-1 text-xs">
+                  <span className="text-[10px] text-purple-300 font-bold uppercase">Rolled Affixes:</span>
+                  {pendingDecryption.item.affixes.map((aff, i) => (
+                    <div key={i} className="text-[10px] text-purple-200">
+                      ✨ {aff.name} ({aff.type})
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={handleClaimDecrypted}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-zinc-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95"
+              >
+                🎒 Claim to Bag
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

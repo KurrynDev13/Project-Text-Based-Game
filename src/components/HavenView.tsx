@@ -597,8 +597,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
     subtitle: string;
     icon: string;
     tutTarget?: string;
-    badge?: string;
-    badgeColor?: string;
   }
 
   const districtTabs: DistrictTabInfo[] = [
@@ -607,8 +605,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
       baybayin: 'ᜐᜒᜎᜓᜅᜈ᜔',
       subtitle: 'Hearth',
       icon: '🔥',
-      badge: isBountyBoardUnlocked && availableContractsCount > 0 ? `${availableContractsCount}📜` : undefined,
-      badgeColor: 'bg-purple-950 text-purple-200 border-purple-700/60',
     },
     {
       id: 'FORGE',
@@ -616,8 +612,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
       subtitle: 'Forge',
       icon: '⚒️',
       tutTarget: 'district-forge',
-      badge: (player.wallet.mutyaShards ?? 0) > 0 ? `${player.wallet.mutyaShards}🔮` : undefined,
-      badgeColor: 'bg-indigo-950 text-purple-200 border-purple-700/60',
     },
     {
       id: 'ALCHEMIST',
@@ -637,8 +631,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
       baybayin: 'ᜃᜊᜈ᜔',
       subtitle: 'Vault',
       icon: '🏛️',
-      badge: `${player.inventory.length}/${derived.inventoryCapacity}`,
-      badgeColor: player.inventory.length >= derived.inventoryCapacity ? 'bg-red-950 text-red-300 border-red-700' : undefined,
     },
     ...(isStablesUnlocked
       ? [
@@ -647,8 +639,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
             baybayin: 'ᜃᜓᜏᜇ᜔ᜇ',
             subtitle: 'Stables',
             icon: '🐃',
-            badge: player.equipment.mount ? '🏇' : undefined,
-            badgeColor: 'bg-emerald-950 text-emerald-300 border-emerald-700',
           },
         ]
       : []),
@@ -677,9 +667,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
               </span>
               <span className="text-[9.5px] font-mono text-zinc-400 font-semibold hidden xs:inline">
                 • {player.heroClass}
-              </span>
-              <span className="text-purple-300 font-bold bg-purple-950/70 px-1.5 py-0.2 rounded border border-purple-700/40 text-[9px] font-mono shadow-inner">
-                ⚡ {derived.powerLevel} Pwr
               </span>
             </div>
             <h2 className="text-xs sm:text-sm font-bold font-serif text-amber-100 tracking-wide truncate flex items-center gap-1.5">
@@ -740,16 +727,6 @@ export const HavenView: React.FC<HavenViewProps> = ({
               <span className={`text-[7.5px] sm:text-[8.5px] uppercase tracking-tighter truncate leading-tight mt-0.5 ${isActive ? 'text-zinc-900/90 font-bold' : 'text-zinc-400'}`}>
                 {tab.subtitle}
               </span>
-
-              {tab.badge && (
-                <span
-                  className={`absolute -top-1 -right-0.5 text-[7px] font-mono font-bold px-1 rounded-full border shadow-sm ${
-                    isActive ? 'bg-zinc-950 text-amber-300 border-zinc-900' : (tab.badgeColor || 'bg-amber-950 text-amber-300 border-amber-800/40')
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
             </button>
           );
         })}

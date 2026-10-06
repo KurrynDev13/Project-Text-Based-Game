@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PlayerCharacter, EquipmentItem } from '../types/game';
 import {
@@ -10,6 +10,7 @@ import {
   calcItemDelta,
 } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface ForgePurchaseModalProps {
   item: EquipmentItem | null;
@@ -39,11 +40,11 @@ export function formatPreColonialCurrencyBadge(costInCowries: number): {
   const shells = remainder % 100;
 
   const parts: string[] = [];
-  if (gold > 0) parts.push(`${gold} 🪙 Gold`);
-  if (silver > 0) parts.push(`${silver} 🥈 Silver`);
-  if (shells > 0 || parts.length === 0) parts.push(`${shells} 🐚 Shells`);
+  if (gold > 0) parts.push(`${gold}🪙`);
+  if (silver > 0) parts.push(`${silver}🔘`);
+  if (shells > 0 || parts.length === 0) parts.push(`${shells}🐚`);
 
-  return { gold, silver, shells, formatted: parts.join(' ') };
+  return { gold, silver, shells, formatted: parts.join('') };
 }
 
 export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
@@ -60,6 +61,13 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
   vendorTitle,
   hideStock = false,
 }) => {
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [onClose]);
+
   if (!item) return null;
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
@@ -263,13 +271,13 @@ export const ForgePurchaseModal: React.FC<ForgePurchaseModalProps> = ({
             <div className="text-[10px] text-zinc-400 uppercase">
               {vendorTitle || "Smith's Price (Pre-Colonial Currency)"}:
             </div>
-            <div className="text-sm font-bold text-amber-300 flex items-center space-x-2 flex-wrap">
-              {price.gold > 0 && <span className="text-amber-300">{price.gold} 🪙 Gold</span>}
-              {price.silver > 0 && <span className="text-zinc-200">{price.silver} 🥈 Silver</span>}
-              {price.shells > 0 && <span className="text-cyan-200">{price.shells} 🐚 Shells</span>}
+            <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
+              {price.gold > 0 && <span className="text-amber-300">{price.gold}🪙</span>}
+              {price.silver > 0 && <span className="text-zinc-200">{price.silver}🔘</span>}
+              {price.shells > 0 && <span className="text-cyan-200">{price.shells}🐚</span>}
             </div>
             <div className="text-[10px] text-zinc-500">
-              Total Cowries equivalent: {effectiveCostCC} shells (100:1 ratio)
+              Total: {effectiveCostCC}🐚 (100:1 ratio)
             </div>
           </div>
         </div>

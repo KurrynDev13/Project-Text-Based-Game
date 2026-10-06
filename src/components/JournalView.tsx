@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { PlayerCharacter, Bounty, SideQuest } from '../types/game';
 import { GAME_LOCATIONS } from '../data/equipmentData';
-import { totalCowriesFromWallet, cowriesToWallet, processExpGain, calcBountyExpReward, calcSideQuestExpReward } from '../utils/gameFormulas';
+import {
+  totalCowriesFromWallet,
+  cowriesToWallet,
+  processExpGain,
+  calcBountyExpReward,
+  calcSideQuestExpReward,
+  formatCompactNumber,
+  formatCostInCowries,
+} from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
 import { getQuestGiverImageUrl } from '../utils/assetHelper';
 
@@ -74,7 +82,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     );
 
     const rewardCowries = bounty.rewardCowries ?? bounty.rewardCC ?? 150;
-    const rewardExp = calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp);
+    const rewardExp = calcBountyExpReward(player.level);
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
     const bountyLoc = GAME_LOCATIONS.find((l) => l.id === bounty.actId);
@@ -121,8 +129,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     );
 
     const rewardCowries = sq.rewardCowries ?? 300;
-    const actMinLvl = sq.actId ? (GAME_LOCATIONS.find((l) => l.id === sq.actId)?.minLevel ?? player.level) : player.level;
-    const rewardExp = calcSideQuestExpReward(actMinLvl, sq.rewardExp ?? 300);
+    const rewardExp = calcSideQuestExpReward(player.level);
     const rewardMutya = sq.rewardMutya ?? 1;
 
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
@@ -150,9 +157,9 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     });
 
     if (expResult.levelsGained > 0) {
-      notify(`✨ Side Quest Claimed! ${sq.rewardText}\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} AP & +${expResult.spGained} Skill Point!`, 'success', '✨');
+      notify(`✨ Side Quest Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries & +${rewardMutya}x Mutya Shard!\n\n🌟 LEVEL UP! Reached Level ${expResult.newLevel}! Earned +${expResult.apGained} AP & +${expResult.spGained} Skill Point!`, 'success', '✨');
     } else {
-      notify(`✨ Side Quest Claimed! ${sq.rewardText}`, 'success', '✨');
+      notify(`✨ Side Quest Claimed! Earned +${rewardExp} EXP, +${rewardCowries} Cowries & +${rewardMutya}x Mutya Shard!`, 'success', '✨');
     }
   };
 
@@ -293,8 +300,8 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
 
                 <div className="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-end">
                   <div className="text-right text-[10px] text-zinc-300 font-mono">
-                    <div>+{bounty.rewardExp} EXP | +{bounty.rewardCowries ?? bounty.rewardCC} Cowries</div>
-                    <div className="text-purple-300 font-bold">+1x Mutya Shard</div>
+                    <div>+{formatCompactNumber(calcBountyExpReward(player.level))} EXP | +{formatCostInCowries(bounty.rewardCowries ?? bounty.rewardCC ?? 150)}</div>
+                    <div className="text-purple-300 font-bold">+1🔮</div>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -449,8 +456,9 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
                   </div>
 
                   <div className="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-end shrink-0">
-                    <div className="text-right text-[10px] text-zinc-400 max-w-[160px]">
-                      {sq.rewardText}
+                    <div className="text-right text-[10px] text-zinc-400 max-w-[160px] font-mono">
+                      <div>+{formatCompactNumber(calcSideQuestExpReward(player.level))} EXP | +{formatCostInCowries(sq.rewardCowries ?? 300)}</div>
+                      <div className="text-amber-400 font-bold">+{sq.rewardMutya ?? 1}🔮</div>
                     </div>
 
                     {sq.isForfeited ? (

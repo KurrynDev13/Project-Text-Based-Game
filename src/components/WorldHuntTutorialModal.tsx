@@ -3,8 +3,9 @@
 // Teaches new players Venture vs Search, combat mechanics, cursed chests, wandering merchants, and Act Boss gates.
 // Strictly adheres to Rule 5 (Anti-Spoiler protocol).
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface WorldHuntTutorialModalProps {
   isOpen: boolean;
@@ -13,6 +14,18 @@ interface WorldHuntTutorialModalProps {
 
 export const WorldHuntTutorialModal: React.FC<WorldHuntTutorialModalProps> = ({ isOpen, onComplete }) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackHandler(() => {
+      if (currentStep > 0) {
+        setCurrentStep((prev) => prev - 1);
+        return true;
+      }
+      handleFinish();
+      return true;
+    });
+  }, [isOpen, currentStep]);
 
   if (!isOpen) return null;
 

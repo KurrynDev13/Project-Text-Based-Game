@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 // Utility import — soundFX is expected to be available globally or via a module.
 // If it lives in a different path, adjust the import below accordingly.
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,13 @@ const BossDiscoveryModal: React.FC<BossDiscoveryModalProps> = ({
       console.warn('[BossDiscoveryModal] Audio warning skipped:', err);
     }
   }, []);
+
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onDismiss();
+      return true;
+    });
+  }, [onDismiss]);
 
   const isUnderLeveled = climaxLevelReq !== undefined && playerLevel !== undefined && playerLevel < climaxLevelReq;
   const isUnderPowered = playerPower < requiredPower;

@@ -3,7 +3,9 @@
 // Slides up from bottom on mobile; centered on desktop.
 // Exports both FeatureTutorialModal and the TutorialStep type.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { registerBackHandler } from '../utils/navigationStack';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,9 +72,20 @@ const FeatureTutorialModal: React.FC<FeatureTutorialModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    return registerBackHandler(() => {
+      if (!isFirstStep) {
+        setCurrentStep((prev) => prev - 1);
+        return true;
+      }
+      onSkip();
+      return true;
+    });
+  }, [isFirstStep, onSkip]);
+
   if (!step) return null;
 
-  return (
+  const modalContent = (
     // Overlay — aligns to bottom on mobile, center on md+
     <div className="fixed inset-0 z-[100] bg-black/70 flex items-end md:items-center justify-center p-4">
       {/* Card — slides up from bottom (mobile) via translate, rounded corners adjust for mobile sheet */}
@@ -181,6 +194,8 @@ const FeatureTutorialModal: React.FC<FeatureTutorialModalProps> = ({
       `}</style>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export { FeatureTutorialModal };

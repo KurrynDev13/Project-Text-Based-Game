@@ -120,9 +120,33 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   }, [player.completedBossIds, player.currentLocationId, player.unlockedLocationIds, player.unlockedActStoryIds]);
 
+  const prevLocationIdRef = useRef<string>(selectedLocation.id);
+  const [hasSeenSectorIntro, setHasSeenSectorIntro] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('maharlika_sector_intro_seen') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const markSectorIntroSeen = () => {
+    setHasSeenSectorIntro(true);
+    try {
+      sessionStorage.setItem('maharlika_sector_intro_seen', 'true');
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     onLocationChange?.(selectedLocation.id);
-    setArenaOutcome(null);
+    if (prevLocationIdRef.current !== selectedLocation.id) {
+      prevLocationIdRef.current = selectedLocation.id;
+      setArenaOutcome(null);
+      setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
+      setActiveQuestEncounter(null);
+    }
   }, [selectedLocation.id, onLocationChange]);
   const [showSpellPicker, setShowSpellPicker] = useState(false);
   const [showItemPicker, setShowItemPicker] = useState(false);
@@ -683,6 +707,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     soundFX.playAttackSound();
+    markSectorIntroSeen();
     setFledStatusMessage(null);
     setArenaOutcome(null);
     setActiveQuestEncounter(null);
@@ -703,7 +728,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (undiscoveredQuests.length > 0 && Math.random() < 0.12) {
       const quest = undiscoveredQuests[0];
       const updatedSideQuests = (player.sideQuests || []).map((q) =>
-        q.id === quest.id ? { ...q, isDiscovered: true } : q
+        q.id === quest.id ? { ...q, isDiscovered: true, progressCurrent: 0, isCompleted: false } : q
       );
 
       const logText = `📜 RARE ENCOUNTER: Met ${quest.giver} in ${selectedLocation.name}! Discovered Side Quest: [${quest.title}]! Objective: ${quest.objectiveText} (${quest.progressRequired} needed).`;
@@ -955,6 +980,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return;
     }
 
+    markSectorIntroSeen();
     setFledStatusMessage(null);
     setArenaOutcome(null);
     setActiveQuestEncounter(null);
@@ -1948,17 +1974,19 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return bounty;
     });
 
-    // Advance Mandatory Regional Side Quests
+    // Advance Mandatory Regional Side Quests (only discovered, in current Act, and strictly matching monster ID)
     const updatedSideQuests = (player.sideQuests || []).map((sq) => {
-      if (sq.isCompleted || sq.isForfeited) return sq;
+      if (!sq.isDiscovered || sq.isCompleted || sq.isForfeited) return sq;
+      if (sq.actId && sq.actId !== selectedLocation.id) return sq;
 
       const cleanTargetId = (sq.targetMonsterId || '').toLowerCase();
-      const cleanObj = sq.objectiveText.toLowerCase();
-
-      const isMatch =
-        (cleanTargetId && cleanEnemyId.includes(cleanTargetId)) ||
-        cleanEnemyName.includes(cleanObj) ||
-        cleanObj.includes(cleanEnemyName);
+      const isMatch = Boolean(
+        cleanTargetId && (
+          cleanEnemyId === cleanTargetId ||
+          cleanEnemyId.startsWith(cleanTargetId) ||
+          cleanEnemyId.includes(cleanTargetId)
+        )
+      );
 
       if (isMatch) {
         const newCount = Math.min(sq.progressRequired, sq.progressCurrent + 1);
@@ -2021,6 +2049,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let updatedHighestWave = player.highestSurvivalWave || 0;
 
     const isSurvivalRealm = selectedLocation.id === 'loc_act_infinite';
+
+    let awardedExp = enemy.expReward;
+    let awardedCowries = enemy.copperReward;
+    let droppedBossItem: EquipmentItem | undefined = undefined;
+    let droppedBossMemory: EncryptedMemory | undefined = undefined;
 
     if (!isBoss) {
       const expGained = enemy.expReward;
@@ -2110,6 +2143,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           playerEquipment: player.equipment,
         });
         updatedInventory = [...updatedInventory, bossItem];
+        droppedBossItem = bossItem;
         logs = addLog(logs, `🗡️ GUARDIAN LEGENDARY ARTIFACT DROPPED: [${bossItem.name}]!`, 'CRIT', 'SYSTEM');
 
         // Broadcast High-Tier Gear Discovery
@@ -2127,6 +2161,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           acquiredAtLocation: selectedLocation.id,
         };
         updatedMemories = [...updatedMemories, bossMemory];
+        droppedBossMemory = bossMemory;
+        awardedExp = missing35Exp;
+        awardedCowries = bossCowrieReward;
         logs = addLog(logs, `💎 HIGH-RARITY MEMORY DROPPED: [${bossMemory.name}] added to vault!`, 'BUFF', 'SYSTEM');
 
         // 4. Unlock Next Realm Location
@@ -2204,6 +2241,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           playerEquipment: player.equipment,
         });
         updatedInventory = [...updatedInventory, bossItem];
+        droppedBossItem = bossItem;
+        awardedExp = reattemptExp;
+        awardedCowries = bossCowrieReward;
         logs = addLog(logs, `🗡️ GUARDIAN ARTIFACT REWARD: [${bossItem.name}] added to bag!`, 'BUFF', 'SYSTEM');
       }
     }
@@ -2229,30 +2269,66 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       mountUnlocked: mountUnlocked,
     }));
 
-    // KEEP inCombat: true so the Victory Card remains visible until the user clicks Claim Rewards!
-    onUpdateBattle({
-      inCombat: true,
-      turnNumber: battle.turnNumber,
-      playerActionGauge: 100,
-      enemyActionGauge: 0,
-      enemy: { ...enemy, currentHp: 0 },
-      logs,
-      winner: 'PLAYER',
-    });
-  };
-
-  // Claim regular combat rewards and exit battle viewport safely - NEVER advances acts
-  const handleClaimCombatVictory = () => {
-    soundFX.playCoinSound();
+    // Put Victory and loot secured directly into the Out-of-Combat Arena View!
     onUpdateBattle({
       inCombat: false,
       turnNumber: 0,
       playerActionGauge: 100,
       enemyActionGauge: 0,
       enemy: null,
-      logs: [],
+      logs,
       winner: null,
     });
+
+    const victoryBounties = updatedBounties.filter((b) => {
+      if (!b.isAccepted || b.isClaimed) return false;
+      const cleanTargetName = b.targetMonsterName.toLowerCase();
+      const cleanTargetId = b.targetMonsterId.toLowerCase();
+      const isMatch =
+        cleanEnemyName.includes(cleanTargetName) ||
+        cleanTargetName.includes(cleanEnemyName) ||
+        cleanEnemyId.includes(cleanTargetId);
+      return isMatch || b.isCompleted;
+    }).map((b) => ({
+      id: b.id,
+      title: b.title,
+      currentCount: b.currentCount,
+      targetCount: b.targetCount,
+      isCompleted: b.isCompleted,
+    }));
+
+    const outcomeDetails: string[] = [];
+    if (shardDropped) {
+      outcomeDetails.push('💎 +1 Mutya Pearl Shard secured!');
+    }
+    if (droppedBossItem) {
+      outcomeDetails.push(`🗡️ Dropped: [${droppedBossItem.name}] (${droppedBossItem.rarity})`);
+    }
+    if (droppedBossMemory) {
+      outcomeDetails.push(`🔮 Dropped: [${droppedBossMemory.name}]`);
+    }
+    if (newLevel > player.level) {
+      outcomeDetails.push(`🌟 Level Up! Reached Level ${newLevel}!`);
+    }
+    if (isSurvivalRealm) {
+      outcomeDetails.push(`⚔️ Celestial Ether Spawn Slain (Streak: ${(battle.survivalKillStreak ?? 0) + 1})`);
+    }
+
+    setArenaOutcome({
+      type: 'VICTORY',
+      title: 'VICTORY & LOOT SECURED!',
+      description: `Defeated ${enemy.name}!`,
+      badge: 'VICTORY SECURED',
+      isPositive: true,
+      costOrReward: `+${awardedCowries} Cowries • +${awardedExp} EXP`,
+      details: outcomeDetails,
+      enemyName: enemy.name,
+      expReward: awardedExp,
+      cowrieReward: awardedCowries,
+      bounties: victoryBounties,
+    });
+
+    markSectorIntroSeen();
   };
 
   // Climax Act Guardian Boss victory claim - ONLY called when claiming BossVictoryModal
@@ -2415,45 +2491,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           fledStatusMessage={fledStatusMessage}
           arenaOutcome={arenaOutcome}
           questEncounter={activeQuestEncounter}
+          hasSeenSectorIntro={hasSeenSectorIntro}
         />
-
-        {/* VICTORY & LOOT REWARD CARD OVERLAY (When Battle Winner === 'PLAYER') */}
-        {battle.inCombat && battle.winner === 'PLAYER' && battle.enemy && (
-          <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center text-center space-y-2.5 animate-fade-in border-2 border-amber-500/80 shadow-2xl">
-            <div className="text-3xl animate-bounce">🎉</div>
-            <h3 className="text-base sm:text-xl font-bold font-serif text-amber-200">
-              VICTORY &amp; LOOT SECURED!
-            </h3>
-            <p className="text-xs font-mono text-zinc-300 max-w-sm">
-              Defeated <strong className="text-amber-300">{battle.enemy.name}</strong>! Earned <strong className="text-emerald-400">+{battle.enemy.expReward} EXP</strong> and <strong className="text-yellow-400">+{battle.enemy.copperReward} Cowrie Shells</strong>.
-            </p>
-
-            {/* Live Active Contract Progress Badge */}
-            {player.bounties.filter((b) => {
-              if (!b.isAccepted || b.isClaimed) return false;
-              if (b.isCompleted) return true;
-              const cleanEnemyName = (battle.enemy?.name || '').replace(/^Elite\s+/, '').trim().toLowerCase();
-              const cleanEnemyId = (battle.enemy?.id || '').toLowerCase();
-              const cleanTargetName = b.targetMonsterName.toLowerCase();
-              const cleanTargetId = b.targetMonsterId.toLowerCase();
-              return cleanEnemyName.includes(cleanTargetName) || cleanTargetName.includes(cleanEnemyName) || cleanEnemyId.includes(cleanTargetId);
-            }).map((b) => (
-              <div key={b.id} className="bg-purple-950/80 border border-purple-500/60 px-2.5 py-1 rounded-lg text-[10px] font-mono text-purple-200 flex justify-between items-center max-w-xs w-full">
-                <span>🎯 Contract: <strong>{b.title}</strong></span>
-                <span className={`font-bold ${b.isCompleted ? 'text-emerald-400' : 'text-amber-300'}`}>
-                  {b.isCompleted ? '✅ DONE!' : `${b.currentCount} / ${b.targetCount}`}
-                </span>
-              </div>
-            ))}
-
-            <button
-              onClick={handleClaimCombatVictory}
-              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold font-mono text-xs uppercase px-5 py-2 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
-            >
-              [ Claim Rewards &amp; Continue ]
-            </button>
-          </div>
-        )}
       </section>
 
       {/* 3. TACTILE ACTION DOCK (Exploration vs Combat vs Active Encounter) */}
@@ -2718,6 +2757,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                   {log}
                 </div>
               ))
+            ) : hasSeenSectorIntro ? (
+              <div className="text-zinc-500 italic p-1 text-center text-[10px]">
+                Sector scouted. Ready to explore {selectedLocation.name}. Choose Venture Forward or Search Area.
+              </div>
             ) : (
               <div className="text-zinc-400 italic p-1 text-center text-[10px]">
                 Treading carefully through {selectedLocation.name}. Venture forward to scout the sector.

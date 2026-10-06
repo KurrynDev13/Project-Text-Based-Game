@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PlayerCharacter, Skill } from '../types/game';
 import {
   getSkillRank,
@@ -9,6 +10,7 @@ import {
   checkSkillGating,
 } from '../data/skillsData';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface SkillInspectorModalProps {
   skill: Skill | null;
@@ -34,6 +36,13 @@ export const SkillInspectorModal: React.FC<SkillInspectorModalProps> = ({
   const unlockedSkillIds = player.unlockedSkillIds ?? [];
   const equippedSkillIds = player.equippedSkillIds ?? [];
 
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [onClose]);
+
   const currentRank = getSkillRank(player, skill.id);
   const maxRank = skill.maxRank ?? (skill.type === 'PASSIVE' ? 1 : 5);
   const isUnlocked = currentRank > 0;
@@ -44,7 +53,7 @@ export const SkillInspectorModal: React.FC<SkillInspectorModalProps> = ({
   const isLocked = gating.isLocked && currentRank === 0;
 
   const isMaxRank = currentRank >= maxRank;
-  const spCost = getSkillUpgradeCostSP(currentRank, maxRank);
+  const spCost = getSkillUpgradeCostSP(skill, currentRank);
   const hasEnoughSP = (player.skillPoints ?? 0) >= spCost;
 
   // Handle Learn / Upgrade using Skill Points (SP)
@@ -142,9 +151,9 @@ export const SkillInspectorModal: React.FC<SkillInspectorModalProps> = ({
   const currentBarrier = getScaledSkillBarrier(skill, currentRank);
   const nextBarrier = getScaledSkillBarrier(skill, currentRank + 1);
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
       onClick={onClose}
     >
       <div
@@ -375,10 +384,10 @@ export const SkillInspectorModal: React.FC<SkillInspectorModalProps> = ({
                 >
                   <span>
                     {skill.type === 'PASSIVE'
-                      ? '⚡ Allocate Passive (1 SP)'
+                      ? `⚡ Allocate Passive (${spCost} SP)`
                       : currentRank === 0
-                      ? '✨ Learn Technique (1 SP)'
-                      : '⚡ Rank Up Technique (1 SP)'}
+                      ? `✨ Learn Technique (${spCost} SP)`
+                      : `⚡ Rank Up Technique (${spCost} SP)`}
                   </span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-black/25">
                     {player.skillPoints !== undefined && `${player.skillPoints} SP available`}
@@ -435,6 +444,8 @@ export const SkillInspectorModal: React.FC<SkillInspectorModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 export default SkillInspectorModal;
 

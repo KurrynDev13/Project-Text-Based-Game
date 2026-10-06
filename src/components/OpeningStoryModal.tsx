@@ -3,6 +3,7 @@
 // Scrolls slowly downward; click/touch anywhere on scroll area pauses; release resumes.
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { registerBackHandler } from '../utils/navigationStack';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,13 @@ const OpeningStoryModal: React.FC<OpeningStoryModalProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const { paused, reachedBottom } = useAutoScroll(scrollRef);
   const lore = buildLore(heroName, heroClass);
+
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-[90] bg-zinc-950/95 backdrop-blur-sm flex items-center justify-center p-4">

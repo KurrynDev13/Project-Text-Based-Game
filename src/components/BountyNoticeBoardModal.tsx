@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PlayerCharacter, Bounty } from '../types/game';
 import { MONSTER_TEMPLATES } from '../data/monstersData';
 import {
   calcDerivedStats,
   calcMonsterPowerRating,
   formatCostInCowries,
+  calcBountyExpReward,
+  formatCompactNumber,
 } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface BountyNoticeBoardModalProps {
   isOpen: boolean;
@@ -23,6 +27,14 @@ export const BountyNoticeBoardModal: React.FC<BountyNoticeBoardModalProps> = ({
   onUpdatePlayer,
   onShowToast,
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
@@ -70,7 +82,7 @@ export const BountyNoticeBoardModal: React.FC<BountyNoticeBoardModalProps> = ({
 
     const updated = (player.bounties || []).map((b) => {
       if (b.id === bountyId) {
-        return { ...b, isAccepted: true };
+        return { ...b, isAccepted: true, currentCount: 0, isCompleted: false };
       }
       return b;
     });
@@ -84,9 +96,15 @@ export const BountyNoticeBoardModal: React.FC<BountyNoticeBoardModalProps> = ({
     );
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-zinc-900 border border-purple-800/80 rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden font-sans">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border border-purple-800/80 rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden font-sans"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-950/80 via-zinc-900 to-purple-950/80 p-4 border-b border-purple-800/40 flex justify-between items-center shrink-0">
           <div className="flex items-center space-x-3">
@@ -165,7 +183,7 @@ export const BountyNoticeBoardModal: React.FC<BountyNoticeBoardModalProps> = ({
                     </div>
                     <div className="text-[11px] font-mono text-zinc-400 flex items-center space-x-3">
                       <span className="text-amber-400 font-bold">💰 {formatCostInCowries(cowrieReward)}</span>
-                      <span className="text-cyan-400">⚡ +{bounty.rewardExp} EXP</span>
+                      <span className="text-cyan-400">⚡ +{formatCompactNumber(calcBountyExpReward(player.level))} EXP</span>
                       {bounty.rewardMemoryRarity && (
                         <span className="text-purple-400 font-bold">🔮 {bounty.rewardMemoryRarity} Memory</span>
                       )}
@@ -196,13 +214,14 @@ export const BountyNoticeBoardModal: React.FC<BountyNoticeBoardModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-mono"
+            className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-mono cursor-pointer"
           >
             Close Notice Board
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 export default BountyNoticeBoardModal;

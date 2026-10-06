@@ -2,11 +2,13 @@
 // System Settings, Audio Controls & Supabase Cloud Backup Management
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { bgmManager } from '../utils/musicManager';
 import { soundFX } from '../utils/audio';
 import { isSupabaseConfigured, uploadCloudSave, downloadCloudSave, fetchCloudSaveSummaries } from '../utils/supabase';
 import { getOrCreateDeviceId, getActiveSlotId, loadGameSlot, saveGameSlot } from '../utils/saveManager';
 import { PlayerCharacter } from '../types/game';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -38,6 +40,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
     return unsub;
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -122,8 +132,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fade-in select-none">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fade-in select-none">
       <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border-2 border-amber-600/70 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl relative space-y-4">
         {/* Header */}
         <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
@@ -260,6 +270,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default SettingsModal;

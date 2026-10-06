@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PlayerCharacter, EquipmentItem } from '../types/game';
 import { ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
 import { calcItemPowerRating, getEquippedItemForCategory, calcItemDelta } from '../utils/gameFormulas';
 import { formatEquipmentFullName } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface MutyaAffixBlessingModalProps {
   item: EquipmentItem | null;
@@ -29,6 +30,13 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
   onUpdatePlayer,
   onShowToast,
 }) => {
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [onClose]);
+
   if (!item) return null;
 
   const currentAttempts = item.blessingAttempts || 0;

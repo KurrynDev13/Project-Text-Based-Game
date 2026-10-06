@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { registerBackHandler } from '../utils/navigationStack';
 
 interface ConfirmModalProps {
   isOpen?: boolean;
@@ -27,6 +29,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackHandler(() => {
+      onCancel();
+      return true;
+    });
+  }, [isOpen, onCancel]);
+
   if (!isOpen) return null;
 
   const resolvedConfirmText = confirmLabel || confirmText || 'Proceed';
@@ -43,7 +53,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   const lines = message.split('\n').filter(Boolean);
 
-  return (
+  const modalContent = (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in select-none">
       <div className={`bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-950 border-2 ${borderColor} rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative`}>
         <div className="flex items-center space-x-2.5">
@@ -87,5 +97,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlayerCharacter, PrimaryAttributes, EquipmentItem } from '../types/game';
-import { calcDerivedStats } from '../utils/gameFormulas';
+import { calcDerivedStats, formatCompactNumber } from '../utils/gameFormulas';
 import { soundFX } from '../utils/audio';
+import { registerBackHandler } from '../utils/navigationStack';
 import SkillTreeView from './SkillTreeView';
 import FeatureTutorialModal from './FeatureTutorialModal';
 
@@ -23,6 +24,15 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
     return 'STATS';
   });
   const [showSkillsTutorial, setShowSkillsTutorial] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'SKILLS') {
+      return registerBackHandler(() => {
+        setActiveTab('STATS');
+        return true;
+      });
+    }
+  }, [activeTab]);
 
   React.useEffect(() => {
     if (initialTab === 'SKILLS') {
@@ -64,12 +74,23 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Priority: Never trigger tab switch when touch starts inside the skill tree container
+    if ((e.target as HTMLElement)?.closest?.('[data-skill-tree-container]')) {
+      setTouchStartX(null);
+      setTouchStartY(null);
+      return;
+    }
     setTouchStartX(e.touches[0].clientX);
     setTouchStartY(e.touches[0].clientY);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX === null || touchStartY === null) return;
+    if ((e.target as HTMLElement)?.closest?.('[data-skill-tree-container]')) {
+      setTouchStartX(null);
+      setTouchStartY(null);
+      return;
+    }
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX;
@@ -105,15 +126,13 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
           </span>
         </div>
 
-        <div className="flex-1 flex items-center gap-2 min-w-0">
-          <div className="flex-1 bg-black/60 h-2.5 rounded-full overflow-hidden border border-zinc-800 shadow-inner">
-            <div
-              className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-400 h-full transition-all duration-300 rounded-full"
-              style={{ width: `${Math.min(100, (player.exp / derived.expRequiredNextLevel) * 100)}%` }}
-            />
-          </div>
-          <span className="text-[9.5px] sm:text-[10px] font-mono text-zinc-400 shrink-0 whitespace-nowrap">
-            EXP {player.exp}/{derived.expRequiredNextLevel} ({Math.floor((player.exp / derived.expRequiredNextLevel) * 100)}%)
+        <div className="relative flex-1 bg-black/60 h-5 sm:h-5.5 rounded-full overflow-hidden border border-zinc-800 shadow-inner flex items-center justify-center min-w-0">
+          <div
+            className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-400 transition-all duration-300 rounded-full"
+            style={{ width: `${Math.min(100, (player.exp / derived.expRequiredNextLevel) * 100)}%` }}
+          />
+          <span className="relative z-10 text-[9px] sm:text-[10px] font-mono font-bold text-amber-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap px-2">
+            EXP {formatCompactNumber(player.exp)}/{formatCompactNumber(derived.expRequiredNextLevel)} ({Math.floor((player.exp / derived.expRequiredNextLevel) * 100)}%)
           </span>
         </div>
       </div>

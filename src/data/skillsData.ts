@@ -11,6 +11,7 @@ import { HeroClass, PlayerCharacter, Skill, SkillNodeType } from '../types/game'
 export interface PillarMetadata {
   id: string;
   name: string;
+  shortName?: string;
   classReq: HeroClass;
   icon: string;
   tagline: string;
@@ -22,6 +23,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_mand_1',
       name: 'The Blood-Cleaver',
+      shortName: 'Cleaver',
       classReq: 'Mandirigma',
       icon: '🩸',
       tagline: 'Ruthless Kampilan slashes, escalating Bleed rends & berserker execute strikes.',
@@ -30,6 +32,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_mand_2',
       name: "The Rajah's Bastion",
+      shortName: 'Bastion',
       classReq: 'Mandirigma',
       icon: '🛡️',
       tagline: 'Impenetrable Kalasag shields, fortified armor poise & crushing parry ripostes.',
@@ -38,6 +41,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_mand_3',
       name: "The Sun God's Wrath",
+      shortName: 'Wrath',
       classReq: 'Mandirigma',
       icon: '☀️',
       tagline: 'War shouts of the Datu, divine Apolaki sunfire cleaves & incinerating solar flame.',
@@ -48,6 +52,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baga_1',
       name: 'The Venom-Kris',
+      shortName: 'Venom',
       classReq: 'Bagani',
       icon: '🐍',
       tagline: 'Caustic Dahong Palay venom, armor-melting spores & lethal toxic detonations.',
@@ -56,6 +61,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baga_2',
       name: 'The Ghost Shadow',
+      shortName: 'Shadow',
       classReq: 'Bagani',
       icon: '👤',
       tagline: 'Untouchable acrobatic evasion, blinding smoke screens & reflexive mirage ripostes.',
@@ -64,6 +70,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baga_3',
       name: 'The Executioner',
+      shortName: 'Execute',
       classReq: 'Bagani',
       icon: '💀',
       tagline: 'Surgical Balisong flurries, devastating critical multipliers & true shadow strikes.',
@@ -74,6 +81,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_manga_1',
       name: 'The Deadeye Marksman',
+      shortName: 'Marksman',
       classReq: 'Mangangaso',
       icon: '🎯',
       tagline: 'Pinpoint warbow snipes, armor-shattering penetration & godly tension piercers.',
@@ -82,6 +90,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_manga_2',
       name: 'The Jungle Trapper',
+      shortName: 'Trapper',
       classReq: 'Mangangaso',
       icon: '🌿',
       tagline: 'Envenomed blowgun sumpit darts, rattan cords, caltrops & field survival poultices.',
@@ -90,6 +99,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_manga_3',
       name: 'The Spirit of the Beast',
+      shortName: 'Spirit',
       classReq: 'Mangangaso',
       icon: '🦅',
       tagline: 'Sacred Sarimanok plumage fire, tempest hawk arrows & eclipse dragon volleys.',
@@ -100,6 +110,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baba_1',
       name: 'Ancestral Restoration',
+      shortName: 'Restore',
       classReq: 'Babaylan',
       icon: '❇️',
       tagline: 'Life-giving chants of the Diwata, shimmering spirit shields & divine purification.',
@@ -108,6 +119,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baba_2',
       name: 'Storm of Kadaklan',
+      shortName: 'Storm',
       classReq: 'Babaylan',
       icon: '⚡',
       tagline: 'Wrath of the thunder god, high-voltage cane shocks & cataclysmic tempest cyclones.',
@@ -116,6 +128,7 @@ export const CLASS_PILLARS: Record<HeroClass, PillarMetadata[]> = {
     {
       id: 'pillar_baba_3',
       name: 'The Shadow Curse',
+      shortName: 'Curse',
       classReq: 'Babaylan',
       icon: '🔮',
       tagline: 'Pre-colonial Aswang hexes, vital soul siphons & debilitating eclipse severances.',
@@ -1712,6 +1725,16 @@ export const getSkillRank = (player: PlayerCharacter, skillId: string): number =
 };
 
 /**
+ * Returns SP cost per rank/keystone based on Tier
+ */
+export const getSkillTierCost = (tier?: number): number => {
+  if (!tier || tier === 1) return 1;
+  if (tier === 2) return 2;
+  if (tier === 3) return 3;
+  return 5; // Tier 4 Pinnacle Capstone
+};
+
+/**
  * Calculates total Skill Points spent within a specific pillar.
  */
 export const getPillarSpentSP = (player: PlayerCharacter, pillarId: string): number => {
@@ -1720,7 +1743,7 @@ export const getPillarSpentSP = (player: PlayerCharacter, pillarId: string): num
   let total = 0;
   for (const s of pillarSkills) {
     const rank = player.skillRanks[s.id] ?? 0;
-    total += rank;
+    total += rank * getSkillTierCost(s.tier);
   }
   return total;
 };
@@ -1737,14 +1760,14 @@ export const TIER_LEVEL_REQUIREMENTS: Record<number, number> = {
 export const TIER_PILLAR_SP_REQUIREMENTS: Record<number, number> = {
   1: 0,
   2: 4,
-  3: 10,
-  4: 18,
+  3: 12,
+  4: 25,
 };
 
 /**
  * Checks gating requirements for learning/upgrading a skill node:
  * 1. Hero Level gate (Tier 1: 1, Tier 2: 8, Tier 3: 16, Tier 4: 25)
- * 2. Pillar SP investment gate (Tier 1: 0, Tier 2: 4, Tier 3: 10, Tier 4: 18)
+ * 2. Pillar SP investment gate (Tier 1: 0, Tier 2: 4, Tier 3: 12, Tier 4: 25)
  * 3. Prerequisite parent active skill check (for passives, requires parent rank >= 1)
  */
 export const checkSkillGating = (
@@ -1797,11 +1820,26 @@ export const checkSkillGating = (
 
 /**
  * Returns Skill Point (SP) cost required to unlock or rank up a skill.
- * Every rank or keystone costs exactly 1 SP. Returns 0 if at max rank.
+ * Progressively scales by Tier: Tier 1 = 1 SP, Tier 2 = 2 SP, Tier 3 = 3 SP, Tier 4 = 5 SP.
+ * Returns 0 if at max rank or basic attack.
  */
-export const getSkillUpgradeCostSP = (currentRank: number, maxRank: number = 5): number => {
+export const getSkillUpgradeCostSP = (
+  skillOrRank: Skill | number,
+  currentRankOrMax?: number,
+  maxRankInput: number = 5
+): number => {
+  if (typeof skillOrRank === 'number') {
+    const currentRank = skillOrRank;
+    const maxRank = currentRankOrMax ?? maxRankInput;
+    if (currentRank >= maxRank) return 0;
+    return 1;
+  }
+  const skill = skillOrRank;
+  const currentRank = currentRankOrMax ?? 0;
+  const maxRank = skill.maxRank ?? (skill.type === 'PASSIVE' ? 1 : 5);
   if (currentRank >= maxRank) return 0;
-  return 1;
+  if (skill.isBasicAttack) return 0;
+  return getSkillTierCost(skill.tier);
 };
 
 /** Backward-compatible alias */
@@ -1850,9 +1888,10 @@ export const getSkillDeltaPreview = (skill: Skill, currentRank: number): {
   const maxRank = skill.maxRank ?? 5;
   if (skill.type === 'PASSIVE') {
     const isAllocated = currentRank >= 1;
+    const cost = getSkillTierCost(skill.tier);
     return {
       currentText: isAllocated ? 'Allocated (1/1)' : 'Not Allocated (0/1)',
-      nextText: isAllocated ? 'Max Rank Reached' : 'Allocates Keystone (1 SP)',
+      nextText: isAllocated ? 'Max Rank Reached' : `Allocates Keystone (${cost} SP)`,
       isMaxRank: isAllocated,
     };
   }

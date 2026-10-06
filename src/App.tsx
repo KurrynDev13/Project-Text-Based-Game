@@ -39,6 +39,7 @@ import {
   loadGameSlot,
   saveGameSlot,
 } from './utils/saveManager';
+import { triggerBackAction } from './utils/navigationStack';
 
 const ANCESTRAL_SKILLS_TUTORIAL_STEPS: TutorialStep[] = [
   {
@@ -174,18 +175,27 @@ const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacte
   const mergedSideQuests = INITIAL_SIDE_QUESTS.map((master) => {
     const existing = existingQuestsMap.get(master.id);
     if (existing) {
+      const isDiscovered = existing.isDiscovered ?? false;
+      const isClaimed = existing.isClaimed ?? false;
+      // If a quest was never discovered or claimed, clean up any phantom progress caused by prior bugs
+      const progressCurrent = (isDiscovered || isClaimed) ? (existing.progressCurrent ?? 0) : 0;
+      const isCompleted = (isDiscovered || isClaimed) ? (existing.isCompleted ?? false) : false;
+
       return {
         ...master,
-        isDiscovered: existing.isDiscovered ?? false,
-        progressCurrent: existing.progressCurrent ?? 0,
-        isCompleted: existing.isCompleted ?? false,
-        isClaimed: existing.isClaimed ?? false,
+        isDiscovered,
+        progressCurrent,
+        isCompleted,
+        isClaimed,
         isForfeited: existing.isForfeited ?? false,
       };
     }
     return {
       ...master,
       isDiscovered: false,
+      progressCurrent: 0,
+      isCompleted: false,
+      isClaimed: false,
     };
   });
 
@@ -306,10 +316,124 @@ export function App() {
     []
   );
 
-  const handleSelectTabForTutorial = useCallback((tab: NavTab) => {
+  // Tab navigation history stack for back button support
+  const [tabHistory, setTabHistory] = useState<NavTab[]>([]);
+
+  const navigateToTab = useCallback((tab: NavTab, addToHistory = true) => {
     setShowRaidView(false);
-    setCurrentTab(tab);
+    setCurrentTab((prevTab) => {
+      if (addToHistory && prevTab !== tab) {
+        setTabHistory((prevHistory) => [...prevHistory, prevTab]);
+      }
+      return tab;
+    });
   }, []);
+
+  const handleSelectTabForTutorial = useCallback((tab: NavTab) => {
+    navigateToTab(tab);
+  }, [navigateToTab]);
+
+  // Intercept mobile hardware / browser back gesture and keyboard Escape
+  useEffect(() => {
+    // Keep a state entry active in history
+    window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+
+    const handlePopState = () => {
+      // 1. Try to let topmost modal/overlay consume the back action
+      const handled = triggerBackAction();
+      if (handled) {
+        window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+        return;
+      }
+
+      // 2. If in-game settings modal is open
+      if (showInGameSettings) {
+        setShowInGameSettings(false);
+        window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+        return;
+      }
+
+      // 3. If character creation modal is open
+      if (isCharacterCreationOpen) {
+        setIsCharacterCreationOpen(false);
+        window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+        return;
+      }
+
+      // 4. If Titan Raid View is open, close back to Haven
+      if (showRaidView) {
+        setShowRaidView(false);
+        setIsRaidBattleActive(false);
+        window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+        return;
+      }
+
+      // 5. If not on HAVEN, navigate to previous tab or back to HAVEN
+      if (currentTab !== 'HAVEN') {
+        setTabHistory((prevHistory) => {
+          if (prevHistory.length > 0) {
+            const nextHistory = [...prevHistory];
+            const prev = nextHistory.pop()!;
+            setCurrentTab(prev);
+            return nextHistory;
+          } else {
+            setCurrentTab('HAVEN');
+            return [];
+          }
+        });
+        window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+        return;
+      }
+
+      // 6. Already at Haven home screen, maintain history barrier
+      window.history.pushState({ app: 'maharlika_rpg' }, '', window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [showRaidView, currentTab, showInGameSettings, isCharacterCreationOpen]);
+
+  // Desktop Escape key listener for symmetry
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const handled = triggerBackAction();
+        if (handled) return;
+
+        if (showInGameSettings) {
+          setShowInGameSettings(false);
+          return;
+        }
+        if (isCharacterCreationOpen) {
+          setIsCharacterCreationOpen(false);
+          return;
+        }
+        if (showRaidView) {
+          setShowRaidView(false);
+          setIsRaidBattleActive(false);
+          return;
+        }
+        if (currentTab !== 'HAVEN') {
+          setTabHistory((prevHistory) => {
+            if (prevHistory.length > 0) {
+              const nextHistory = [...prevHistory];
+              const prev = nextHistory.pop()!;
+              setCurrentTab(prev);
+              return nextHistory;
+            } else {
+              setCurrentTab('HAVEN');
+              return [];
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showRaidView, currentTab, showInGameSettings, isCharacterCreationOpen]);
 
   // Persistent Announcement Ticker Active State (for dynamic viewport offset)
   const [isTickerActive, setIsTickerActive] = useState<boolean>(false);
@@ -581,6 +705,11 @@ export function App() {
     if (player.hasCreatedCharacter) {
       saveGameSlot(activeSlot, player);
     }
+    try {
+      sessionStorage.removeItem('maharlika_sector_intro_seen');
+    } catch {
+      // ignore
+    }
     setViewMode('TITLE');
   };
 
@@ -750,7 +879,7 @@ export function App() {
                 <HavenView
                   player={player}
                   onUpdatePlayer={setPlayer}
-                  onNavigateToWorld={() => setCurrentTab('WORLD')}
+                  onNavigateToWorld={() => navigateToTab('WORLD')}
                   onNavigateToTitanRaid={() => setShowRaidView(true)}
                   onShowToast={showToast}
                   activeDistrictOverride={townDistrictOverride}
@@ -758,25 +887,25 @@ export function App() {
                 />
               )}
 
-              {currentTab === 'WORLD' && (
+              <div className={currentTab === 'WORLD' ? 'contents' : 'hidden'}>
                 <WorldHuntView
                   player={player}
                   battle={battle}
                   onUpdatePlayer={setPlayer}
                   onUpdateBattle={setBattle}
-                  onNavigateToHaven={() => setCurrentTab('HAVEN')}
+                  onNavigateToHaven={() => navigateToTab('HAVEN')}
                   onMonsterKilled={handleMonsterKilled}
                   suppressActStory={showOnboardingTutorial}
                   onShowToast={showToast}
                   onLocationChange={setSelectedWorldLocationId}
                 />
-              )}
+              </div>
 
               {currentTab === 'INVENTORY' && (
                 <InventoryView
                   player={player}
                   onUpdatePlayer={setPlayer}
-                  onNavigateCodebreaker={() => setCurrentTab('WORLD')}
+                  onNavigateCodebreaker={() => navigateToTab('WORLD')}
                   onOpenSettings={() => setShowInGameSettings(true)}
                   onShowToast={showToast}
                 />
@@ -810,10 +939,7 @@ export function App() {
         {player.hasCreatedCharacter && !showOpeningStory && (
           <Navbar
             currentTab={currentTab}
-            onSelectTab={(tab) => {
-              setShowRaidView(false);
-              setCurrentTab(tab);
-            }}
+            onSelectTab={(tab) => navigateToTab(tab)}
             player={player}
             inCombat={battle.inCombat || isRaidBattleActive}
             isRaidBattle={isRaidBattleActive}

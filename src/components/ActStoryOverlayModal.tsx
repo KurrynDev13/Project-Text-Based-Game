@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getActStory } from '../data/actStoryData';
+import { registerBackHandler } from '../utils/navigationStack';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,13 @@ const ActStoryOverlayModal: React.FC<ActStoryOverlayModalProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { paused, reachedBottom } = useAutoScroll(scrollRef);
+
+  useEffect(() => {
+    return registerBackHandler(() => {
+      onClose();
+      return true;
+    });
+  }, [onClose]);
 
   const actRoman = getActRoman(actId);
   const fullEpicLore = getActStory(actId, actLore, isNgPlus);

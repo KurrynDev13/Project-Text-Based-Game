@@ -38,13 +38,23 @@ export interface TactileCombatStageRef {
 }
 
 export interface ArenaOutcome {
-  type: 'CHEST' | 'MERCHANT' | 'FLEE' | 'SHRINE' | 'CACHE' | 'TRAP';
+  type: 'CHEST' | 'MERCHANT' | 'FLEE' | 'SHRINE' | 'CACHE' | 'TRAP' | 'VICTORY';
   title: string;
   description: string;
   badge?: string;
   isPositive: boolean;
   costOrReward?: string;
   details?: string[];
+  enemyName?: string;
+  expReward?: number;
+  cowrieReward?: number;
+  bounties?: Array<{
+    id: string;
+    title: string;
+    currentCount: number;
+    targetCount: number;
+    isCompleted: boolean;
+  }>;
 }
 
 interface TactileCombatStageProps {
@@ -62,6 +72,7 @@ interface TactileCombatStageProps {
   fledStatusMessage?: string | null;
   arenaOutcome?: ArenaOutcome | null;
   questEncounter?: QuestEncounterData | null;
+  hasSeenSectorIntro?: boolean;
 }
 
 // Internal Particle & SlashArc classes for procedural Canvas VFX
@@ -167,6 +178,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
   fledStatusMessage = null,
   arenaOutcome = null,
   questEncounter = null,
+  hasSeenSectorIntro = false,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -729,19 +741,23 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
               </div>
             </div>
           ) : arenaOutcome ? (
-            /* Dedicated Arena Outcome Card (Chest Unsealed, Merchant Trade, Fled from Battle, Shrine) */
-            <div className="flex flex-col items-center animate-fade-in max-w-sm px-2">
+            /* Dedicated Arena Outcome Card (Victory, Chest Unsealed, Merchant Trade, Fled from Battle, Shrine) */
+            <div className="flex flex-col items-center animate-fade-in max-w-sm px-2 w-full">
               <div className="relative group max-w-[140px] sm:max-w-[160px] mb-2">
                 <div
                   className={`absolute -inset-1 rounded-2xl opacity-75 blur-md ${
-                    arenaOutcome.isPositive
+                    arenaOutcome.type === 'VICTORY'
+                      ? 'bg-gradient-to-br from-amber-400 via-yellow-500 to-emerald-500'
+                      : arenaOutcome.isPositive
                       ? 'bg-gradient-to-br from-emerald-500 to-amber-500'
                       : 'bg-gradient-to-br from-amber-600 to-red-600'
                   }`}
                 />
                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-950 flex flex-col items-center justify-center p-2 text-center">
-                  <span className="text-3xl sm:text-4xl drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]">
-                    {arenaOutcome.type === 'FLEE'
+                  <span className={`text-3xl sm:text-4xl drop-shadow-[0_0_12px_rgba(245,158,11,0.5)] ${arenaOutcome.type === 'VICTORY' ? 'animate-bounce' : ''}`}>
+                    {arenaOutcome.type === 'VICTORY'
+                      ? '🎉'
+                      : arenaOutcome.type === 'FLEE'
                       ? '🏃'
                       : arenaOutcome.type === 'CHEST'
                       ? arenaOutcome.isPositive ? '✨' : '☠️'
@@ -757,29 +773,60 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 </div>
               </div>
 
-              <div className="bg-zinc-950/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-amber-900/80 shadow-2xl max-w-[280px] sm:max-w-sm text-center space-y-1">
-                <h3 className="text-xs sm:text-sm font-cinzel font-bold text-amber-200">
+              <div className="bg-zinc-950/95 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-amber-500/70 shadow-2xl max-w-[320px] sm:max-w-sm w-full text-center space-y-1.5">
+                <h3 className="text-xs sm:text-base font-cinzel font-bold text-amber-200">
                   {arenaOutcome.title}
                 </h3>
-                <p className="text-[9.5px] font-mono text-zinc-300 leading-snug">
-                  {arenaOutcome.description}
-                </p>
-                {arenaOutcome.costOrReward && (
+                {arenaOutcome.type === 'VICTORY' && arenaOutcome.enemyName ? (
+                  <p className="text-[11px] font-mono text-zinc-300 leading-snug">
+                    Defeated <strong className="text-amber-300">{arenaOutcome.enemyName}</strong>!
+                  </p>
+                ) : (
+                  <p className="text-[9.5px] font-mono text-zinc-300 leading-snug">
+                    {arenaOutcome.description}
+                  </p>
+                )}
+                {arenaOutcome.type === 'VICTORY' && arenaOutcome.expReward !== undefined && arenaOutcome.cowrieReward !== undefined ? (
+                  <p className="text-[10px] font-mono text-zinc-300">
+                    Earned <strong className="text-emerald-400">+{arenaOutcome.expReward} EXP</strong> and <strong className="text-yellow-400">+{arenaOutcome.cowrieReward} Cowrie Shells</strong>.
+                  </p>
+                ) : arenaOutcome.costOrReward ? (
                   <div className="text-[10px] font-mono font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-600/40 inline-block mt-0.5">
                     {arenaOutcome.costOrReward}
                   </div>
+                ) : null}
+
+                {/* Live Active Contract Progress Badges (for Victory) */}
+                {arenaOutcome.bounties && arenaOutcome.bounties.length > 0 && (
+                  <div className="space-y-1 pt-0.5 w-full">
+                    {arenaOutcome.bounties.map((b) => (
+                      <div
+                        key={b.id}
+                        className="bg-purple-950/80 border border-purple-500/60 px-2.5 py-1 rounded-lg text-[9.5px] font-mono text-purple-200 flex justify-between items-center w-full shadow-sm"
+                      >
+                        <span className="truncate pr-1 text-left">🎯 Contract: <strong>{b.title}</strong></span>
+                        <span className={`font-bold shrink-0 ${b.isCompleted ? 'text-emerald-400' : 'text-amber-300'}`}>
+                          {b.isCompleted ? '✅ DONE!' : `${b.currentCount} / ${b.targetCount}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
+
+                {/* Loot Details (Mutya Shards, Legendary Gear, Memories, Level Up) */}
                 {arenaOutcome.details && arenaOutcome.details.length > 0 && (
                   <div className="space-y-0.5 pt-0.5">
                     {arenaOutcome.details.map((detail, idx) => (
-                      <div key={idx} className="text-[9px] font-mono text-emerald-400">
+                      <div key={idx} className="text-[9.5px] font-mono text-emerald-400 font-medium">
                         {detail}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="text-[8.5px] font-mono text-zinc-400 pt-1 border-t border-zinc-800/80">
-                  ⚡ Choose [Venture Forward] or [Search Area] below to scout next
+
+                <div className="text-[8.5px] font-mono text-zinc-400 pt-1.5 border-t border-zinc-800/80 flex items-center justify-center gap-1">
+                  <span>⚡</span>
+                  <span>Choose <strong>[Venture Forward]</strong> or <strong>[Search Area]</strong> below</span>
                 </div>
               </div>
             </div>
@@ -801,6 +848,10 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 <div className="text-[9.5px] font-mono text-amber-300 bg-amber-950/80 px-3.5 py-1 rounded-full border border-amber-500/70 shadow-lg mt-1 flex items-center justify-center gap-1.5 animate-pulse">
                   <span>🏃</span>
                   <span>{fledStatusMessage}</span>
+                </div>
+              ) : hasSeenSectorIntro ? (
+                <div className="text-[9px] font-mono text-amber-300/90 bg-black/60 px-3 py-1 rounded-full border border-amber-900/40 mt-1">
+                  Sector scouted. Choose [Venture Forward] or [Search Area] to advance.
                 </div>
               ) : (
                 <div className="text-[9px] font-mono text-zinc-300 bg-black/60 px-3 py-1 rounded-full border border-amber-900/40 mt-1">
