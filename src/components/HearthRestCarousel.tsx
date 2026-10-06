@@ -22,6 +22,7 @@ interface HearthRestCarouselProps {
   onRest: (option: RestOption) => void;
   playerLevel: number;
   playerCowries: number;
+  isFullyRested?: boolean;
 }
 
 export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
@@ -31,6 +32,7 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
   onRest,
   playerLevel,
   playerCowries,
+  isFullyRested = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
@@ -233,14 +235,14 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (isActive && isUnlocked && canAfford) {
+                      if (isActive && isUnlocked && canAfford && !isFullyRested) {
                         onRest(option);
                       } else if (!isActive) {
                         soundFX.playClick();
                         onChangeIndex(index);
                       }
                     }}
-                    disabled={isActive && (!isUnlocked || !canAfford)}
+                    disabled={isActive && (!isUnlocked || !canAfford || isFullyRested)}
                     className={`w-full py-1.5 sm:py-2.5 rounded-xl font-mono font-bold text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-lg min-h-[38px] sm:min-h-[44px] flex items-center justify-center ${
                       !isActive
                         ? 'bg-zinc-850 hover:bg-zinc-800 text-zinc-300 border border-zinc-700'
@@ -248,6 +250,8 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
                         ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed'
                         : !canAfford
                         ? 'bg-zinc-900 text-red-400 border border-red-900/50 cursor-not-allowed'
+                        : isFullyRested
+                        ? 'bg-zinc-900/90 text-zinc-500 border border-zinc-800 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-zinc-950 shadow-amber-950/60 active:scale-95'
                     }`}
                   >
@@ -257,6 +261,8 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
                       ? `Locked (Lv. ${option.minLevel})`
                       : !canAfford
                       ? 'Insufficient Tribute'
+                      : isFullyRested
+                      ? '✨ Fully Rested (HP/MP/ST Max)'
                       : `Rest at Hearth (${price.formatted})`}
                   </button>
                 </div>

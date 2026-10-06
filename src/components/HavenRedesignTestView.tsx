@@ -187,6 +187,7 @@ export const HavenRedesignTestView: React.FC<HavenRedesignTestViewProps> = ({
   const totalCowries = totalCowriesFromWallet(player.wallet);
   const maxStam = calcMaxStamina(player.level);
   const currentStam = player.stamina ?? maxStam;
+  const isFullyRested = player.currentHp >= derived.maxHp && player.currentMp >= derived.maxMp && currentStam >= maxStam;
 
   const walletBadge = formatPreColonialCurrencyBadge(totalCowries);
 
@@ -200,6 +201,10 @@ export const HavenRedesignTestView: React.FC<HavenRedesignTestViewProps> = ({
 
   // ─── TAVERN REST HANDLER ────────────────────────────────────────────────────
   const handleRest = (opt: RestOption) => {
+    if (isFullyRested) {
+      notify('✨ You are already fully rested! (HP, MP, and Stamina are at maximum).', 'info', '✨');
+      return;
+    }
     if (totalCowries < opt.costInCC) {
       const price = formatPreColonialCurrencyBadge(opt.costInCC);
       notify(`❌ Not enough funds! Requires ${price.formatted}.`, 'error', '💰');
@@ -587,6 +592,7 @@ export const HavenRedesignTestView: React.FC<HavenRedesignTestViewProps> = ({
                 onRest={handleRest}
                 playerLevel={player.level}
                 playerCowries={totalCowries}
+                isFullyRested={isFullyRested}
               />
             </div>
 

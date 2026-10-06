@@ -104,3 +104,32 @@ export function getQuestGiverImageUrl(giverNameOrId?: string): string {
   return formatAssetUrl('assets/heroes/hero_babaylan.jpg');
 }
 
+export function getAmbientImageUrl(eventType: string, locationId?: string): string {
+  const norm = eventType.toLowerCase();
+  const loc = (locationId || '').toLowerCase();
+
+  if (norm.includes('balete') || norm.includes('whisper')) {
+    return formatAssetUrl('assets/ambient/ambient_balete_whispers.jpg');
+  }
+  if (norm.includes('volcanic') || norm.includes('ash')) {
+    return formatAssetUrl('assets/ambient/ambient_volcanic_ash.jpg');
+  }
+  if (norm.includes('war') || norm.includes('drum')) {
+    return formatAssetUrl('assets/ambient/ambient_war_drums.jpg');
+  }
+  if (norm.includes('eagle')) {
+    if (loc.includes('act_2')) return formatAssetUrl('assets/ambient/ambient_eagle_lagoon.jpg');
+    if (loc.includes('act_3')) return formatAssetUrl('assets/ambient/ambient_eagle_caves.jpg');
+    if (loc.includes('act_4')) return formatAssetUrl('assets/ambient/ambient_eagle_caldera.jpg');
+    if (loc.includes('act_5')) return formatAssetUrl('assets/ambient/ambient_eagle_blood_coast.jpg');
+    if (loc.includes('act_6')) return formatAssetUrl('assets/ambient/ambient_eagle_trench.jpg');
+    if (loc.includes('act_7')) return formatAssetUrl('assets/ambient/ambient_eagle_sky_citadel.jpg');
+    if (loc.includes('act_8') || loc.includes('infinite') || loc.includes('bathala')) {
+      return formatAssetUrl('assets/ambient/ambient_eagle_eclipse.jpg');
+    }
+    // Default Act 1
+    return formatAssetUrl('assets/ambient/ambient_eagle_balete.jpg');
+  }
+  return formatAssetUrl('assets/ambient/ambient_eagle_balete.jpg');
+}
+

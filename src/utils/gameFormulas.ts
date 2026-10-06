@@ -823,6 +823,14 @@ export function calculateStatDrivenDoTDamage(
       return Math.max(3, Math.floor((weaponRoll * 0.3) + (derivedBonus * 0.25) + (playerLevel * 4)));
   }
 }
-
-
-
+/**
+ * Calculates passive stamina regeneration per 5-second tick while resting inside Haven/Sanctuary.
+ * Scales with character level and Vitality (Tibay):
+ * - Level 1: 1 ST / 5s
+ * - Level 50: at least 6 ST / 5s (with base vit 10 gives 6 ST / 5s, higher with extra VIT points)
+ */
+export function calcHavenStaminaRegenRate(playerLevel: number, vit: number = 10): number {
+  const levelScaling = (Math.max(1, playerLevel) - 1) * (5 / 49);
+  const vitBonus = Math.max(0, (vit - 10) * 0.03);
+  return Math.max(1, Math.round(1 + levelScaling + vitBonus));
+}

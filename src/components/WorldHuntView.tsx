@@ -13,7 +13,8 @@ import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
 import ForgePurchaseModal from './ForgePurchaseModal';
 import { broadcastSystemAnnouncement } from '../utils/supabase';
-import { TactileCombatStage, TactileCombatStageRef, ArenaOutcome, QuestEncounterData } from './TactileCombatStage';
+import { TactileCombatStage, TactileCombatStageRef, ArenaOutcome, QuestEncounterData, AmbientEncounterData } from './TactileCombatStage';
+import { getAmbientImageUrl } from '../utils/assetHelper';
 import { WorldHuntTutorialModal } from './WorldHuntTutorialModal';
 
 export interface InteractiveEncounter {
@@ -146,6 +147,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       setExplorationEvent(null);
       setActiveInteractiveEncounter(null);
       setActiveQuestEncounter(null);
+      setActiveAmbientEncounter(null);
     }
   }, [selectedLocation.id, onLocationChange]);
   const [showSpellPicker, setShowSpellPicker] = useState(false);
@@ -161,6 +163,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [showAdvanceWarningModal, setShowAdvanceWarningModal] = useState(false);
   const [explorationEvent, setExplorationEvent] = useState<string | null>(null);
   const [activeInteractiveEncounter, setActiveInteractiveEncounter] = useState<InteractiveEncounter | null>(null);
+  const [activeAmbientEncounter, setActiveAmbientEncounter] = useState<AmbientEncounterData | null>(null);
   const [showTraderInspectModal, setShowTraderInspectModal] = useState<boolean>(false);
   const [activeQuestEncounter, setActiveQuestEncounter] = useState<QuestEncounterData | null>(null);
   const [activeBossVictoryReward, setActiveBossVictoryReward] = useState<BossVictoryRewardData | null>(null);
@@ -177,6 +180,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   });
   const stageRef = useRef<TactileCombatStageRef>(null);
+  const battleRef = useRef<BattleState>(battle);
+  useEffect(() => {
+    battleRef.current = battle;
+  }, [battle]);
+
+  const updateBattleState = (updated: BattleState) => {
+    battleRef.current = updated;
+    onUpdateBattle(updated);
+  };
 
   // Reset busy state when exiting combat
   useEffect(() => {
@@ -219,6 +231,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
     setActiveInteractiveEncounter(null);
     setExplorationEvent(null);
+    setActiveAmbientEncounter(null);
     setArenaOutcome({
       type: 'MERCHANT',
       title: 'Wandering Caravan Trade',
@@ -288,6 +301,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       setActiveInteractiveEncounter(null);
       setExplorationEvent(null);
+      setActiveAmbientEncounter(null);
       setArenaOutcome({
         type: 'CHEST',
         title: 'Blessed Spirit Unsealed!',
@@ -336,6 +350,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       setActiveInteractiveEncounter(null);
       setExplorationEvent(null);
+      setActiveAmbientEncounter(null);
       setArenaOutcome({
         type: 'CHEST',
         title: 'Cursed Spirit Backfire!',
@@ -362,6 +377,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     });
     setActiveInteractiveEncounter(null);
     setExplorationEvent(null);
+    setActiveAmbientEncounter(null);
     setArenaOutcome({
       type: isTrader ? 'MERCHANT' : 'CHEST',
       title: isTrader ? 'Caravan Left Behind' : 'Spirit Chest Left Untouched',
@@ -481,6 +497,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (activeInteractiveEncounter) {
       setActiveInteractiveEncounter(null);
     }
+    setActiveAmbientEncounter(null);
 
     const targetLocIndex = GAME_LOCATIONS.findIndex((l) => l.id === loc.id);
     const currentLocIndex = GAME_LOCATIONS.findIndex((l) => l.id === selectedLocation.id);
@@ -617,6 +634,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     );
 
     setExplorationEvent(`⚔️ CLIMAX GUARDIAN BATTLE! Challenging ${boss.name} (${boss.title})!`);
+    setActiveAmbientEncounter(null);
     soundFX.playCritSound();
 
     onUpdatePlayer({
@@ -644,6 +662,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         },
       ],
       winner: null,
+      fleeAttempts: 0,
       skillCooldowns: {},
     });
 
@@ -711,6 +730,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     setFledStatusMessage(null);
     setArenaOutcome(null);
     setActiveQuestEncounter(null);
+    setActiveAmbientEncounter(null);
     const newStamina = currentStamina - ventureCost;
 
     // Helper to push persistent narrative feed log entries
@@ -824,6 +844,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         survivalKillStreak: curStreak,
         survivalBossThreshold: bossThreshold,
         survivalWaveTier: waveTier,
+        fleeAttempts: 0,
         skillCooldowns: {},
       });
     } else if (roll < 0.85) {
@@ -945,19 +966,51 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     } else {
       // Ambient Folklore Event
       const ambientEvents = [
-        `🎋 ANCESTRAL BALETE WHISPER: Ancient voices hum softly in the balete vines, sharing forgotten proverbs of old Luzon.`,
-        `🌋 VOLCANIC ASH DRIFT: Gray ash from Mount Kanlaon drifts through the trees like soft winter snow.`,
-        `🦅 EAGLE EYE SIGHTING: A majestic Philippine Eagle circles high above the canopy, marking prey below.`,
-        `🥁 ANCESTRAL WAR DRUMS: Distant drumbeats echo beyond the mountain ridge, signaling chieftain movements.`,
+        {
+          type: 'BALETE_WHISPER' as const,
+          icon: '🎋',
+          title: 'ANCESTRAL BALETE WHISPER',
+          description: 'Ancient voices hum softly in the balete vines, sharing forgotten proverbs of old Luzon.',
+        },
+        {
+          type: 'VOLCANIC_ASH' as const,
+          icon: '🌋',
+          title: 'VOLCANIC ASH DRIFT',
+          description: 'Gray ash from Mount Kanlaon drifts through the trees like soft winter snow.',
+        },
+        {
+          type: 'EAGLE_EYE' as const,
+          icon: '🦅',
+          title: 'EAGLE EYE SIGHTING',
+          description: 'A majestic Philippine Eagle circles high above the canopy, marking prey below.',
+        },
+        {
+          type: 'WAR_DRUMS' as const,
+          icon: '🥁',
+          title: 'ANCESTRAL WAR DRUMS',
+          description: 'Distant drumbeats echo beyond the mountain ridge, signaling chieftain movements.',
+        },
       ];
-      const selectedEvent = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
+      const picked = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
+      const logText = `${picked.icon} ${picked.title}: ${picked.description}`;
+      const ambientData: AmbientEncounterData = {
+        id: `ambient_${Date.now()}`,
+        type: picked.type,
+        icon: picked.icon,
+        title: picked.title,
+        description: picked.description,
+        imageUrl: getAmbientImageUrl(picked.type, selectedLocation.id),
+      };
+
       soundFX.playPotionSound();
       setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
+      setActiveAmbientEncounter(ambientData);
 
       onUpdatePlayer({
         ...player,
         stamina: newStamina,
-        narratorLogs: addNarratorLog(selectedEvent),
+        narratorLogs: addNarratorLog(logText),
       });
     }
   };
@@ -984,6 +1037,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     setFledStatusMessage(null);
     setArenaOutcome(null);
     setActiveQuestEncounter(null);
+    setActiveAmbientEncounter(null);
     const newStamina = currentStamina - searchCost;
 
     const addNarratorLog = (logText: string): string[] => {
@@ -1098,6 +1152,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           },
         ],
         winner: null,
+        fleeAttempts: 0,
         skillCooldowns: {},
       });
       return;
@@ -1570,7 +1625,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const handleFlee = () => {
     if (!battle.inCombat || isCombatBusy) return;
 
-    const attempts = battle.fleeAttempts ?? 0;
+    const attempts = battleRef.current.fleeAttempts ?? battle.fleeAttempts ?? 0;
     if (attempts >= 2) {
       notify('❌ Escape Route Completely Blocked! Flee is disabled for the remainder of this battle.', 'warning', '🔒');
       return;
@@ -1600,7 +1655,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         narratorLogs: [`🏃 You gathered your remaining strength, scrambled on the ground, and successfully fled from ${enemyName}!`, ...(player.narratorLogs || []).slice(0, 14)],
       });
 
-      onUpdateBattle({
+      updateBattleState({
         inCombat: false,
         turnNumber: 0,
         playerActionGauge: 100,
@@ -1626,10 +1681,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       const enemy = { ...battle.enemy! };
-      onUpdateBattle({ ...battle, logs, fleeAttempts: nextAttempts });
+      updateBattleState({ ...battleRef.current, logs, fleeAttempts: nextAttempts });
 
       setTimeout(() => {
-        executeEnemyTurnAnimated(enemy, logs);
+        executeEnemyTurnAnimated(enemy, logs, undefined, undefined, { fleeAttempts: nextAttempts });
       }, 650);
     }
   };
@@ -1639,7 +1694,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     enemy: EnemyMonster,
     currentLogs: BattleLogEntry[],
     activePlayerState?: PlayerCharacter,
-    activeSkillCooldowns?: Record<string, number>
+    activeSkillCooldowns?: Record<string, number>,
+    battleOverrides?: Partial<BattleState>
   ) => {
     const p = activePlayerState || player;
     let logs = currentLogs;
@@ -1765,7 +1821,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         }
 
         onUpdatePlayer(updatedPlayerAfterDodge);
-        onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false, skillCooldowns: decrementedCooldowns });
+        const baseBattle = { ...battleRef.current, ...battleOverrides };
+        updateBattleState({
+          ...baseBattle,
+          turnNumber: (baseBattle.turnNumber || battle.turnNumber) + 1,
+          enemy,
+          logs,
+          guardedLastTurn: false,
+          skillCooldowns: decrementedCooldowns,
+        });
         setTimeout(() => {
           setIsCombatBusy(false);
         }, 550);
@@ -1807,7 +1871,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           }
 
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-          onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false, skillCooldowns: decrementedCooldowns });
+          const baseBattle = { ...battleRef.current, ...battleOverrides };
+          updateBattleState({
+            ...baseBattle,
+            turnNumber: (baseBattle.turnNumber || battle.turnNumber) + 1,
+            enemy,
+            logs,
+            guardedLastTurn: false,
+            skillCooldowns: decrementedCooldowns,
+          });
           setTimeout(() => {
             setIsCombatBusy(false);
           }, 600);
@@ -1923,9 +1995,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         isCoveredNextTurn: false,
       });
 
-      onUpdateBattle({
-        ...battle,
-        turnNumber: battle.turnNumber + 1,
+      const baseBattle = { ...battleRef.current, ...battleOverrides };
+      updateBattleState({
+        ...baseBattle,
+        turnNumber: (baseBattle.turnNumber || battle.turnNumber) + 1,
         enemy,
         logs,
         guardedLastTurn: false,
@@ -2485,6 +2558,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           locationSubtitle={selectedLocation.subtitle}
           activeEncounter={activeInteractiveEncounter}
           explorationEvent={explorationEvent}
+          ambientEncounter={activeAmbientEncounter}
           heroAnimClass={heroAnim}
           monsterAnimClass={monsterAnim}
           isGuarding={Boolean(battle.guardedLastTurn)}
@@ -2662,7 +2736,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
             {/* Col 3: Flee (spans 2 rows) */}
             {(() => {
-              const attempts = battle.fleeAttempts ?? 0;
+              const attempts = battleRef.current.fleeAttempts ?? battle.fleeAttempts ?? 0;
               const isExhausted = attempts >= 2;
               return (
                 <button

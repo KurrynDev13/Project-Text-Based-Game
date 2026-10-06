@@ -16,6 +16,7 @@ import {
 import {
   calcDerivedStats,
   calcMaxStamina,
+  calcHavenStaminaRegenRate,
   totalCowriesFromWallet,
   cowriesToWallet,
   calcItemPowerRating,
@@ -292,6 +293,34 @@ export const HavenView: React.FC<HavenViewProps> = ({
   const totalCowries = totalCowriesFromWallet(player.wallet);
   const maxStam = calcMaxStamina(player.level);
   const currentStam = player.stamina ?? maxStam;
+  const isFullyRested = player.currentHp >= derived.maxHp && player.currentMp >= derived.maxMp && currentStam >= maxStam;
+
+  // Keep a ref of player and onUpdatePlayer to allow passive stamina regeneration without stale closures
+  const playerRef = useRef(player);
+  playerRef.current = player;
+  const onUpdatePlayerRef = useRef(onUpdatePlayer);
+  onUpdatePlayerRef.current = onUpdatePlayer;
+
+  // Passive Stamina Regeneration while in Haven (Sanctuary Citadel Safe Zone)
+  // 1 ST / 5sec at Level 1, scaling up to at least 6 ST / 5sec at Level 50 (+ extra VIT scaling)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const p = playerRef.current;
+      const currentMaxStamina = calcMaxStamina(p.level);
+      const curStam = p.stamina ?? currentMaxStamina;
+
+      if (curStam < currentMaxStamina) {
+        const regenRate = calcHavenStaminaRegenRate(p.level, p.attributes?.vit ?? 10);
+        const nextStamina = Math.min(currentMaxStamina, curStam + regenRate);
+        onUpdatePlayerRef.current({
+          ...p,
+          stamina: nextStamina,
+        });
+      }
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const currentActId = player.currentLocationId || 'loc_act_1';
   const actMatch = currentActId.match(/\d+/);
@@ -303,6 +332,10 @@ export const HavenView: React.FC<HavenViewProps> = ({
 
   // ─── TAVERN REST HANDLER ────────────────────────────────────────────────────
   const handleRest = (opt: RestOption) => {
+    if (isFullyRested) {
+      notify('✨ You are already fully rested! (HP, MP, and Stamina are at maximum).', 'info', '✨');
+      return;
+    }
     if (totalCowries < opt.costInCC) {
       const price = formatPreColonialCurrencyBadge(opt.costInCC);
       notify(`❌ Not enough funds! Requires ${price.formatted}.`, 'error', '💰');
@@ -801,6 +834,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
                   onRest={handleRest}
                   playerLevel={player.level}
                   playerCowries={totalCowries}
+                  isFullyRested={isFullyRested}
                 />
               </div>
 

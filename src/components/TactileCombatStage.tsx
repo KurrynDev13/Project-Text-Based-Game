@@ -57,6 +57,15 @@ export interface ArenaOutcome {
   }>;
 }
 
+export interface AmbientEncounterData {
+  id: string;
+  type: 'EAGLE_EYE' | 'BALETE_WHISPER' | 'VOLCANIC_ASH' | 'WAR_DRUMS';
+  icon: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+}
+
 interface TactileCombatStageProps {
   inCombat: boolean;
   player: PlayerCharacter;
@@ -66,6 +75,7 @@ interface TactileCombatStageProps {
   locationSubtitle?: string;
   activeEncounter?: InteractiveEncounter | null;
   explorationEvent?: string | null;
+  ambientEncounter?: AmbientEncounterData | null;
   heroAnimClass?: string;
   monsterAnimClass?: string;
   isGuarding?: boolean;
@@ -172,6 +182,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
   locationSubtitle,
   activeEncounter,
   explorationEvent,
+  ambientEncounter = null,
   heroAnimClass = '',
   monsterAnimClass = '',
   isGuarding = false,
@@ -203,6 +214,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
 
   // Background artwork
   const bgUrl = getLocationBgUrl(locationId);
+  const currentBgUrl = ambientEncounter ? ambientEncounter.imageUrl : bgUrl;
 
   // Imperative API for Parent
   useImperativeHandle(ref, () => ({
@@ -384,16 +396,28 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
         isRumbling ? 'anim-rumble' : ''
       }`}
     >
-      {/* Background Environment Image */}
+      {/* Background Environment Image (Expands to Arena Background) */}
       <img
-        src={bgUrl}
-        alt="Arena Background"
-        className="absolute inset-0 w-full h-full object-cover object-center filter brightness-40 contrast-125 transition-all duration-700 pointer-events-none"
+        src={currentBgUrl}
+        alt={ambientEncounter ? ambientEncounter.title : "Arena Background"}
+        className={`absolute inset-0 w-full h-full object-cover object-center transition-all duration-700 pointer-events-none ${
+          ambientEncounter
+            ? 'filter brightness-90 contrast-110 scale-100 animate-fade-in'
+            : 'filter brightness-40 contrast-125'
+        }`}
       />
 
       {/* Atmospheric Radial Gradients */}
-      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/75 pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/40 to-black/90 pointer-events-none" />
+      <div className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
+        ambientEncounter
+          ? 'bg-gradient-to-t from-black/95 via-black/20 to-transparent'
+          : 'bg-gradient-to-t from-zinc-950 via-transparent to-black/75'
+      }`} />
+      <div className={`absolute inset-0 pointer-events-none ${
+        ambientEncounter
+          ? 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-transparent via-transparent to-black/60'
+          : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/40 to-black/90'
+      }`} />
 
       {/* Procedural Canvas VFX Layer */}
       <canvas
@@ -665,6 +689,45 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                 <p className="text-[9px] font-mono text-zinc-300 mt-0.5 line-clamp-2">
                   {activeEncounter.description}
                 </p>
+              </div>
+            </div>
+          ) : ambientEncounter ? (
+            /* Dedicated Ambient Folklore Encounter View (Strictly pinned to bottom so eagle/upper scene is 100% visible) */
+              <div className= "absolute inset-x-0 top-42 sm:bottom-3 z-30 flex justify-center px-2 pointer-events-auto animate-fade-in bg-black/0" >
+              <div
+                onClick={() => setPreviewData({
+                  src: ambientEncounter.imageUrl,
+                  title: `${ambientEncounter.icon} ${ambientEncounter.title}`,
+                  subtitle: ambientEncounter.description,
+                  badge: 'AMBIENT FOLKLORE DISCOVERY',
+                  theme: 'EVENT',
+                })}
+                className="bg-zinc-950/90 hover:bg-zinc-900/95 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-amber-500/80 shadow-[0_4px_24px_rgba(0,0,0,0.85)] max-w-[340px] sm:max-w-md w-full text-center space-y-1 cursor-pointer hover:border-amber-400 hover:scale-[1.01] active:scale-[0.99] transition-all group"
+              >
+                <div className="flex items-center justify-between border-b border-amber-900/60 pb-1">
+                  <span className="text-[8px] sm:text-[8.5px] font-mono font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <span>{ambientEncounter.icon}</span>
+                    <span>AMBIENT FOLKLORE DISCOVERY</span>
+                  </span>
+                  <span className="text-[7.5px] sm:text-[8px] font-mono text-zinc-400 group-hover:text-amber-300 transition-colors flex items-center gap-1">
+                    <span>⛶</span>
+                    <span>Expand</span>
+                  </span>
+                </div>
+
+                <div className="space-y-0.5">
+                  <h3 className="text-xs sm:text-sm font-cinzel font-bold text-amber-200 tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                    {ambientEncounter.title}
+                  </h3>
+                  <p className="text-[9.5px] sm:text-[10px] font-mono text-amber-100/90 leading-snug italic px-1 drop-shadow">
+                    "{ambientEncounter.description}"
+                  </p>
+                </div>
+
+                <div className="pt-1 border-t border-zinc-800/80 flex items-center justify-center gap-1.5 text-[8px] sm:text-[8.5px] font-mono text-amber-300/80">
+                  <span>🧭</span>
+                  <span>Choose <strong>[Venture Forward]</strong> or <strong>[Search Area]</strong> to advance</span>
+                </div>
               </div>
             </div>
           ) : explorationEvent ? (
