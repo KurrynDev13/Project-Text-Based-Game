@@ -11,8 +11,9 @@ import { bgmManager } from '../utils/musicManager';
 import ActStoryOverlayModal from './ActStoryOverlayModal';
 import BossDiscoveryModal from './BossDiscoveryModal';
 import BossVictoryModal from './BossVictoryModal';
+import ForgePurchaseModal from './ForgePurchaseModal';
 import { broadcastSystemAnnouncement } from '../utils/supabase';
-import { TactileCombatStage, TactileCombatStageRef, ArenaOutcome } from './TactileCombatStage';
+import { TactileCombatStage, TactileCombatStageRef, ArenaOutcome, QuestEncounterData } from './TactileCombatStage';
 import { WorldHuntTutorialModal } from './WorldHuntTutorialModal';
 
 export interface InteractiveEncounter {
@@ -136,6 +137,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const [showAdvanceWarningModal, setShowAdvanceWarningModal] = useState(false);
   const [explorationEvent, setExplorationEvent] = useState<string | null>(null);
   const [activeInteractiveEncounter, setActiveInteractiveEncounter] = useState<InteractiveEncounter | null>(null);
+  const [showTraderInspectModal, setShowTraderInspectModal] = useState<boolean>(false);
+  const [activeQuestEncounter, setActiveQuestEncounter] = useState<QuestEncounterData | null>(null);
   const [activeBossVictoryReward, setActiveBossVictoryReward] = useState<BossVictoryRewardData | null>(null);
   const [isCombatBusy, setIsCombatBusy] = useState<boolean>(false);
   const [heroAnim, setHeroAnim] = useState<string>('');
@@ -416,7 +419,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const isNgPlus = (player.ngPlusLevel || 0) > 0;
   const startLvl = player.ngPlusStartLevel || player.level;
   const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
-  const isBossQualified = isBossDefeated || derived.powerLevel >= bossPowerReq;
+  const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
+  // In NG0: Strict Climax Level requirement (must reach Climax Level and 65% frozen exp threshold)
+  // In NG+: Power Rating requirement applies alongside NG+ start level
+  const isLevelQualified = player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
+  const isBossQualified = isBossDefeated || (isNgPlus ? derived.powerLevel >= bossPowerReq : isLevelQualified);
   const isBossLevelLocked = !isBossQualified;
 
   const addLog = (
@@ -613,6 +620,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         },
       ],
       winner: null,
+      skillCooldowns: {},
     });
 
     setShowBossWarningModal(false);
@@ -635,7 +643,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     if (isBossLevelLocked) {
-      notify(`🔒 An overwhelming primordial spirit barrier shrouds the inner sanctum. Titan Power Rating ${bossPowerReq} is required to awaken the Guardian of ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🌑');
+      if (isNgPlus) {
+        notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} is required to awaken the Guardian of ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🌑');
+      } else {
+        notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to awaken the Guardian of ${selectedLocation.name}. (Recommended Power: ${bossPowerReq}, Your Power: ${derived.powerLevel})`, 'warning', '🌑');
+      }
       return;
     }
 
@@ -673,6 +685,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     soundFX.playAttackSound();
     setFledStatusMessage(null);
     setArenaOutcome(null);
+    setActiveQuestEncounter(null);
     const newStamina = currentStamina - ventureCost;
 
     // Helper to push persistent narrative feed log entries
@@ -695,6 +708,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       const logText = `📜 RARE ENCOUNTER: Met ${quest.giver} in ${selectedLocation.name}! Discovered Side Quest: [${quest.title}]! Objective: ${quest.objectiveText} (${quest.progressRequired} needed).`;
       soundFX.playLevelUpSound();
+
+      setActiveQuestEncounter({
+        giver: quest.giver,
+        title: quest.title,
+        objectiveText: quest.objectiveText,
+        progressRequired: quest.progressRequired,
+      });
+      setExplorationEvent(null);
+      setActiveInteractiveEncounter(null);
 
       onUpdatePlayer({
         ...player,
@@ -777,6 +799,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         survivalKillStreak: curStreak,
         survivalBossThreshold: bossThreshold,
         survivalWaveTier: waveTier,
+        skillCooldowns: {},
       });
     } else if (roll < 0.85) {
       // 35% Chance to trigger an Interactive Sector Encounter (Wandering Trader or Cursed Spirit Chest)
@@ -934,6 +957,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     setFledStatusMessage(null);
     setArenaOutcome(null);
+    setActiveQuestEncounter(null);
     const newStamina = currentStamina - searchCost;
 
     const addNarratorLog = (logText: string): string[] => {
@@ -1048,6 +1072,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           },
         ],
         winner: null,
+        skillCooldowns: {},
       });
       return;
     }
@@ -1252,6 +1277,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const handleExecuteSkill = (skill: Skill) => {
     if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
+    const remainingCd = battle.skillCooldowns?.[skill.id] || 0;
+    if (remainingCd > 0) {
+      notify(`⏳ ${skill.name} is on cooldown! Available in ${remainingCd} turn${remainingCd > 1 ? 's' : ''}.`, 'warning', '⏳');
+      return;
+    }
+
     if (player.currentMp < skill.mpCost) {
       notify(`Not enough MP to execute ${skill.name}! Costs ${skill.mpCost} MP.`, 'warning', '⚡');
       return;
@@ -1261,6 +1292,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     setShowSpellPicker(false);
     let logs = battle.logs;
     const enemy = { ...battle.enemy };
+
+    // Record new cooldown for this skill
+    const nextSkillCooldowns = { ...(battle.skillCooldowns || {}) };
+    if (skill.cooldownTurns && skill.cooldownTurns > 0) {
+      nextSkillCooldowns[skill.id] = skill.cooldownTurns;
+    }
 
     let updatedPlayer = { ...player, currentMp: player.currentMp - skill.mpCost };
 
@@ -1282,10 +1319,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       onUpdatePlayer(updatedPlayer);
-      onUpdateBattle({ ...battle, logs });
+      onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
 
       setTimeout(() => {
-        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
       }, 650);
       return;
     }
@@ -1390,7 +1427,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         enemy.currentHp = 0;
         setMonsterAnim('anim-faint');
         stageRef.current?.triggerFireBurst('MONSTER');
-        onUpdateBattle({ ...battle, enemy, logs });
+        onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
         setTimeout(() => {
           handleVictory(enemy, logs);
           setIsCombatBusy(false);
@@ -1398,9 +1435,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         return;
       }
 
-      onUpdateBattle({ ...battle, enemy, logs });
+      onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
       setTimeout(() => {
-        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
       }, 650);
     }, 140);
   };
@@ -1575,10 +1612,20 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const executeEnemyTurnAnimated = (
     enemy: EnemyMonster,
     currentLogs: BattleLogEntry[],
-    activePlayerState?: PlayerCharacter
+    activePlayerState?: PlayerCharacter,
+    activeSkillCooldowns?: Record<string, number>
   ) => {
     const p = activePlayerState || player;
     let logs = currentLogs;
+
+    // Decrement active skill cooldowns by 1 on turn pass
+    const currentCds = activeSkillCooldowns || battle.skillCooldowns || {};
+    const decrementedCooldowns: Record<string, number> = {};
+    for (const [skillId, turns] of Object.entries(currentCds)) {
+      if (turns > 1) {
+        decrementedCooldowns[skillId] = turns - 1;
+      }
+    }
 
     // Monster lunge
     setMonsterAnim('anim-lunge-left');
@@ -1692,7 +1739,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         }
 
         onUpdatePlayer(updatedPlayerAfterDodge);
-        onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false });
+        onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false, skillCooldowns: decrementedCooldowns });
         setTimeout(() => {
           setIsCombatBusy(false);
         }, 550);
@@ -1734,7 +1781,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           }
 
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
-          onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false });
+          onUpdateBattle({ ...battle, turnNumber: battle.turnNumber + 1, enemy, logs, guardedLastTurn: false, skillCooldowns: decrementedCooldowns });
           setTimeout(() => {
             setIsCombatBusy(false);
           }, 600);
@@ -1856,6 +1903,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         enemy,
         logs,
         guardedLastTurn: false,
+        skillCooldowns: decrementedCooldowns,
       });
 
       setTimeout(() => {
@@ -2240,9 +2288,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full max-w-xl md:max-w-2xl mx-auto w-full bg-zinc-950/95 border border-amber-900/60 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
+    <div className="flex flex-col h-full max-w-xl md:max-w-2xl mx-auto w-full bg-[#07090e]/95 border border-amber-500/25 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md pb-16 md:pb-0">
       {/* 1. COMPACT TOP HEADER */}
-      <header className="bg-zinc-950/95 border-b border-amber-900/80 px-2.5 py-1.5 z-30 shrink-0 shadow-lg">
+      <header className="bg-[#090c12]/95 border-b border-amber-500/25 px-2.5 py-1.5 z-30 shrink-0 shadow-lg">
         <div className="flex items-center justify-between gap-2">
           {/* Location / Act selector dropdown */}
           <div className="relative flex-1 min-w-0">
@@ -2303,7 +2351,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 disabled={isBossLevelLocked || !!activeInteractiveEncounter}
                 title={
                   isBossLevelLocked
-                    ? `Act Guardian Locked (Req ${bossPowerReq} Power)`
+                    ? isNgPlus
+                      ? `Act Guardian Locked (Req ${bossPowerReq} Power)`
+                      : `Act Guardian Locked (Req Level ${bossLevelReq} • Rec. ${bossPowerReq} Power)`
                     : isBossDefeated
                     ? 'Re-challenge Act Guardian'
                     : `Confront Act Guardian (${bossCost} Stamina)`
@@ -2319,7 +2369,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 <span>{isBossLevelLocked ? '🔒' : '👑'}</span>
                 <span>
                   {isBossLevelLocked
-                    ? `Req ${bossPowerReq} Pwr`
+                    ? (isNgPlus ? `Req ${bossPowerReq} Pwr` : `Req Lv.${bossLevelReq}`)
                     : isBossDefeated
                     ? 'Conquered ✓'
                     : `Confront Boss (${bossCost}⚡)`}
@@ -2364,6 +2414,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           isGuarding={Boolean(battle.guardedLastTurn)}
           fledStatusMessage={fledStatusMessage}
           arenaOutcome={arenaOutcome}
+          questEncounter={activeQuestEncounter}
         />
 
         {/* VICTORY & LOOT REWARD CARD OVERLAY (When Battle Winner === 'PLAYER') */}
@@ -2437,11 +2488,22 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
             {activeInteractiveEncounter.type === 'TRADER' && activeInteractiveEncounter.traderItem && (
               <div className="space-y-1.5">
-                <div className="bg-zinc-900/95 border border-amber-500/40 p-2 rounded-xl flex items-center justify-between text-[10px]">
+                <div
+                  onClick={() => setShowTraderInspectModal(true)}
+                  className="bg-zinc-900/95 border border-amber-500/50 hover:border-amber-400 p-2 rounded-xl flex items-center justify-between text-[10px] cursor-pointer transition-all active:scale-[0.99] group shadow"
+                  title="Click to inspect item stats, affixes and comparison"
+                >
                   <div className="flex items-center gap-2 truncate">
-                    <span className="text-xl">{activeInteractiveEncounter.traderItem.icon || '⚔️'}</span>
+                    <span className="text-xl shrink-0 group-hover:scale-110 transition-transform">{activeInteractiveEncounter.traderItem.icon || '⚔️'}</span>
                     <div className="truncate">
-                      <span className="font-bold text-amber-200 truncate">{activeInteractiveEncounter.traderItem.name}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="font-bold text-amber-200 group-hover:text-amber-300 truncate">
+                          {activeInteractiveEncounter.traderItem.name}
+                        </span>
+                        <span className="text-[8px] font-mono text-cyan-300 bg-cyan-950/80 px-1 py-0.2 rounded border border-cyan-800/50 shrink-0">
+                          🔍 Inspect
+                        </span>
+                      </div>
                       <div className="text-[8px] text-zinc-400">
                         Req Lv.{activeInteractiveEncounter.traderItem.levelReq} • {activeInteractiveEncounter.traderItem.rarity}
                       </div>
@@ -2461,10 +2523,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={handleBuyTraderItem}
+                    onClick={() => setShowTraderInspectModal(true)}
                     className="min-h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-zinc-950 font-cinzel font-bold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-1"
                   >
-                    <span>💰 Buy Item</span>
+                    <span>🔍 Inspect & Buy</span>
                   </button>
                   <button
                     onClick={handlePassEncounter}
@@ -2522,14 +2584,32 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
             {/* Row 1, Col 2: Skills (Shown when >= 1 skill equipped) OR Guard if no skills equipped */}
             {equippedSkills.length > 0 ? (
-              <button
-                onClick={() => setShowSpellPicker(true)}
-                disabled={battle.winner !== null || isCombatBusy}
-                className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
-              >
-                <span className="text-sm">⚡</span>
-                <span className="truncate font-bold tracking-wide">Skills</span>
-              </button>
+              (() => {
+                const availableCount = equippedSkills.filter(
+                  (s) => (battle.skillCooldowns?.[s.id] || 0) === 0 && player.currentMp >= s.mpCost
+                ).length;
+                const minCooldown = Math.min(...equippedSkills.map((s) => battle.skillCooldowns?.[s.id] || 0));
+
+                return (
+                  <button
+                    onClick={() => setShowSpellPicker(true)}
+                    disabled={battle.winner !== null || isCombatBusy}
+                    className="min-h-[44px] h-[44px] px-2 rounded-xl bg-gradient-to-r from-red-950 to-zinc-900 hover:from-red-900 hover:to-zinc-800 text-amber-100 font-cinzel font-bold text-xs border border-red-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-all active:scale-95 flex items-center justify-center gap-1.5 truncate disabled:opacity-40"
+                  >
+                    <span className="text-sm">⚡</span>
+                    <span className="truncate font-bold tracking-wide">Skills</span>
+                    {availableCount === 0 && minCooldown > 0 ? (
+                      <span className="text-[9px] font-mono text-amber-400 bg-black/60 px-1 py-0.2 rounded border border-amber-600/40">
+                        ⏳{minCooldown}t
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-mono text-cyan-300 bg-black/60 px-1 py-0.2 rounded border border-cyan-800/40">
+                        {availableCount}/{equippedSkills.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()
             ) : (
               <button
                 onClick={handleGuard}
@@ -2663,25 +2743,52 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                   No skills equipped! Visit Hero Sheet -&gt; Mutya Skills to unlock &amp; equip skills.
                 </div>
               ) : (
-                equippedSkills.map((skill) => (
-                  <button
-                    key={skill.id}
-                    onClick={() => handleExecuteSkill(skill)}
-                    disabled={player.currentMp < skill.mpCost}
-                    className="w-full bg-zinc-950 hover:bg-zinc-800 border border-amber-500/40 hover:border-amber-400 p-3 rounded-xl text-left text-xs font-bold text-amber-200 flex justify-between items-center transition-all disabled:opacity-40 shadow-md"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{skill.icon}</span>
-                      <div>
-                        <div className="font-serif text-amber-300 text-sm">{skill.name}</div>
-                        <div className="text-[10px] font-normal text-zinc-400 font-sans line-clamp-1">{skill.description}</div>
+                equippedSkills.map((skill) => {
+                  const cooldownLeft = battle.skillCooldowns?.[skill.id] || 0;
+                  const isMpShort = player.currentMp < skill.mpCost;
+                  const isDisabled = cooldownLeft > 0 || isMpShort;
+
+                  return (
+                    <button
+                      key={skill.id}
+                      onClick={() => handleExecuteSkill(skill)}
+                      disabled={isDisabled}
+                      className={`w-full p-3 rounded-xl text-left text-xs font-bold flex justify-between items-center transition-all shadow-md ${
+                        cooldownLeft > 0
+                          ? 'bg-zinc-950/90 border border-zinc-700/60 text-zinc-400 opacity-60 cursor-not-allowed'
+                          : isMpShort
+                          ? 'bg-zinc-950/90 border border-red-900/60 text-red-300 opacity-60 cursor-not-allowed'
+                          : 'bg-zinc-950 hover:bg-zinc-850 border border-amber-500/40 hover:border-amber-400 text-amber-200 active:scale-[0.99] cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 truncate mr-2">
+                        <span className="text-2xl shrink-0">{skill.icon}</span>
+                        <div className="truncate">
+                          <div className="font-serif text-amber-200 text-sm truncate flex items-center gap-1.5">
+                            <span>{skill.name}</span>
+                            {cooldownLeft > 0 && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-amber-400 border border-amber-500/40 font-bold">
+                                ⏳ {cooldownLeft}t CD
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] font-normal text-zinc-400 font-sans line-clamp-1">{skill.description}</div>
+                        </div>
                       </div>
-                    </div>
-                    <span className="font-mono text-amber-400 text-xs shrink-0 ml-2 bg-amber-950/80 px-2 py-1 rounded border border-amber-800/60">
-                      {skill.mpCost > 0 ? `${skill.mpCost} MP` : 'Free'}
-                    </span>
-                  </button>
-                ))
+                      <div className="shrink-0 flex items-center gap-1.5 ml-2 font-mono text-xs">
+                        {cooldownLeft > 0 ? (
+                          <span className="text-amber-400 bg-amber-950/80 px-2 py-1 rounded border border-amber-800/60 font-bold">
+                            ⏳ {cooldownLeft} turn{cooldownLeft > 1 ? 's' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 bg-amber-950/80 px-2 py-1 rounded border border-amber-800/60">
+                            {skill.mpCost > 0 ? `${skill.mpCost} MP` : 'Free'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -2883,11 +2990,17 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               bossLevel={boss.level}
               requiredPower={bossPowerReq}
               playerPower={derived.powerLevel}
+              climaxLevelReq={bossLevelReq}
+              playerLevel={player.level}
               onDismiss={() => setShowBossDiscoveryModal(false)}
               onChallenge={() => {
                 setShowBossDiscoveryModal(false);
                 if (isBossLevelLocked) {
-                  notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+                  if (isNgPlus) {
+                    notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+                  } else {
+                    notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to confront ${selectedLocation.name}'s Guardian. (Recommended Power: ${bossPowerReq}, Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+                  }
                   return;
                 }
                 if (hasUncompleted) {
@@ -2920,6 +3033,35 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           onClaim={() => {
             setActiveBossVictoryReward(null);
             handleClaimBossVictoryAndAdvance();
+          }}
+        />
+      )}
+
+      {/* Wandering Artisan Merchant Offer Inspection & Purchase Modal */}
+      {showTraderInspectModal && activeInteractiveEncounter?.type === 'TRADER' && activeInteractiveEncounter.traderItem && (
+        <ForgePurchaseModal
+          item={activeInteractiveEncounter.traderItem}
+          customCostCC={activeInteractiveEncounter.traderCostCC}
+          discountPercent={activeInteractiveEncounter.discountPercent}
+          actionButtonText="Buy from Artisan"
+          vendorTitle="Artisan Caravan Offer"
+          hideStock={true}
+          onClose={() => setShowTraderInspectModal(false)}
+          player={player}
+          onUpdatePlayer={onUpdatePlayer}
+          onShowToast={notify}
+          onPurchaseSuccess={(purchased) => {
+            setShowTraderInspectModal(false);
+            setActiveInteractiveEncounter(null);
+            setExplorationEvent(null);
+            setArenaOutcome({
+              type: 'MERCHANT',
+              title: 'Artisan Deal Struck!',
+              badge: 'TRADE COMPLETED',
+              description: `Purchased [${purchased.name}] for ${formatCostInCowries(activeInteractiveEncounter.traderCostCC || 0)}.`,
+              costOrReward: `Acquired ${purchased.name}`,
+              isPositive: true,
+            });
           }}
         />
       )}

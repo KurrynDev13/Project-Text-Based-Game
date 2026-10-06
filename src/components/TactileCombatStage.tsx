@@ -1,9 +1,16 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { EnemyMonster, PlayerCharacter } from '../types/game';
-import { getHeroImageUrl, getMonsterImageUrl, getEventImageUrl, getLocationBgUrl } from '../utils/assetHelper';
+import { getHeroImageUrl, getMonsterImageUrl, getEventImageUrl, getLocationBgUrl, getQuestGiverImageUrl } from '../utils/assetHelper';
 import { calcDerivedStats } from '../utils/gameFormulas';
 import { InteractiveEncounter } from './WorldHuntView';
+
+export interface QuestEncounterData {
+  giver: string;
+  title: string;
+  objectiveText: string;
+  progressRequired: number;
+}
 
 export interface PreviewData {
   src: string;
@@ -54,6 +61,7 @@ interface TactileCombatStageProps {
   isGuarding?: boolean;
   fledStatusMessage?: string | null;
   arenaOutcome?: ArenaOutcome | null;
+  questEncounter?: QuestEncounterData | null;
 }
 
 // Internal Particle & SlashArc classes for procedural Canvas VFX
@@ -158,6 +166,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
   isGuarding = false,
   fledStatusMessage = null,
   arenaOutcome = null,
+  questEncounter = null,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -564,7 +573,51 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
         /* EXPLORATION / OUT-OF-COMBAT EVENT VIEW                     */
         /* ─────────────────────────────────────────────────────────── */
         <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-3 text-center">
-          {activeEncounter ? (
+          {questEncounter ? (
+            /* Active Regional Side Quest Discovery Encounter Card */
+            <div className="flex flex-col items-center animate-fade-in max-w-xs">
+              <div className="relative group max-w-[150px] sm:max-w-[170px] mb-2">
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-cyan-500 via-amber-500 to-emerald-600 opacity-80 blur-md" />
+                <div
+                  onClick={() => setPreviewData({
+                    src: getQuestGiverImageUrl(questEncounter.giver),
+                    title: questEncounter.giver,
+                    subtitle: `Side Quest: ${questEncounter.title} — ${questEncounter.objectiveText}`,
+                    badge: 'REGIONAL QUEST GIVER',
+                    theme: 'EVENT',
+                  })}
+                  className="relative w-28 h-38 sm:w-32 sm:h-42 rounded-2xl overflow-hidden border-2 border-amber-400 shadow-2xl bg-zinc-950 cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                >
+                  <img
+                    src={getQuestGiverImageUrl(questEncounter.giver)}
+                    alt={questEncounter.giver}
+                    className="w-full h-full object-cover object-center filter contrast-110 group-hover:brightness-110 transition-all"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <span className="text-[9px] bg-amber-950/90 text-amber-200 px-1 py-0.5 rounded border border-amber-500/80 font-mono font-bold">⛶ Expand</span>
+                  </div>
+                  <div className="absolute top-1.5 left-1.5 bg-black/80 backdrop-blur-sm border border-amber-500/60 text-amber-300 font-mono text-[8px] font-bold px-1.5 py-0.5 rounded shadow">
+                    📜 Quest Giver
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-zinc-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-900/80 shadow-2xl text-center max-w-[260px] sm:max-w-xs">
+                <span className="text-[8px] font-mono text-cyan-400 uppercase font-bold tracking-widest">
+                  📜 REGIONAL SIDE QUEST
+                </span>
+                <h3 className="text-xs font-cinzel font-bold text-amber-200 mt-0.5">
+                  {questEncounter.giver}
+                </h3>
+                <p className="text-[10px] font-mono font-semibold text-amber-300 mt-0.5 line-clamp-1">
+                  [{questEncounter.title}]
+                </p>
+                <p className="text-[8.5px] font-mono text-zinc-300 mt-0.5 line-clamp-2">
+                  {questEncounter.objectiveText} ({questEncounter.progressRequired} needed)
+                </p>
+              </div>
+            </div>
+          ) : activeEncounter ? (
             /* Active Interactive Encounter Card (Trader or Chest) */
             <div className="flex flex-col items-center animate-fade-in max-w-xs">
               <div className="relative group max-w-[150px] sm:max-w-[170px] mb-2">

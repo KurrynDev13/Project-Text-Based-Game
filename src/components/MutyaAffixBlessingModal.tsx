@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { PlayerCharacter, EquipmentItem } from '../types/game';
 import { ENCHANTER_PREFIXES, ENCHANTER_SUFFIXES } from '../data/equipmentData';
 import { calcItemPowerRating, getEquippedItemForCategory, calcItemDelta } from '../utils/gameFormulas';
@@ -161,14 +162,14 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
     onClose();
   };
 
-  return (
+  const modalContent = (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-zinc-950/80 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in select-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-zinc-900 border border-purple-600/60 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl font-sans"
+        className="bg-zinc-900 border border-purple-600/60 rounded-2xl w-full max-w-sm max-h-[88vh] flex flex-col overflow-hidden shadow-2xl font-sans"
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-950/90 via-zinc-900 to-purple-950/90 p-3 border-b border-purple-800/40 flex justify-between items-start">
@@ -196,7 +197,7 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
         </div>
 
         {/* Body */}
-        <div className="p-3 space-y-2 font-mono text-xs">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-xs min-h-0">
           {/* Compact Gear Stats & Delta vs Equipped Bar */}
           <div className="bg-zinc-950/90 border border-purple-900/40 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">
             <div className="flex items-center space-x-2 truncate">
@@ -292,7 +293,7 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
         </div>
 
         {/* Action Footer */}
-        <div className="bg-zinc-950 p-2.5 border-t border-zinc-800 flex justify-end space-x-2">
+        <div className="shrink-0 bg-zinc-950 p-2.5 border-t border-zinc-800 flex justify-end space-x-2">
           <button
             onClick={onClose}
             className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-mono"
@@ -317,6 +318,8 @@ export const MutyaAffixBlessingModal: React.FC<MutyaAffixBlessingModalProps> = (
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 export default MutyaAffixBlessingModal;
 

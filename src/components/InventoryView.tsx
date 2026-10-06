@@ -425,98 +425,99 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       {/* ── 1. EQUIPPED GEAR (Compact 2x2 Grid with Unequip) ────────────────── */}
       <div className="space-y-1 shrink-0">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-mono font-bold uppercase text-amber-500 tracking-wider">
-            EQUIPPED GEAR
+          <h3 className="text-[9.5px] font-mono font-bold uppercase text-amber-400 tracking-wider flex items-center gap-1">
+            <span>ᜐᜓᜎᜓᜆ᜔</span>
+            <span>• EQUIPPED GEAR</span>
           </h3>
-          <span className="text-[9px] font-mono text-zinc-500">
+          <span className="text-[9px] font-mono text-zinc-400">
             Tap Unequip to unbind
           </span>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5">
           {/* Slot 1: UPPER ARMOR */}
-          <div className="p-1.5 px-2 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between min-h-[40px] shadow">
+          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">UPR:</span>
-                <h4 className="font-serif text-amber-200 font-bold text-[11px] truncate leading-tight">
+                <h4 className="font-serif text-amber-100 font-bold text-[11px] truncate leading-tight">
                   {player.equipment.upperArmor?.name || 'No Armor'}
                 </h4>
               </div>
-              <p className="text-[9px] font-mono text-amber-400/90 leading-none">
+              <p className="text-[9px] font-mono text-amber-400/90 leading-none mt-0.5">
                 {player.equipment.upperArmor ? `+${player.equipment.upperArmor.baseDefense} Armor` : '--'}
               </p>
             </div>
             <button
               onClick={() => handleUnequip('upperArmor')}
               disabled={!player.equipment.upperArmor}
-              className="px-1.5 py-1 rounded border border-red-900/60 bg-red-950/40 hover:bg-red-900/60 text-red-400 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0"
+              className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
               Unequip
             </button>
           </div>
 
           {/* Slot 2: LOWER ARMOR */}
-          <div className="p-1.5 px-2 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between min-h-[40px] shadow">
+          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">LWR:</span>
-                <h4 className="font-serif text-amber-200 font-bold text-[11px] truncate leading-tight">
+                <h4 className="font-serif text-amber-100 font-bold text-[11px] truncate leading-tight">
                   {player.equipment.lowerArmor?.name || 'No Armor'}
                 </h4>
               </div>
-              <p className="text-[9px] font-mono text-amber-400/90 leading-none">
+              <p className="text-[9px] font-mono text-amber-400/90 leading-none mt-0.5">
                 {player.equipment.lowerArmor ? `+${player.equipment.lowerArmor.baseDefense} Armor` : '--'}
               </p>
             </div>
             <button
               onClick={() => handleUnequip('lowerArmor')}
               disabled={!player.equipment.lowerArmor}
-              className="px-1.5 py-1 rounded border border-red-900/60 bg-red-950/40 hover:bg-red-900/60 text-red-400 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0"
+              className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
               Unequip
             </button>
           </div>
 
           {/* Slot 3: WEAPON */}
-          <div className="p-1.5 px-2 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between min-h-[40px] shadow">
+          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">WPN:</span>
-                <h4 className="font-serif text-amber-200 font-bold text-[11px] truncate leading-tight">
+                <h4 className="font-serif text-amber-100 font-bold text-[11px] truncate leading-tight">
                   {equippedWeapon?.name || 'Bare Fists'}
                 </h4>
               </div>
-              <p className="text-[9px] font-mono text-cyan-400 leading-none">
+              <p className="text-[9px] font-mono text-cyan-300 leading-none mt-0.5">
                 {equippedWeapon ? `${equippedWeapon.baseDamageMin}-${equippedWeapon.baseDamageMax} DMG` : '1-2 DMG'}
               </p>
             </div>
             <button
               onClick={() => handleUnequip('weapon')}
               disabled={!equippedWeapon}
-              className="px-1.5 py-1 rounded border border-red-900/60 bg-red-950/40 hover:bg-red-900/60 text-red-400 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0"
+              className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
               Unequip
             </button>
           </div>
 
           {/* Slot 4: MYTHICAL MOUNT */}
-          <div className="p-1.5 px-2 bg-zinc-950/80 border border-zinc-800/80 rounded-xl flex items-center justify-between min-h-[40px] shadow">
+          <div className="p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all">
             <div className="truncate pr-1">
               <div className="flex items-center gap-1">
                 <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wide shrink-0">MNT:</span>
-                <h4 className="font-serif text-amber-200 font-bold text-[11px] truncate leading-tight">
+                <h4 className="font-serif text-amber-100 font-bold text-[11px] truncate leading-tight">
                   {isMountUnlocked ? equippedMount?.name || 'No Mount' : '🔒 Locked'}
                 </h4>
               </div>
-              <p className="text-[9px] font-mono text-zinc-500 leading-none">
+              <p className="text-[9px] font-mono text-zinc-500 leading-none mt-0.5">
                 {isMountUnlocked ? (equippedMount ? 'Active Steed' : 'Visit Stables') : 'Defeat Act VI Boss'}
               </p>
             </div>
             <button
               onClick={() => handleUnequip('mount')}
               disabled={!isMountUnlocked || !equippedMount}
-              className="px-1.5 py-1 rounded border border-red-900/60 bg-red-950/40 hover:bg-red-900/60 text-red-400 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0"
+              className="px-2 py-1 rounded-lg border border-red-900/60 bg-red-950/50 hover:bg-red-900/60 text-red-300 disabled:opacity-20 disabled:cursor-not-allowed text-[9px] font-mono transition-colors shrink-0 cursor-pointer active:scale-95"
             >
               Unequip
             </button>
@@ -524,13 +525,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
-      {/* ── 2. CATEGORY TABS (Gear, Consumables, Memories - Swipe Enabled) ──── */}
+      {/* ── 2. CATEGORY TABS (Gear, Consumables, Memories) ──── */}
       <div className="grid grid-cols-3 gap-1.5 font-mono text-xs shrink-0">
         <button
           onClick={() => setActiveTab('GEAR')}
-          className={`py-1.5 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1 ${
+          className={`py-2 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] min-h-[40px] ${
             activeTab === 'GEAR'
-              ? 'bg-amber-500 text-zinc-950 shadow-amber-950/50'
+              ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-300'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
           }`}
         >
@@ -540,9 +541,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
         <button
           onClick={() => setActiveTab('CONSUMABLES')}
-          className={`py-1.5 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1 ${
+          className={`py-2 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] min-h-[40px] ${
             activeTab === 'CONSUMABLES'
-              ? 'bg-amber-500 text-zinc-950 shadow-amber-950/50'
+              ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-300'
               : 'bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
           }`}
         >
@@ -552,14 +553,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
         <button
           onClick={() => setActiveTab('MEMORIES')}
-          className={`py-1.5 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1 ${
+          className={`py-2 px-2 rounded-xl font-bold transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.97] min-h-[40px] ${
             activeTab === 'MEMORIES'
-              ? 'bg-purple-600 text-white shadow-purple-950/50'
+              ? 'bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.35)] ring-1 ring-purple-300'
               : 'bg-zinc-900/80 text-purple-400 hover:text-purple-300 border border-zinc-800'
           }`}
         >
           <span>💎</span>
-          <span>Memories {memoriesList.length}</span>
+          <span>Memories ({memoriesList.length})</span>
         </button>
       </div>
 

@@ -273,13 +273,13 @@ export function calcDerivedStats(
   const totalArmor = Math.floor(vit * 0.8 + str * 0.4 + bonusArmor);
 
   // Damage Reduction (%): [Armor / (Armor + 150)] * 100 (capped at 85%)
-  const damageReductionPercent = Math.min(85, (totalArmor / (totalArmor + 150)) * 100);
+  const damageReductionPercent = Number(Math.min(85, (totalArmor / (totalArmor + 150)) * 100).toFixed(1));
 
   // Magic Defense: INT * 0.8 + bonus
   const magicDefense = Math.floor(int * 0.8 + bonusMagicDef);
 
   // Magic Damage Reduction (%): [MagicDef / (MagicDef + 100)] * 100 (capped at 75%)
-  const magicDRPercent = Math.min(75, (magicDefense / (magicDefense + 100)) * 100);
+  const magicDRPercent = Number(Math.min(75, (magicDefense / (magicDefense + 100)) * 100).toFixed(1));
 
   // Dodge Rate: min(60, AGI * 0.35 + bonus)
   const dodgeChancePercent = Math.min(60, agi * 0.35 + bonusDodge);

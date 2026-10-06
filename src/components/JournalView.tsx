@@ -77,10 +77,14 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     const rewardExp = calcBountyExpReward(bounty.minLevel ?? player.level, bounty.rewardExp);
     const currentTotalCowries = totalCowriesFromWallet(player.wallet);
     const updatedWallet = cowriesToWallet(currentTotalCowries + rewardCowries);
-    updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + 1;
-    updatedWallet.prismaticShards = updatedWallet.mutyaShards;
+    const bountyLoc = GAME_LOCATIONS.find((l) => l.id === bounty.actId);
+    const isBossDefeated = bountyLoc?.bossId ? (player.completedBossIds || []).includes(bountyLoc.bossId) : false;
+    const baseCap = bountyLoc ? (bountyLoc.bossLevelReq ?? (bountyLoc.minLevel + 5)) : undefined;
+    const isNgPlus = (player.ngPlusLevel || 0) > 0;
+    const startLvl = player.ngPlusStartLevel || player.level;
+    const actClimaxCap = (!isBossDefeated && baseCap) ? (isNgPlus ? startLvl + baseCap - 1 : baseCap) : undefined;
 
-    const expResult = processExpGain(player.level, player.exp, rewardExp);
+    const expResult = processExpGain(player.level, player.exp, rewardExp, actClimaxCap);
 
     onUpdatePlayer({
       ...player,
@@ -126,7 +130,14 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
     updatedWallet.mutyaShards = (player.wallet.mutyaShards || 0) + rewardMutya;
     updatedWallet.prismaticShards = updatedWallet.mutyaShards;
 
-    const expResult = processExpGain(player.level, player.exp, rewardExp);
+    const questLoc = GAME_LOCATIONS.find((l) => l.id === sq.actId);
+    const isQuestBossDefeated = questLoc?.bossId ? (player.completedBossIds || []).includes(questLoc.bossId) : false;
+    const baseQuestCap = questLoc ? (questLoc.bossLevelReq ?? (questLoc.minLevel + 5)) : undefined;
+    const isNgPlusQuest = (player.ngPlusLevel || 0) > 0;
+    const startLvlQuest = player.ngPlusStartLevel || player.level;
+    const actClimaxCapQuest = (!isQuestBossDefeated && baseQuestCap) ? (isNgPlusQuest ? startLvlQuest + baseQuestCap - 1 : baseQuestCap) : undefined;
+
+    const expResult = processExpGain(player.level, player.exp, rewardExp, actClimaxCapQuest);
 
     onUpdatePlayer({
       ...player,
@@ -146,81 +157,82 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   };
 
   return (
-    <div className="space-y-4 font-mono text-xs">
+    <div className="space-y-3 font-mono text-xs">
       {/* Dynamic Main Campaign & Act Objective Banner */}
-      <div className="bg-zinc-950 border border-amber-900/50 p-4 rounded-xl shadow-xl space-y-3">
+      <div className="bg-[#090c12]/95 border border-amber-500/25 p-3.5 sm:p-4 rounded-2xl shadow-xl space-y-2.5">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-zinc-800/80 pb-2">
           <div>
-            <div className="text-[10px] uppercase text-amber-500 font-bold tracking-wider">
-              Main Campaign Objective • {latestUnlockedLoc.name}
+            <div className="text-[9.5px] uppercase text-amber-400 font-bold tracking-wider flex items-center gap-1 font-mono">
+              <span>ᜆᜓᜅᜓᜑᜒᜈ᜔</span>
+              <span>• Main Campaign Objective • {latestUnlockedLoc.name}</span>
             </div>
-            <h3 className="text-base font-bold font-serif text-amber-200">{latestUnlockedLoc.subtitle}</h3>
+            <h3 className="text-sm sm:text-base font-bold font-serif text-amber-100">{latestUnlockedLoc.subtitle}</h3>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="bg-zinc-900 text-zinc-300 px-2.5 py-1 rounded border border-zinc-700 text-[10px]">
-              Quests: <strong className={latestActCompletedCount >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{latestActCompletedCount}/3 Completed</strong> ({latestActDiscoveredCount}/3 Discovered)
+            <span className="bg-[#0c0f16]/90 text-zinc-300 px-2.5 py-1 rounded-xl border border-zinc-700/80 text-[10px] font-bold shadow-sm">
+              Quests: <strong className={latestActCompletedCount >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{latestActCompletedCount}/3 Completed</strong>
             </span>
-            <span className="bg-purple-950/80 text-purple-300 px-2.5 py-1 rounded border border-purple-500/40 text-[10px]">
+            <span className="bg-purple-950/80 text-purple-300 px-2.5 py-1 rounded-xl border border-purple-500/40 text-[10px] font-bold shadow-sm">
               Active Bounties: <strong className="text-amber-300">{activeBounties.length}/3</strong>
             </span>
           </div>
         </div>
 
-        <p className="text-zinc-300 text-xs leading-relaxed">
+        <p className="text-zinc-300 text-[11px] leading-relaxed">
           {latestUnlockedLoc.description}
         </p>
 
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-          <span className="text-zinc-400">Act Guardian Gate:</span>
-          <span className="bg-red-950/80 text-red-300 border border-red-500/50 px-2 py-0.5 rounded font-bold">
-            ⚔️ Defeat the Act Guardian to unlock next Act
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+          <span className="text-zinc-400">Act Gate:</span>
+          <span className="bg-red-950/80 text-red-300 border border-red-500/50 px-2 py-0.5 rounded-lg font-bold">
+            ⚔️ Defeat Act Guardian to advance
           </span>
-          <span className="bg-amber-950/60 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-bold">
-            ⚠️ 3 Side Quests Required (Unfinished Quests Forfeit on Act Advancement)
+          <span className="bg-amber-950/70 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-bold">
+            ⚠️ 3 Side Quests Required
           </span>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 gap-1 text-xs">
+      <div className="flex bg-[#0c0f16]/90 p-1 rounded-xl border border-zinc-800 gap-1 text-xs shadow-inner">
         <button
           onClick={() => setActiveTab('BOUNTIES')}
-          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95 ${
             activeTab === 'BOUNTIES'
-              ? 'bg-purple-700 text-white shadow-md'
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+              ? 'bg-gradient-to-r from-purple-700 via-indigo-600 to-purple-600 text-white shadow-md ring-1 ring-purple-300'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>📜 Active Bounties</span>
-          <span className="bg-purple-950 px-1.5 py-0.5 rounded-full text-[10px]">
+          <span>📜 Bounties</span>
+          <span className="bg-purple-950 px-1.5 py-0.2 rounded-full text-[9px] border border-purple-800/60">
             {activeBounties.length}/3
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('SIDE_QUESTS')}
-          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95 ${
             activeTab === 'SIDE_QUESTS'
-              ? 'bg-cyan-700 text-white shadow-md'
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+              ? 'bg-gradient-to-r from-cyan-600 to-emerald-600 text-zinc-950 font-extrabold shadow-md ring-1 ring-cyan-300'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
           <span>⚔️ Side Quests</span>
-          <span className="bg-cyan-950 px-1.5 py-0.5 rounded-full text-[10px]">
+          <span className="bg-cyan-950 text-cyan-300 px-1.5 py-0.2 rounded-full text-[9px] border border-cyan-800/60">
             {completedSideQuests.length}/24
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('COMPLETED')}
-          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 ${
+          className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95 ${
             activeTab === 'COMPLETED'
-              ? 'bg-emerald-700 text-white shadow-md'
-              : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+              ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-zinc-950 font-bold shadow-md ring-1 ring-amber-300'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>🏆 Completed Log</span>
-          <span className="bg-emerald-950 px-1.5 py-0.5 rounded-full text-[10px]">
+          <span>🏆 Completed</span>
+          <span className="bg-zinc-950 text-zinc-300 px-1.5 py-0.2 rounded-full text-[9px] border border-zinc-800">
             {completedBounties.length + completedSideQuests.length}
           </span>
         </button>

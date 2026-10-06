@@ -18,12 +18,52 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
   const completedBountiesCount = player.bounties.filter((b) => b.isCompleted && !b.isClaimed).length;
   const encryptedMemoriesCount = (player.encryptedMemories || []).length;
 
-  const tabs: { id: NavTab; label: string; icon: string; badge?: number; desc: string }[] = [
-    { id: 'HAVEN', label: 'Haven', icon: '🏰', desc: 'Town Hub & Safe Rest' },
-    { id: 'WORLD', label: 'World / Hunt', icon: '🌌', desc: 'Exploration & Combat' },
-    { id: 'INVENTORY', label: 'Inventory', icon: '🎒', desc: 'Gear & Paper Doll', badge: encryptedMemoriesCount > 0 ? encryptedMemoriesCount : undefined },
-    { id: 'CHARACTER', label: 'Character', icon: '👤', desc: 'Stats & AP Allocation', badge: player.availableAP > 0 ? player.availableAP : undefined },
-    { id: 'LOG', label: 'Log & Chat', icon: '📜', desc: 'Social & Combat Logs', badge: completedBountiesCount > 0 ? completedBountiesCount : undefined },
+  const tabs: {
+    id: NavTab;
+    baybayin: string;
+    label: string;
+    icon: string;
+    badge?: number;
+    desc: string;
+  }[] = [
+    {
+      id: 'HAVEN',
+      baybayin: 'ᜎᜓᜅ᜔ᜐᜓᜇ᜔',
+      label: 'Haven',
+      icon: '🏰',
+      desc: 'Safe Zone & Trading',
+    },
+    {
+      id: 'WORLD',
+      baybayin: 'ᜇᜒᜄ᜔ᜋ',
+      label: 'World',
+      icon: '🌌',
+      desc: 'Hunting & Exploration',
+    },
+    {
+      id: 'INVENTORY',
+      baybayin: 'ᜐᜓᜎᜓᜆ᜔',
+      label: 'Inventory',
+      icon: '🎒',
+      desc: 'Gear & Paper Doll',
+      badge: encryptedMemoriesCount > 0 ? encryptedMemoriesCount : undefined,
+    },
+    {
+      id: 'CHARACTER',
+      baybayin: 'ᜊᜌᜈᜒ',
+      label: 'Hero',
+      icon: '👤',
+      desc: 'Stats & Skill Tree',
+      badge: player.availableAP > 0 ? player.availableAP : undefined,
+    },
+    {
+      id: 'LOG',
+      baybayin: 'ᜆᜎ',
+      label: 'Log',
+      icon: '📜',
+      desc: 'Journal & Chat',
+      badge: completedBountiesCount > 0 ? completedBountiesCount : undefined,
+    },
   ];
 
   const handleTabClick = (tabId: NavTab) => {
@@ -41,10 +81,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
   };
 
   return (
-    <nav data-tutorial-target="navbar-bottom" className="fixed bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-md border-t border-amber-900/40 text-amber-100 select-none z-30 shadow-2xl">
+    <nav
+      data-tutorial-target="navbar-bottom"
+      className="fixed bottom-0 left-0 right-0 bg-[#07090e]/95 backdrop-blur-md border-t border-amber-500/25 text-amber-100 select-none z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.8)]"
+    >
       {/* Strict Combat Lock Barrier Overlay */}
       {isLocked && (
-        <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
+        <div className="absolute inset-0 bg-[#07090e]/95 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
           <div className="flex items-center space-x-2 text-red-400 font-mono text-xs font-bold animate-pulse">
             <span>🔒</span>
             <span>
@@ -55,8 +98,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
           </div>
         </div>
       )}
+
       {/* Desktop & Tablet Navigation Bar */}
-      <div className="hidden md:flex items-center justify-around max-w-7xl mx-auto px-4 py-2 font-mono text-xs">
+      <div className="hidden md:flex items-center justify-around max-w-7xl mx-auto px-4 py-1.5 font-mono text-xs">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
@@ -65,22 +109,31 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
               data-tutorial-target={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => handleTabClick(tab.id)}
               disabled={isLocked}
-              className={`px-4 py-2 rounded-xl flex items-center space-x-2 transition-all relative ${
+              className={`px-4 py-2 rounded-xl flex items-center space-x-2.5 transition-all relative cursor-pointer active:scale-[0.96] ${
                 isLocked
                   ? 'opacity-40 cursor-not-allowed text-zinc-500 bg-zinc-900/50'
                   : isActive
-                  ? 'bg-amber-600 text-zinc-950 font-bold shadow-lg ring-1 ring-amber-400 scale-105'
-                  : 'text-zinc-400 hover:text-amber-200 hover:bg-zinc-900'
+                  ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-zinc-950 font-bold shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-300 scale-105'
+                  : 'text-zinc-400 hover:text-amber-200 hover:bg-zinc-900/60'
               }`}
             >
-              <span className="text-base">{tab.icon}</span>
+              <span className="text-lg">{tab.icon}</span>
               <div className="text-left leading-tight">
-                <div className="font-bold">{tab.label}</div>
-                <div className="text-[9px] opacity-70 font-sans hidden lg:block">{tab.desc}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-xs font-bold ${isActive ? 'text-zinc-950' : 'text-amber-300'}`}>
+                    {tab.baybayin}
+                  </span>
+                  <span className={`text-[11px] ${isActive ? 'text-zinc-900 font-bold' : 'text-zinc-300'}`}>
+                    {tab.label}
+                  </span>
+                </div>
+                <div className={`text-[8.5px] font-sans hidden lg:block ${isActive ? 'text-zinc-900/80' : 'text-zinc-500'}`}>
+                  {tab.desc}
+                </div>
               </div>
 
               {tab.badge !== undefined && tab.badge > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-1">
+                <span className="bg-red-600 text-white text-[9.5px] font-bold px-1.5 py-0.2 rounded-full ml-1 shadow-sm">
                   {tab.badge}
                 </span>
               )}
@@ -90,7 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
       </div>
 
       {/* Mobile Sticky Bottom Navigation Pad */}
-      <div className="md:hidden w-full px-2 py-1.5 flex justify-around items-center">
+      <div className="md:hidden w-full px-1.5 py-1 grid grid-cols-5 gap-1 items-center">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.id;
           return (
@@ -98,20 +151,27 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
               key={tab.id}
               data-tutorial-target={`nav-tab-${tab.id.toLowerCase()}`}
               onClick={() => handleTabClick(tab.id)}
-              disabled={inCombat}
-              className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-all min-w-[56px] relative ${
-                inCombat
+              disabled={isLocked}
+              className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all min-h-[46px] relative cursor-pointer active:scale-[0.96] ${
+                isLocked
                   ? 'opacity-40 cursor-not-allowed text-zinc-600'
                   : isActive
-                  ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
-                  : 'text-zinc-400 active:scale-95'
+                  ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-zinc-950 font-bold shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-300'
+                  : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <span className="text-lg">{tab.icon}</span>
-              <span className="text-[9px] font-mono mt-0.5">{tab.label}</span>
+              <div className="flex items-center gap-0.5 leading-none">
+                <span className="text-sm">{tab.icon}</span>
+                <span className={`text-[10px] font-bold ${isActive ? 'text-zinc-950' : 'text-amber-300'}`}>
+                  {tab.baybayin}
+                </span>
+              </div>
+              <span className={`text-[8px] font-mono uppercase tracking-tighter mt-0.5 leading-tight ${isActive ? 'text-zinc-900/90 font-bold' : 'text-zinc-500'}`}>
+                {tab.label}
+              </span>
 
               {tab.badge !== undefined && tab.badge > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-0.5 bg-red-600 text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md">
                   {tab.badge}
                 </span>
               )}
@@ -122,3 +182,4 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
     </nav>
   );
 };
+

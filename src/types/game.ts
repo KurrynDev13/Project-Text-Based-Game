@@ -341,6 +341,7 @@ export interface BattleState {
   survivalBossThreshold?: number;
   survivalWaveTier?: number;
   guardedLastTurn?: boolean; // Prevents back-to-back Guard spamming (1-turn cooldown)
+  skillCooldowns?: Record<string, number>; // Cooldown tracking per skill ID (remaining turns)
 }
 
 export interface BattleLogEntry {
