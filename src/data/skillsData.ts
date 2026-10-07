@@ -1748,27 +1748,46 @@ export const getPillarSpentSP = (player: PlayerCharacter, pillarId: string): num
   return total;
 };
 
-/** Required hero level per tier */
+/** Total SP spent across all pillars on this character */
+export const getTotalSpentSP = (player: PlayerCharacter): number => {
+  if (!player.skillRanks) return 0;
+  let total = 0;
+  for (const s of ALL_SKILLS) {
+    if (s.isBasicAttack) continue;
+    const rank = player.skillRanks[s.id] ?? 0;
+    total += rank * getSkillTierCost(s.tier);
+  }
+  return total;
+};
+
+/** Deprecated: Level requirements removed in favor of smart SP investment */
 export const TIER_LEVEL_REQUIREMENTS: Record<number, number> = {
   1: 1,
-  2: 8,
-  3: 16,
-  4: 25,
+  2: 1,
+  3: 1,
+  4: 1,
 };
 
 /** Required SP spent in pillar per tier */
 export const TIER_PILLAR_SP_REQUIREMENTS: Record<number, number> = {
   1: 0,
-  2: 4,
+  2: 3,  // 3 SP in Tier 1 unlocks Tier 2
+  3: 8,  // 8 SP in Pillar unlocks Tier 3
+  4: 16, // 16 SP in Pillar unlocks Capstone
+};
+
+/** Alternative: Required Total SP spent across character (supports flexible hybrid builds) */
+export const TIER_TOTAL_SP_REQUIREMENTS: Record<number, number> = {
+  1: 0,
+  2: 5,
   3: 12,
-  4: 25,
+  4: 20,
 };
 
 /**
  * Checks gating requirements for learning/upgrading a skill node:
- * 1. Hero Level gate (Tier 1: 1, Tier 2: 8, Tier 3: 16, Tier 4: 25)
- * 2. Pillar SP investment gate (Tier 1: 0, Tier 2: 4, Tier 3: 12, Tier 4: 25)
- * 3. Prerequisite parent active skill check (for passives, requires parent rank >= 1)
+ * 1. Smart SP investment gate (Pillar SP threshold OR Character Total SP threshold)
+ * 2. Prerequisite parent active skill check (for passives, requires parent rank >= 1)
  */
 export const checkSkillGating = (
   skill: Skill,
@@ -1781,28 +1800,26 @@ export const checkSkillGating = (
 
   const tier = skill.tier || 1;
 
-  // 1. Level Gate
-  const requiredLevel = TIER_LEVEL_REQUIREMENTS[tier] ?? 1;
-  if (player.level < requiredLevel) {
-    return {
-      isLocked: true,
-      reason: `Requires Character Level ${requiredLevel} (Current: Lv ${player.level})`,
-    };
-  }
-
-  // 2. Pillar SP Gate
+  // 1. Smart Flexible SP Gate (Pillar SP or Total Character SP)
   if (skill.pillarId) {
     const requiredPillarSP = TIER_PILLAR_SP_REQUIREMENTS[tier] ?? 0;
+    const requiredTotalSP = TIER_TOTAL_SP_REQUIREMENTS[tier] ?? 0;
     const currentPillarSP = getPillarSpentSP(player, skill.pillarId);
-    if (currentPillarSP < requiredPillarSP) {
+    const currentTotalSP = getTotalSpentSP(player);
+
+    const meetsPillar = currentPillarSP >= requiredPillarSP;
+    const meetsTotal = currentTotalSP >= requiredTotalSP;
+
+    if (!meetsPillar && !meetsTotal) {
+      const remainingPillar = requiredPillarSP - currentPillarSP;
       return {
         isLocked: true,
-        reason: `Requires ${requiredPillarSP} SP spent in this Pillar (Current: ${currentPillarSP} SP)`,
+        reason: `Requires ${requiredPillarSP} SP in this Pillar (${currentPillarSP}/${requiredPillarSP}, need ${remainingPillar} more) or ${requiredTotalSP} Total SP (${currentTotalSP}/${requiredTotalSP})`,
       };
     }
   }
 
-  // 3. Prerequisite Parent Check (for Passives)
+  // 2. Prerequisite Parent Check (for Passives)
   if (skill.type === 'PASSIVE' && skill.parentSkillId) {
     const parentSkill = ALL_SKILLS.find(s => s.id === skill.parentSkillId);
     const parentRank = getSkillRank(player, skill.parentSkillId);

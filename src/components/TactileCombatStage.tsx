@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
-import { EnemyMonster, PlayerCharacter } from '../types/game';
+import { EnemyMonster, PlayerCharacter, ActiveStatusEffect } from '../types/game';
 import { getHeroImageUrl, getMonsterImageUrl, getEventImageUrl, getLocationBgUrl, getQuestGiverImageUrl } from '../utils/assetHelper';
 import { calcDerivedStats } from '../utils/gameFormulas';
 import { InteractiveEncounter } from './WorldHuntView';
@@ -34,6 +34,7 @@ export interface TactileCombatStageRef {
   triggerSpiritHeal: (target: 'HERO' | 'MONSTER') => void;
   triggerGuardAura: (target: 'HERO' | 'MONSTER') => void;
   triggerRumble: () => void;
+  triggerDeath: (target: 'HERO' | 'MONSTER') => void;
   addFloater: (text: string | number, target: 'HERO' | 'MONSTER', type?: 'normal' | 'crit' | 'heal' | 'dodge' | 'parry') => void;
 }
 
@@ -173,6 +174,93 @@ class SlashArc {
   }
 }
 
+// Status effect class resolver for dynamic frame glow and borders
+export const getFrameStatusClass = (effects?: ActiveStatusEffect[]): string => {
+  if (!effects || effects.length === 0) return '';
+  if (effects.some(e => e.type === 'POISON')) return 'vfx-frame-poison';
+  if (effects.some(e => e.type === 'BLEED')) return 'vfx-frame-bleed';
+  if (effects.some(e => e.type === 'BURN')) return 'vfx-frame-burn';
+  if (effects.some(e => e.type === 'EXHAUSTION')) return 'vfx-frame-exhaust';
+  return '';
+};
+
+// Tactical Status Effect Overlay for Character Artwork Frames (Dripping Poison, Blood, Embers, Miasma)
+export const StatusEffectFrameOverlay: React.FC<{ activeEffects?: ActiveStatusEffect[] }> = ({ activeEffects }) => {
+  if (!activeEffects || activeEffects.length === 0) return null;
+
+  const hasPoison = activeEffects.some(e => e.type === 'POISON');
+  const hasBleed = activeEffects.some(e => e.type === 'BLEED');
+  const hasBurn = activeEffects.some(e => e.type === 'BURN');
+  const hasExhaustion = activeEffects.some(e => e.type === 'EXHAUSTION');
+  const hasFortified = activeEffects.some(e => e.type === 'FORTIFIED');
+  const hasRegen = activeEffects.some(e => e.type === 'REGENERATION');
+  const hasHaste = activeEffects.some(e => e.type === 'HASTE');
+  const hasEmpowered = activeEffects.some(e => e.type === 'EMPOWERED');
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-20">
+      {/* 1. Toxic Poison Dripping */}
+      {hasPoison && (
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-emerald-950/20 mix-blend-color-dodge" />
+          <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-b from-emerald-500/80 to-transparent" />
+          <div className="absolute top-0 left-2 w-1.5 h-3 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-1" />
+          <div className="absolute top-0 right-3 w-1.5 h-3.5 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-2" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-2.5 bg-emerald-300 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-3" />
+        </div>
+      )}
+
+      {/* 2. Visceral Blood Dripping */}
+      {hasBleed && (
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-rose-950/25 mix-blend-multiply" />
+          <div className="absolute top-0 inset-x-0 h-2.5 bg-gradient-to-b from-rose-600/90 to-transparent" />
+          <div className="absolute top-0 left-3 w-1.5 h-3.5 bg-rose-600 rounded-full shadow-[0_0_8px_#e11d48] animate-drip-drop-3" />
+          <div className="absolute top-0 right-2 w-1 h-2.5 bg-rose-500 rounded-full shadow-[0_0_8px_#e11d48] animate-drip-drop-1" />
+          <div className="absolute top-0 left-1/3 w-1.5 h-4 bg-rose-700 rounded-full shadow-[0_0_8px_#be123c] animate-drip-drop-2" />
+        </div>
+      )}
+
+      {/* 3. Scorching Burn Sparks */}
+      {hasBurn && (
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-orange-950/20 mix-blend-screen" />
+          <div className="absolute bottom-0 inset-x-0 h-3 bg-gradient-to-t from-orange-600/70 to-transparent" />
+          <div className="absolute bottom-1 left-2 w-1.5 h-1.5 bg-amber-300 rounded-full blur-[0.5px] animate-pulse" />
+          <div className="absolute bottom-2 right-2 w-1 h-1 bg-orange-400 rounded-full blur-[0.5px] animate-ping" />
+        </div>
+      )}
+
+      {/* 4. Exhaustion Murky Shadow */}
+      {hasExhaustion && (
+        <div className="absolute inset-0 bg-purple-950/30 mix-blend-multiply">
+          <div className="absolute inset-0 bg-gradient-to-t from-purple-900/60 via-transparent to-black/40" />
+        </div>
+      )}
+
+      {/* 5. Fortified Golden Aegis */}
+      {hasFortified && (
+        <div className="absolute inset-0 border border-amber-400/60 rounded-2xl shadow-[inset_0_0_12px_rgba(251,191,36,0.4)]" />
+      )}
+
+      {/* 6. Regeneration Emerald Shimmer */}
+      {hasRegen && (
+        <div className="absolute inset-0 border border-emerald-400/50 rounded-2xl shadow-[inset_0_0_10px_rgba(52,211,153,0.35)]" />
+      )}
+
+      {/* 7. Haste Cyan Static */}
+      {hasHaste && (
+        <div className="absolute inset-0 border border-cyan-400/60 rounded-2xl shadow-[inset_0_0_10px_rgba(34,211,238,0.4)]" />
+      )}
+
+      {/* 8. Empowered Celestial Glow */}
+      {hasEmpowered && (
+        <div className="absolute inset-0 border border-yellow-300/70 rounded-2xl shadow-[inset_0_0_14px_rgba(253,224,71,0.5)]" />
+      )}
+    </div>
+  );
+};
+
 export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileCombatStageProps>(({
   inCombat,
   player,
@@ -242,6 +330,11 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
       const coords = getTargetCoords(target);
       if (!coords) return;
       emitGuardAura(coords.x, coords.y);
+    },
+    triggerDeath: (target) => {
+      const coords = getTargetCoords(target);
+      if (!coords) return;
+      emitDeathParticles(coords.x, coords.y, target);
     },
     triggerRumble: () => {
       setIsRumbling(true);
@@ -323,6 +416,28 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
       particlesRef.current.push(
         new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, 3 + Math.random() * 3, '#38bdf8', 25 + Math.random() * 10)
       );
+    }
+  };
+
+  const emitDeathParticles = (x: number, y: number, target: 'HERO' | 'MONSTER') => {
+    if (target === 'MONSTER') {
+      const colors = ['#ef4444', '#7f1d1d', '#52525b', '#3f3f46', '#18181b', '#fbbf24'];
+      for (let i = 0; i < 36; i++) {
+        const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 2.2;
+        const speed = 1.2 + Math.random() * 5.2;
+        particlesRef.current.push(
+          new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed - 1.2, 3 + Math.random() * 3.5, colors[Math.floor(Math.random() * colors.length)], 35 + Math.random() * 20)
+        );
+      }
+    } else {
+      const colors = ['#f59e0b', '#38bdf8', '#ffffff', '#e0e7ff', '#a855f7'];
+      for (let i = 0; i < 36; i++) {
+        const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 2.2;
+        const speed = 1.2 + Math.random() * 5;
+        particlesRef.current.push(
+          new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed - 1.5, 3 + Math.random() * 3, colors[Math.floor(Math.random() * colors.length)], 40 + Math.random() * 25)
+        );
+      }
     }
   };
 
@@ -470,7 +585,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                   badge: monster.isBoss ? 'BOSS GUARDIAN' : 'MONSTER',
                   theme: monster.isBoss ? 'BOSS' : 'MONSTER',
                 })}
-                className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                className={`relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-red-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group ${getFrameStatusClass(monster.activeEffects)}`}
               >
                 <img
                   src={getMonsterImageUrl(monster.id, monster.isBoss)}
@@ -481,13 +596,15 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                   }}
                 />
                 {monster.isBoss && (
-                  <span className="absolute top-1 right-1 text-[8px] font-mono bg-red-950/90 text-red-200 border border-red-500/70 px-1 py-0.2 rounded font-bold uppercase shadow">
+                  <span className="absolute top-1 right-1 text-[8px] font-mono bg-red-950/90 text-red-200 border border-red-500/70 px-1 py-0.2 rounded font-bold uppercase shadow z-10">
                     Boss
                   </span>
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
                   <span className="text-[9px] bg-red-950/90 text-red-200 px-1 py-0.5 rounded border border-red-500/80 font-mono font-bold">⛶ Expand</span>
                 </div>
+                {/* Status Effect Dripping & Glowing VFX */}
+                <StatusEffectFrameOverlay activeEffects={monster.activeEffects} />
               </div>
 
               {/* Monster Floating Damage Text Container */}
@@ -527,7 +644,7 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                     badge: 'HERO',
                     theme: 'HERO',
                   })}
-                  className="relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group"
+                  className={`relative w-20 h-26 sm:w-22 sm:h-30 rounded-2xl overflow-hidden border-2 border-amber-500/90 shadow-2xl bg-zinc-900 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 group ${getFrameStatusClass(player.activeEffects)}`}
                 >
                   <img
                     src={getHeroImageUrl(player.heroClass)}
@@ -535,13 +652,15 @@ export const TactileCombatStage = forwardRef<TactileCombatStageRef, TactileComba
                     className="w-full h-full object-cover object-top filter contrast-110 group-hover:brightness-110 transition-all"
                   />
                   {isGuarding && (
-                    <span className="absolute top-1 left-1 text-[8px] font-mono bg-blue-950/95 text-cyan-200 border border-cyan-500/80 px-1 py-0.2 rounded font-bold uppercase shadow animate-pulse">
+                    <span className="absolute top-1 left-1 text-[8px] font-mono bg-blue-950/95 text-cyan-200 border border-cyan-500/80 px-1 py-0.2 rounded font-bold uppercase shadow animate-pulse z-10">
                       🛡️ Guard
                     </span>
                   )}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-10">
                     <span className="text-[9px] bg-amber-950/90 text-amber-200 px-1 py-0.5 rounded border border-amber-500/80 font-mono font-bold">⛶ Expand</span>
                   </div>
+                  {/* Status Effect Dripping & Glowing VFX */}
+                  <StatusEffectFrameOverlay activeEffects={player.activeEffects} />
                 </div>
 
                 {/* Hero Floating Damage / Text Container */}

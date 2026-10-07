@@ -316,8 +316,8 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
             <span className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider">
               Tier 1 • Novice
             </span>
-            <span className="text-[9px] font-mono text-zinc-400">
-              Lv {TIER_LEVEL_REQUIREMENTS[1]}+
+            <span className="text-[9px] font-mono text-emerald-400/80 font-semibold">
+              Free Entry
             </span>
           </div>
           <div className="flex-1 flex flex-col space-y-2.5 justify-start">
@@ -338,7 +338,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               Tier 2 • Adept
             </span>
             <span className="text-[9px] font-mono text-zinc-400">
-              Lv {TIER_LEVEL_REQUIREMENTS[2]}+ • {TIER_PILLAR_SP_REQUIREMENTS[2]} SP
+              {TIER_PILLAR_SP_REQUIREMENTS[2]} Pillar SP
             </span>
           </div>
           <div className="flex-1 flex flex-col space-y-2.5 justify-start">
@@ -358,7 +358,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               Tier 3 • Master
             </span>
             <span className="text-[9px] font-mono text-zinc-400">
-              Lv {TIER_LEVEL_REQUIREMENTS[3]}+ • {TIER_PILLAR_SP_REQUIREMENTS[3]} SP
+              {TIER_PILLAR_SP_REQUIREMENTS[3]} Pillar SP
             </span>
           </div>
           <div className="flex-1 flex flex-col space-y-2.5 justify-start">
@@ -378,7 +378,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               Tier 4 • Capstone
             </span>
             <span className="text-[9px] font-mono text-zinc-400">
-              Lv {TIER_LEVEL_REQUIREMENTS[4]}+ • {TIER_PILLAR_SP_REQUIREMENTS[4]} SP
+              {TIER_PILLAR_SP_REQUIREMENTS[4]} Pillar SP
             </span>
           </div>
           <div className="flex-1 flex flex-col space-y-2.5 justify-start">

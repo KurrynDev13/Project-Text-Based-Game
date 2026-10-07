@@ -35,6 +35,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   const activeBounties = (player.bounties || []).filter((b) => b.isAccepted && !b.isClaimed);
   const completedBounties = (player.bounties || []).filter((b) => b.isClaimed);
   const sideQuests = player.sideQuests || [];
+  const activeSideQuests = sideQuests.filter((q) => q.isDiscovered && !q.isClaimed && !q.isForfeited);
   const completedSideQuests = sideQuests.filter((q) => q.isClaimed);
 
   // Filtered unlocked location IDs for display & tracking (respects NG+ rebirth reset)
@@ -226,7 +227,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
         >
           <span>⚔️ Side Quests</span>
           <span className="bg-cyan-950 text-cyan-300 px-1.5 py-0.2 rounded-full text-[9px] border border-cyan-800/60">
-            {completedSideQuests.length}/24
+            {activeSideQuests.length}
           </span>
         </button>
 

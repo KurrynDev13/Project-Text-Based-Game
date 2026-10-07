@@ -5,7 +5,7 @@ import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
 import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating, calcRequiredGuardianPower, calculateStatDrivenDoTDamage } from '../utils/gameFormulas';
 import { ALL_SKILLS, getDefaultSkillIds, getSkillRank, getScaledSkillDamageMult, getScaledSkillHeal, getScaledSkillShield } from '../data/skillsData';
-import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact } from '../utils/equipmentGenerator';
+import { getScaledForgeCatalog, calcCostInCowries, getWanderingMerchantOffer, generateBossLootArtifact, generateCursedChestArtifact } from '../utils/equipmentGenerator';
 import { soundFX } from '../utils/audio';
 import { bgmManager } from '../utils/musicManager';
 import ActStoryOverlayModal from './ActStoryOverlayModal';
@@ -214,7 +214,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return;
     }
     soundFX.playCoinSound();
-    const item = activeInteractiveEncounter.traderItem;
+    const rawItem = activeInteractiveEncounter.traderItem;
+    const item: EquipmentItem = {
+      ...rawItem,
+      id: rawItem.id.includes('_inst_') ? rawItem.id : `${rawItem.id}_inst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    };
     const remainingCC = playerTotalCC - costCC;
     const newWallet = cowriesToWallet(remainingCC, player.wallet.mutyaShards || player.wallet.prismaticShards || 0);
 
@@ -266,25 +270,48 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       const rewardCC = activeInteractiveEncounter.chestRewardCC || (200 + player.level * 30);
       const rewardMutya = activeInteractiveEncounter.chestRewardMutya || 1;
 
-      // 35% chance for a bonus equipment drop
+      // 60% chance for an authentic procedural Cursed Spirit Relic equipment drop
       let bonusItem: EquipmentItem | null = null;
-      if (Math.random() < 0.35) {
-        bonusItem = getWanderingMerchantOffer(player.level, (player.heroClass || 'Mandirigma') as HeroClass, player.equipment).item;
+      if (Math.random() < 0.60) {
+        bonusItem = generateCursedChestArtifact(
+          player.level,
+          (player.heroClass || 'Mandirigma') as HeroClass,
+          player.equipment
+        );
       }
 
       const totalCC = totalCowriesFromWallet(player.wallet) + rewardCC;
       const updatedWallet = cowriesToWallet(totalCC, (player.wallet.mutyaShards || 0) + rewardMutya);
-      const updatedInventory = bonusItem ? [...player.inventory, bonusItem] : player.inventory;
+
+      const derived = calcDerivedStats(player.attributes, player.level, player.equipment);
+      let updatedInventory = [...player.inventory];
+      let updatedStash = [...(player.stash || [])];
+      let stashedInVault = false;
+
+      if (bonusItem) {
+        if (updatedInventory.length < derived.inventoryCapacity) {
+          updatedInventory.push(bonusItem);
+        } else {
+          updatedStash.push(bonusItem);
+          stashedInVault = true;
+        }
+      }
+
+      const itemDesc = bonusItem
+        ? stashedInVault
+          ? `[${bonusItem.name}] (Bag Full — Stashed in Haven Vault)`
+          : `[${bonusItem.name}]`
+        : '';
 
       const logText = bonusItem
-        ? `🔮 BLESSED SPIRIT CHEST: Sacrificed (${sacrificeDesc}). The blood-red runes dissolve into golden embers! An ancient Diwata spirit grants +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya Shard & [${bonusItem.name}]!`
+        ? `🔮 BLESSED SPIRIT CHEST: Sacrificed (${sacrificeDesc}). The blood-red runes dissolve into golden embers! An ancient Diwata spirit grants +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya Shard & ${itemDesc}!`
         : `🔮 BLESSED SPIRIT CHEST: Sacrificed (${sacrificeDesc}). The obsidian runes dissolve into glowing light! An ancient ancestral spirit grants +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`;
 
       const updatedNarratorLogs = [logText, ...(player.narratorLogs || [])].slice(0, 15);
 
       notify(
         bonusItem
-          ? `✨ Blessed Spirit Unsealed! Gained +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya & [${bonusItem.name}]!`
+          ? `✨ Blessed Spirit Unsealed! Gained +${formatCostInCowries(rewardCC)}, +${rewardMutya} Mutya & ${itemDesc}!`
           : `✨ Blessed Spirit Unsealed! Gained +${formatCostInCowries(rewardCC)} & +${rewardMutya} Mutya Pearl Shard!`,
         'success',
         '🔮'
@@ -296,6 +323,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         currentMp: newMp,
         wallet: updatedWallet,
         inventory: updatedInventory,
+        stash: updatedStash,
         narratorLogs: updatedNarratorLogs,
       });
 
@@ -309,7 +337,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         description: bonusItem
           ? `Sacrificed (${sacrificeDesc}). Golden embers coalesce into an ancient spirit blessing!`
           : `Sacrificed (${sacrificeDesc}). The obsidian runes dissolve into glowing light!`,
-        costOrReward: `+${formatCostInCowries(rewardCC)} • +${rewardMutya} Mutya${bonusItem ? ` • [${bonusItem.name}]` : ''}`,
+        costOrReward: `+${formatCostInCowries(rewardCC)} • +${rewardMutya} Mutya${bonusItem ? ` • ${itemDesc}` : ''}`,
         isPositive: true,
       });
     } else {
@@ -460,10 +488,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const startLvl = player.ngPlusStartLevel || player.level;
   const bossLevelReq = isNgPlus ? startLvl + baseBossReq - 1 : baseBossReq;
   const frozenExpThreshold = Math.floor(calcExpRequired(bossLevelReq) * 0.65);
-  // In NG0: Strict Climax Level requirement (must reach Climax Level and 65% frozen exp threshold)
-  // In NG+: Power Rating requirement applies alongside NG+ start level
+  // Strict Climax Level requirement: must reach Climax Level (and 65% frozen EXP) in NG0 and NG+ (scaled from ngPlusStartLevel)
   const isLevelQualified = player.level > bossLevelReq || (player.level === bossLevelReq && player.exp >= frozenExpThreshold);
-  const isBossQualified = isBossDefeated || (isNgPlus ? derived.powerLevel >= bossPowerReq : isLevelQualified);
+  const isBossQualified = isBossDefeated || isLevelQualified;
   const isBossLevelLocked = !isBossQualified;
 
   const addLog = (
@@ -686,11 +713,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     if (isBossLevelLocked) {
-      if (isNgPlus) {
-        notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} is required to awaken the Guardian of ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🌑');
-      } else {
-        notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to awaken the Guardian of ${selectedLocation.name}. (Recommended Power: ${bossPowerReq}, Your Power: ${derived.powerLevel})`, 'warning', '🌑');
-      }
+      notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to awaken the Guardian of ${selectedLocation.name}. (Current Level: ${player.level})`, 'warning', '🌑');
       return;
     }
 
@@ -1021,9 +1044,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
       return;
     }
-    const reqSearchPower = calcRequiredActPower(selectedLocation.id, player.ngPlusLevel || 0);
-    if (derived.powerLevel < reqSearchPower) {
-      notify(`🔒 Act Locked! Reach Titan Power ${reqSearchPower} to search ${selectedLocation.name}. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
+    const currentActMinLevel = isNgPlus ? startLvl + (selectedLocation.minLevel - 1) : selectedLocation.minLevel;
+    if (player.level < currentActMinLevel && !isBossDefeated) {
+      notify(`🔒 Act Locked! Reach Level ${currentActMinLevel} to search ${selectedLocation.name}. (Your Level: ${player.level})`, 'warning', '🔒');
       return;
     }
 
@@ -1248,11 +1271,23 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
   };
 
+  // Helper to decrement active player skill cooldowns strictly upon taking a Player combat action
+  const decrementPlayerCooldowns = (currentCds: Record<string, number> = battle.skillCooldowns || {}): Record<string, number> => {
+    const updated: Record<string, number> = {};
+    for (const [skillId, turns] of Object.entries(currentCds)) {
+      if (turns > 1) {
+        updated[skillId] = turns - 1;
+      }
+    }
+    return updated;
+  };
+
   // COMBAT ACTION 1: Basic Attack (Restores +5 MP on hit!)
   const handleAttack = () => {
     if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
     setIsCombatBusy(true);
+    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
     soundFX.playAttackSound();
     setHeroAnim('anim-lunge-right');
     setTimeout(() => setHeroAnim(''), 280);
@@ -1334,22 +1369,22 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       if (enemy.currentHp <= 0) {
         enemy.currentHp = 0;
-        setMonsterAnim('anim-faint');
-        stageRef.current?.triggerFireBurst('MONSTER');
+        setMonsterAnim('anim-death-monster');
+        stageRef.current?.triggerDeath('MONSTER');
         stageRef.current?.triggerRumble();
-        onUpdateBattle({ ...battle, enemy, logs });
+        onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
         setTimeout(() => {
           handleVictory(enemy, logs);
           setIsCombatBusy(false);
-        }, 850);
+        }, 1150);
         return;
       }
 
-      onUpdateBattle({ ...battle, enemy, logs });
+      onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
 
       // Monster counter-attack after player hit settles
       setTimeout(() => {
-        executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
       }, 650);
     }, 140);
   };
@@ -1374,8 +1409,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     let logs = battle.logs;
     const enemy = { ...battle.enemy };
 
-    // Record new cooldown for this skill
-    const nextSkillCooldowns = { ...(battle.skillCooldowns || {}) };
+    // Decrement other active cooldowns on this player action, then assign cooldown for cast skill
+    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
     if (skill.cooldownTurns && skill.cooldownTurns > 0) {
       nextSkillCooldowns[skill.id] = skill.cooldownTurns;
     }
@@ -1506,13 +1541,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       if (enemy.currentHp <= 0) {
         enemy.currentHp = 0;
-        setMonsterAnim('anim-faint');
-        stageRef.current?.triggerFireBurst('MONSTER');
+        setMonsterAnim('anim-death-monster');
+        stageRef.current?.triggerDeath('MONSTER');
+        stageRef.current?.triggerRumble();
         onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
         setTimeout(() => {
           handleVictory(enemy, logs);
           setIsCombatBusy(false);
-        }, 850);
+        }, 1150);
         return;
       }
 
@@ -1570,12 +1606,13 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       isCoveredNextTurn: true, // Potion grants 1-turn Spirit Ward
     };
 
+    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
     onUpdatePlayer(updatedPlayer);
     const enemy = { ...battle.enemy };
-    onUpdateBattle({ ...battle, logs });
+    onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
 
     setTimeout(() => {
-      executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+      executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
     }, 650);
   };
 
@@ -1589,6 +1626,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     }
 
     setIsCombatBusy(true);
+    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
     soundFX.playPotionSound();
     stageRef.current?.triggerGuardAura('HERO');
 
@@ -1614,10 +1652,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
     onUpdatePlayer(updatedPlayer);
     const enemy = { ...battle.enemy };
-    onUpdateBattle({ ...battle, logs, guardedLastTurn: true });
+    onUpdateBattle({ ...battle, logs, guardedLastTurn: true, skillCooldowns: nextSkillCooldowns });
 
     setTimeout(() => {
-      executeEnemyTurnAnimated(enemy, logs, updatedPlayer);
+      executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
     }, 650);
   };
 
@@ -1680,11 +1718,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         logs = addLog(logs, `❌ Flee Failed! The enemy blocked your escape route! (1 Flee attempt remaining)`, 'DEBUFF', 'PLAYER');
       }
 
+      const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
       const enemy = { ...battle.enemy! };
-      updateBattleState({ ...battleRef.current, logs, fleeAttempts: nextAttempts });
+      updateBattleState({ ...battleRef.current, logs, fleeAttempts: nextAttempts, skillCooldowns: nextSkillCooldowns });
 
       setTimeout(() => {
-        executeEnemyTurnAnimated(enemy, logs, undefined, undefined, { fleeAttempts: nextAttempts });
+        executeEnemyTurnAnimated(enemy, logs, undefined, nextSkillCooldowns, { fleeAttempts: nextAttempts });
       }, 650);
     }
   };
@@ -1700,14 +1739,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const p = activePlayerState || player;
     let logs = currentLogs;
 
-    // Decrement active skill cooldowns by 1 on turn pass
-    const currentCds = activeSkillCooldowns || battle.skillCooldowns || {};
-    const decrementedCooldowns: Record<string, number> = {};
-    for (const [skillId, turns] of Object.entries(currentCds)) {
-      if (turns > 1) {
-        decrementedCooldowns[skillId] = turns - 1;
-      }
-    }
+    // Player skill cooldowns are managed strictly on Player turns; preserve active cooldowns during enemy retaliation
+    const retainedCooldowns = activeSkillCooldowns || battle.skillCooldowns || {};
 
     // Monster lunge
     setMonsterAnim('anim-lunge-left');
@@ -1731,12 +1764,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BLEED');
         if (enemy.currentHp <= 0) {
           enemy.currentHp = 0;
-          setMonsterAnim('anim-faint');
+          setMonsterAnim('anim-death-monster');
+          stageRef.current?.triggerDeath('MONSTER');
+          stageRef.current?.triggerRumble();
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
           setTimeout(() => {
             handleVictory(enemy, logs);
             setIsCombatBusy(false);
-          }, 800);
+          }, 1150);
           return;
         }
       }
@@ -1753,12 +1788,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'POISON');
         if (enemy.currentHp <= 0) {
           enemy.currentHp = 0;
-          setMonsterAnim('anim-faint');
+          setMonsterAnim('anim-death-monster');
+          stageRef.current?.triggerDeath('MONSTER');
+          stageRef.current?.triggerRumble();
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
           setTimeout(() => {
             handleVictory(enemy, logs);
             setIsCombatBusy(false);
-          }, 800);
+          }, 1150);
           return;
         }
       }
@@ -1775,17 +1812,75 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ).filter(e => e.durationTurnsLeft > 0 || e.type !== 'BURN');
         if (enemy.currentHp <= 0) {
           enemy.currentHp = 0;
-          setMonsterAnim('anim-faint');
+          setMonsterAnim('anim-death-monster');
+          stageRef.current?.triggerDeath('MONSTER');
+          stageRef.current?.triggerRumble();
           onUpdatePlayer({ ...p, isCoveredNextTurn: false });
           setTimeout(() => {
             handleVictory(enemy, logs);
             setIsCombatBusy(false);
-          }, 800);
+          }, 1150);
           return;
         }
       }
 
-      const enemyDmg = Math.floor(enemy.attackMin + Math.random() * (enemy.attackMax - enemy.attackMin + 1));
+      // Exhaustion Check & Universal Enemy Effect Decay
+      const isEnemyExhausted = (enemy.activeEffects || []).some(e => e.type === 'EXHAUSTION');
+      if (isEnemyExhausted) {
+        logs = addLog(logs, `🌀 ${enemy.name} is Exhausted! Heavy fatigue weakens attack output (-25% damage).`, 'DEBUFF', 'SYSTEM');
+      }
+
+      // Decrement duration for non-DoT status effects (like EXHAUSTION) on enemy
+      enemy.activeEffects = (enemy.activeEffects || []).map(e => {
+        if (['BLEED', 'POISON', 'BURN'].includes(e.type)) {
+          // Already ticked and decremented in DoT blocks above
+          return e;
+        }
+        return { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 };
+      }).filter(e => {
+        if (e.durationTurnsLeft <= 0) {
+          logs = addLog(logs, `✨ ${enemy.name} has recovered from [${e.name || e.type}]!`, 'INFO', 'SYSTEM');
+          return false;
+        }
+        return true;
+      });
+
+      // Process Player Status Effects & Turn Decay
+      let playerUpdatedHp = p.currentHp;
+      const updatedPlayerEffects = (p.activeEffects || []).map(e => {
+        if (e.type === 'POISON') {
+          const dmg = Math.max(2, Math.floor(e.magnitude || (10 + p.level * 2)));
+          playerUpdatedHp = Math.max(0, playerUpdatedHp - dmg);
+          logs = addLog(logs, `🤢 Poison: You suffer ${dmg} Nature damage!`, 'DAMAGE', 'SYSTEM');
+          stageRef.current?.addFloater(dmg, 'HERO', 'normal');
+        } else if (e.type === 'BLEED') {
+          const dmg = Math.max(2, Math.floor(e.magnitude || (12 + p.level * 2)));
+          playerUpdatedHp = Math.max(0, playerUpdatedHp - dmg);
+          logs = addLog(logs, `🩸 Bleed: You lose ${dmg} HP from open wounds!`, 'DAMAGE', 'SYSTEM');
+          stageRef.current?.addFloater(dmg, 'HERO', 'normal');
+        } else if (e.type === 'BURN') {
+          const dmg = Math.max(2, Math.floor(e.magnitude || (8 + p.level * 1.5)));
+          playerUpdatedHp = Math.max(0, playerUpdatedHp - dmg);
+          logs = addLog(logs, `🔥 Burn: Searing embers scorch you for ${dmg} damage!`, 'DAMAGE', 'SYSTEM');
+          stageRef.current?.addFloater(dmg, 'HERO', 'normal');
+        } else if (e.type === 'EXHAUSTION') {
+          logs = addLog(logs, `🌀 Exhausted: Mana regen & Dodge reduced!`, 'DEBUFF', 'SYSTEM');
+        }
+        return { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 };
+      }).filter(e => {
+        if (e.durationTurnsLeft <= 0) {
+          logs = addLog(logs, `✨ [${e.name || e.type}] effect on you has expired.`, 'INFO', 'SYSTEM');
+          return false;
+        }
+        return true;
+      });
+      p.currentHp = playerUpdatedHp;
+      p.activeEffects = updatedPlayerEffects;
+
+      let enemyDmg = Math.floor(enemy.attackMin + Math.random() * (enemy.attackMax - enemy.attackMin + 1));
+      if (isEnemyExhausted) {
+        enemyDmg = Math.max(1, Math.floor(enemyDmg * 0.75));
+      }
 
       // ── Dodge check ──────────────────────────────────────────────────────
       if (Math.random() * 100 < derived.dodgeChancePercent) {
@@ -1828,7 +1923,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           enemy,
           logs,
           guardedLastTurn: false,
-          skillCooldowns: decrementedCooldowns,
+          skillCooldowns: retainedCooldowns,
         });
         setTimeout(() => {
           setIsCombatBusy(false);
@@ -1861,12 +1956,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
           if (enemy.currentHp <= 0) {
             enemy.currentHp = 0;
-            setMonsterAnim('anim-faint');
+            setMonsterAnim('anim-death-monster');
+            stageRef.current?.triggerDeath('MONSTER');
+            stageRef.current?.triggerRumble();
             onUpdatePlayer({ ...p, isCoveredNextTurn: false });
             setTimeout(() => {
               handleVictory(enemy, logs);
               setIsCombatBusy(false);
-            }, 800);
+            }, 1150);
             return;
           }
 
@@ -1878,7 +1975,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             enemy,
             logs,
             guardedLastTurn: false,
-            skillCooldowns: decrementedCooldowns,
+            skillCooldowns: retainedCooldowns,
           });
           setTimeout(() => {
             setIsCombatBusy(false);
@@ -1923,6 +2020,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       if (newPlayerHp <= 0) {
+        soundFX.playDefeatSound();
+        setHeroAnim('anim-death-hero');
+        stageRef.current?.triggerDeath('HERO');
+        stageRef.current?.triggerRumble();
+        stageRef.current?.addFloater('💀 SPIRIT SEVERED', 'HERO', 'crit');
+
         const lostCowries = Math.floor((p.wallet.cowrieShells || 0) * 0.25);
         const lostSilver = Math.floor((p.wallet.silverPieces || 0) * 0.25);
         const newCowries = Math.max(0, (p.wallet.cowrieShells || 0) - lostCowries);
@@ -1963,20 +2066,19 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           isCoveredNextTurn: false,
         });
 
-        onUpdateBattle({
-          inCombat: false,
-          turnNumber: 0,
-          playerActionGauge: 100,
-          enemyActionGauge: 0,
-          enemy: null,
-          logs: [],
-          winner: 'ENEMY',
-        });
-
         setTimeout(() => {
+          onUpdateBattle({
+            inCombat: false,
+            turnNumber: 0,
+            playerActionGauge: 100,
+            enemyActionGauge: 0,
+            enemy: null,
+            logs: [],
+            winner: 'ENEMY',
+          });
           setIsCombatBusy(false);
           onNavigateToHaven();
-        }, 1200);
+        }, 1300);
         return;
       }
 
@@ -2002,7 +2104,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         enemy,
         logs,
         guardedLastTurn: false,
-        skillCooldowns: decrementedCooldowns,
+        skillCooldowns: retainedCooldowns,
       });
 
       setTimeout(() => {
@@ -2454,24 +2556,24 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             >
               {GAME_LOCATIONS.map((loc, idx) => {
                 const isInfinite = loc.id === 'loc_act_infinite';
-                const reqPower = calcRequiredActPower(loc.id, player.ngPlusLevel || 0);
+                const actMinLevel = isNgPlus ? startLvl + (loc.minLevel - 1) : loc.minLevel;
                 const prevLoc = idx > 0 ? GAME_LOCATIONS[idx - 1] : null;
                 const isPrevBossDefeated = prevLoc?.bossId ? (player.completedBossIds || []).includes(prevLoc.bossId) : false;
                 const isInfiniteUnlocked = player.act8Completed || (player.completedBossIds || []).includes('boss_act_8');
                 const isLocUnlocked = idx === 0 || (player.unlockedLocationIds || []).includes(loc.id);
 
                 const isBossLocked = isInfinite ? !isInfiniteUnlocked : (prevLoc?.bossId ? !isPrevBossDefeated : false);
-                const isPowerLocked = (!isPrevBossDefeated && !isLocUnlocked && !isInfiniteUnlocked) && derived.powerLevel < reqPower;
-                const isLocked = isBossLocked || isPowerLocked;
+                const isLevelLocked = (!isPrevBossDefeated && !isLocUnlocked && !isInfiniteUnlocked) && player.level < actMinLevel;
+                const isLocked = isBossLocked || isLevelLocked;
                 const actRoman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx];
                 const prevRoman = idx > 0 ? ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][idx - 1] : '';
 
                 let lockLabel = '';
                 if (isLocked) {
                   if (isInfinite) {
-                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII Boss' : `${reqPower} Pwr`})`;
+                    lockLabel = `🔒 Celestial Ether (${isBossLocked ? 'Req Act VIII Boss' : `Req Lv.${actMinLevel}`})`;
                   } else {
-                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${prevRoman} Boss` : `${reqPower} Pwr`})`;
+                    lockLabel = `🔒 Act ${actRoman}: ??? (${isBossLocked ? `Req Act ${prevRoman} Boss` : `Req Lv.${actMinLevel}`})`;
                   }
                 } else {
                   if (isInfinite) {
@@ -2500,9 +2602,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 disabled={isBossLevelLocked || !!activeInteractiveEncounter}
                 title={
                   isBossLevelLocked
-                    ? isNgPlus
-                      ? `Act Guardian Locked (Req ${bossPowerReq} Power)`
-                      : `Act Guardian Locked (Req Level ${bossLevelReq} • Rec. ${bossPowerReq} Power)`
+                    ? `Act Guardian Locked (Req Level ${bossLevelReq})`
                     : isBossDefeated
                     ? 'Re-challenge Act Guardian'
                     : `Confront Act Guardian (${bossCost} Stamina)`
@@ -2518,7 +2618,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
                 <span>{isBossLevelLocked ? '🔒' : '👑'}</span>
                 <span>
                   {isBossLevelLocked
-                    ? (isNgPlus ? `Req ${bossPowerReq} Pwr` : `Req Lv.${bossLevelReq}`)
+                    ? `Req Lv.${bossLevelReq}`
                     : isBossDefeated
                     ? 'Conquered ✓'
                     : `Confront Boss (${bossCost}⚡)`}
@@ -3113,11 +3213,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
               onChallenge={() => {
                 setShowBossDiscoveryModal(false);
                 if (isBossLevelLocked) {
-                  if (isNgPlus) {
-                    notify(`🔒 Act Climax Gate Locked! Titan Power Rating ${bossPowerReq} required to confront ${selectedLocation.name}'s Guardian. (Your Power: ${derived.powerLevel})`, 'warning', '🔒');
-                  } else {
-                    notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to confront ${selectedLocation.name}'s Guardian. (Recommended Power: ${bossPowerReq}, Your Power: ${derived.powerLevel})`, 'warning', '🔒');
-                  }
+                  notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to confront ${selectedLocation.name}'s Guardian. (Current Level: ${player.level})`, 'warning', '🔒');
                   return;
                 }
                 if (hasUncompleted) {
