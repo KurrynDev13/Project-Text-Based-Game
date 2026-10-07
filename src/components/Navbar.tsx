@@ -83,11 +83,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, player,
   return (
     <nav
       data-tutorial-target="navbar-bottom"
-      className="fixed bottom-0 left-0 right-0 bg-[#07090e]/95 backdrop-blur-md border-t border-amber-500/25 text-amber-100 select-none z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.8)]"
+      className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-zinc-950/65 to-zinc-950/25 backdrop-blur-md border-t border-amber-500/30 text-amber-100 select-none z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.8)]"
     >
       {/* Strict Combat Lock Barrier Overlay */}
       {isLocked && (
-        <div className="absolute inset-0 bg-[#07090e]/95 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
+        <div className="absolute inset-0 bg-black/85 backdrop-blur-md z-30 flex items-center justify-center px-4 py-1.5 text-center border-t border-red-600/80 shadow-2xl">
           <div className="flex items-center space-x-2 text-red-400 font-mono text-xs font-bold animate-pulse">
             <span>🔒</span>
             <span>

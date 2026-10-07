@@ -96,27 +96,36 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
 
   useEffect(() => {
     if (activeTab === 'OVERVIEW') return;
-    checkSingleScrollBounds();
+    if (singlePillarScrollRef.current) {
+      singlePillarScrollRef.current.scrollLeft = 0;
+    }
+    const timer = setTimeout(() => {
+      checkSingleScrollBounds();
+    }, 60);
+
     const el = singlePillarScrollRef.current;
     if (el) {
-      el.addEventListener('scroll', checkSingleScrollBounds);
+      el.addEventListener('scroll', checkSingleScrollBounds, { passive: true });
       window.addEventListener('resize', checkSingleScrollBounds);
       return () => {
+        clearTimeout(timer);
         el.removeEventListener('scroll', checkSingleScrollBounds);
         window.removeEventListener('resize', checkSingleScrollBounds);
       };
     }
-  }, [checkSingleScrollBounds, activeTab]);
+    return () => clearTimeout(timer);
+  }, [checkSingleScrollBounds, activeTab, currentPillar.id]);
 
-  // Smooth scroll handler for < and > buttons
+  // Smooth scroll handler for < and > buttons (auto-scroll by 1 tier width ~260px)
   const handleSingleHorizontalScroll = (dir: 'left' | 'right') => {
     soundFX.playClickSound?.();
     if (singlePillarScrollRef.current) {
-      const scrollStep = 280;
+      const scrollStep = 260;
       singlePillarScrollRef.current.scrollBy({
         left: dir === 'left' ? -scrollStep : scrollStep,
         behavior: 'smooth',
       });
+      setTimeout(checkSingleScrollBounds, 320);
     }
   };
 
@@ -295,8 +304,8 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
     );
   };
 
-  // Helper to render a 4-tier horizontal grid for a given pillar
-  const renderPillarHorizontalTree = (pillarId: string) => {
+  // Helper to render the 4 tier columns and visual connectors
+  const renderPillarColumns = (pillarId: string) => {
     const pSkills = skills.filter((s) => s.pillarId === pillarId);
     const t1 = pSkills.filter((s) => (s.tier || 1) === 1);
     const t2 = pSkills.filter((s) => s.tier === 2);
@@ -304,12 +313,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
     const t4 = pSkills.filter((s) => s.tier === 4);
 
     return (
-      <div
-        data-skill-tree-container="true"
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-        className="overflow-x-auto no-scrollbar scroll-smooth flex items-stretch gap-2 sm:gap-3 px-2 sm:px-4 py-1"
-      >
+      <>
         {/* Tier 1 Column */}
         <div className="w-[230px] sm:w-[260px] shrink-0 flex flex-col space-y-2.5">
           <div className="flex items-center justify-between px-2 py-1 bg-stone-900/80 border border-zinc-800 rounded-xl">
@@ -385,6 +389,20 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
             {t4.map((skill) => renderSkillCard(skill))}
           </div>
         </div>
+      </>
+    );
+  };
+
+  // Helper to render horizontal tree row in Overview mode
+  const renderPillarHorizontalTree = (pillarId: string) => {
+    return (
+      <div
+        data-skill-tree-container="true"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        className="overflow-x-auto no-scrollbar scroll-smooth flex items-stretch gap-2 sm:gap-3 px-2 sm:px-4 py-1"
+      >
+        {renderPillarColumns(pillarId)}
       </div>
     );
   };
@@ -409,7 +427,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
       className="flex flex-col gap-2.5 pb-6 select-none font-sans"
     >
       {/* ── 1. TOP COMBAT HOTBAR & SP SUMMARY ────────────────────────────── */}
-      <div className="p-2.5 sm:p-3 bg-[#0c0f16]/90 backdrop-blur-md border border-amber-500/30 rounded-2xl shadow-xl space-y-2">
+      <div className="p-2.5 sm:p-3 bg-[#0c0f16]/55 backdrop-blur-md border border-amber-500/30 rounded-2xl shadow-xl space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm font-serif font-bold text-amber-200 flex items-center gap-1.5">
@@ -502,7 +520,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
       </div>
 
       {/* ── 2. 4-COLUMN TAB BAR (ALL TABS VISIBLE WITHOUT HORIZONTAL SCROLL) ── */}
-      <div className="grid grid-cols-4 gap-1 sm:gap-1.5 w-full bg-[#090c12]/85 backdrop-blur-md border border-zinc-800/90 p-1 rounded-2xl shadow-md">
+      <div className="grid grid-cols-4 gap-1 sm:gap-1.5 w-full bg-[#090c12]/55 backdrop-blur-md border border-zinc-800/80 p-1 rounded-2xl shadow-md">
         {tabList.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -553,7 +571,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
       )}
 
       {/* ── 3. SKILL TREE SCROLLABLE PANE (CONTAINED HEIGHT) ───────────────── */}
-      <div className="relative bg-[#090c12]/90 backdrop-blur-md border border-amber-600/40 rounded-2xl p-2.5 sm:p-3.5 shadow-2xl overflow-hidden font-sans">
+      <div className="relative bg-[#090c12]/50 backdrop-blur-md border border-amber-600/35 rounded-2xl p-2.5 sm:p-3.5 shadow-2xl overflow-hidden font-sans">
         {/* Dynamic Pillar Header Banner matching Image 5 */}
         <div className="flex items-center justify-between border-b border-amber-500/25 pb-2.5 mb-2.5 px-1 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -619,8 +637,8 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               onClick={() => handleSingleHorizontalScroll('left')}
               disabled={!canScrollLeft}
               aria-label="Scroll Tree Left"
-              className={`absolute left-0 top-1/2 -translate-y-1/2 z-30 w-7 sm:w-8 h-20 sm:h-24 bg-stone-950/90 hover:bg-stone-900 text-amber-300 border border-amber-500/50 rounded-r-2xl flex items-center justify-center font-bold text-lg sm:text-xl transition-all shadow-2xl active:scale-95 cursor-pointer backdrop-blur-md ${
-                !canScrollLeft ? 'opacity-20 cursor-not-allowed pointer-events-none' : 'hover:border-amber-400'
+              className={`absolute left-0 top-1/2 -translate-y-1/2 z-30 w-7 sm:w-8 h-20 sm:h-24 bg-black/60 hover:bg-zinc-900/90 text-amber-300 border border-amber-500/50 rounded-r-2xl flex items-center justify-center font-bold text-lg sm:text-xl transition-all shadow-2xl active:scale-95 cursor-pointer backdrop-blur-md ${
+                !canScrollLeft ? 'opacity-20 cursor-not-allowed pointer-events-none' : 'hover:border-amber-400 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)]'
               }`}
             >
               ‹
@@ -631,8 +649,8 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               onClick={() => handleSingleHorizontalScroll('right')}
               disabled={!canScrollRight}
               aria-label="Scroll Tree Right"
-              className={`absolute right-0 top-1/2 -translate-y-1/2 z-30 w-7 sm:w-8 h-20 sm:h-24 bg-stone-950/90 hover:bg-stone-900 text-amber-300 border border-amber-500/50 rounded-l-2xl flex items-center justify-center font-bold text-lg sm:text-xl transition-all shadow-2xl active:scale-95 cursor-pointer backdrop-blur-md ${
-                !canScrollRight ? 'opacity-20 cursor-not-allowed pointer-events-none' : 'hover:border-amber-400'
+              className={`absolute right-0 top-1/2 -translate-y-1/2 z-30 w-7 sm:w-8 h-20 sm:h-24 bg-black/60 hover:bg-zinc-900/90 text-amber-300 border border-amber-500/50 rounded-l-2xl flex items-center justify-center font-bold text-lg sm:text-xl transition-all shadow-2xl active:scale-95 cursor-pointer backdrop-blur-md ${
+                !canScrollRight ? 'opacity-20 cursor-not-allowed pointer-events-none' : 'hover:border-amber-400 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)]'
               }`}
             >
               ›
@@ -647,7 +665,7 @@ export const SkillTreeView: React.FC<SkillTreeViewProps> = ({
               onTouchEnd={(e) => e.stopPropagation()}
               className="overflow-x-auto no-scrollbar scroll-smooth flex items-stretch gap-2 sm:gap-3 px-8 sm:px-10 py-1"
             >
-              {renderPillarHorizontalTree(currentPillar.id)}
+              {renderPillarColumns(currentPillar.id)}
             </div>
           </div>
         )}

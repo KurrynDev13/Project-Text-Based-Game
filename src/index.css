@@ -401,4 +401,229 @@
   animation: empoweredSolarRise 1.9s infinite ease-out 0.5s;
 }
 
+/* ─── Pronounced Status Effect Animations Overhaul ─── */
+
+/* 1. Exhaustion Rising 𖦹 Spirals */
+@keyframes floatSpiralAnim {
+  0% {
+    transform: translateY(22px) rotate(0deg) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.95;
+    transform: translateY(8px) rotate(90deg) scale(1.1);
+  }
+  75% {
+    opacity: 0.8;
+    transform: translateY(-16px) rotate(270deg) scale(0.95);
+  }
+  100% {
+    transform: translateY(-38px) rotate(360deg) scale(0.5);
+    opacity: 0;
+  }
+}
+.animate-float-spiral-1 {
+  animation: floatSpiralAnim 2.4s infinite cubic-bezier(0.25, 1, 0.5, 1);
+}
+.animate-float-spiral-2 {
+  animation: floatSpiralAnim 2.8s infinite cubic-bezier(0.25, 1, 0.5, 1) 0.8s;
+}
+.animate-float-spiral-3 {
+  animation: floatSpiralAnim 2.2s infinite cubic-bezier(0.25, 1, 0.5, 1) 1.5s;
+}
+
+/* 2. Fortified Floating ⛊ Aegis Shields */
+@keyframes floatAegisAnim {
+  0% {
+    transform: translateY(24px) scale(0.5);
+    opacity: 0;
+    filter: drop-shadow(0 0 2px #f59e0b);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(6px) scale(1.15);
+    filter: drop-shadow(0 0 8px #fbbf24);
+  }
+  75% {
+    opacity: 0.85;
+    transform: translateY(-16px) scale(0.95);
+    filter: drop-shadow(0 0 6px #f59e0b);
+  }
+  100% {
+    transform: translateY(-36px) scale(0.7);
+    opacity: 0;
+  }
+}
+.animate-float-aegis-1 {
+  animation: floatAegisAnim 2.5s infinite ease-out;
+}
+.animate-float-aegis-2 {
+  animation: floatAegisAnim 2.9s infinite ease-out 0.9s;
+}
+.animate-float-aegis-3 {
+  animation: floatAegisAnim 2.3s infinite ease-out 1.6s;
+}
+
+/* 3. Empowered Vertical Rising Lines */
+@keyframes verticalBeamRise {
+  0% {
+    transform: translateY(100%) scaleY(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.95;
+    transform: translateY(30%) scaleY(1.3);
+  }
+  75% {
+    opacity: 0.8;
+    transform: translateY(-30%) scaleY(1.1);
+  }
+  100% {
+    transform: translateY(-110%) scaleY(0.5);
+    opacity: 0;
+  }
+}
+.animate-beam-rise-1 {
+  animation: verticalBeamRise 1.2s infinite linear;
+}
+.animate-beam-rise-2 {
+  animation: verticalBeamRise 1.5s infinite linear 0.25s;
+}
+.animate-beam-rise-3 {
+  animation: verticalBeamRise 1.3s infinite linear 0.55s;
+}
+.animate-beam-rise-4 {
+  animation: verticalBeamRise 1.6s infinite linear 0.85s;
+}
+
+/* 4. Burn Dynamic Fiery Tongues & Embers */
+@keyframes fireTongueLeap {
+  0%, 100% {
+    transform: scaleY(0.85) scaleX(0.95) skewX(-2deg);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scaleY(1.25) scaleX(1.05) skewX(3deg);
+    filter: brightness(1.3) drop-shadow(0 0 10px #f97316);
+  }
+}
+.animate-fire-tongue {
+  animation: fireTongueLeap 0.75s infinite ease-in-out alternate;
+}
+
+@keyframes fireEmberAscend {
+  0% {
+    transform: translateY(8px) translateX(0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0) translateX(2px) scale(1.1);
+  }
+  70% {
+    opacity: 0.9;
+    transform: translateY(-20px) translateX(-4px) scale(0.9);
+  }
+  100% {
+    transform: translateY(-38px) translateX(6px) scale(0.3);
+    opacity: 0;
+  }
+}
+.animate-fire-ember-1 {
+  animation: fireEmberAscend 1.4s infinite ease-out;
+}
+.animate-fire-ember-2 {
+  animation: fireEmberAscend 1.8s infinite ease-out 0.4s;
+}
+.animate-fire-ember-3 {
+  animation: fireEmberAscend 1.3s infinite ease-out 0.8s;
+}
+
+/* 5. Poison Bubbling Vapors & ☣ Glyph */
+@keyframes floatToxicBubble {
+  0% {
+    transform: translateY(16px) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.95;
+    transform: translateY(4px) scale(1.1);
+  }
+  70% {
+    opacity: 0.8;
+    transform: translateY(-16px) scale(0.9);
+  }
+  100% {
+    transform: translateY(-34px) scale(0.4);
+    opacity: 0;
+  }
+}
+.animate-toxic-bubble-1 {
+  animation: floatToxicBubble 2.1s infinite ease-out;
+}
+.animate-toxic-bubble-2 {
+  animation: floatToxicBubble 2.5s infinite ease-out 0.7s;
+}
+.animate-toxic-bubble-3 {
+  animation: floatToxicBubble 1.9s infinite ease-out 1.3s;
+}
+
+/* 6. Bleed Arterial Splatter Droplets */
+@keyframes arterialDripAnim {
+  0% {
+    transform: translateY(-6px) scaleY(0.7);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(2px) scaleY(1.4);
+  }
+  65% {
+    opacity: 0.9;
+    transform: translateY(22px) scaleY(1.2);
+  }
+  100% {
+    transform: translateY(38px) scaleY(0.6);
+    opacity: 0;
+  }
+}
+.animate-arterial-drip-1 {
+  animation: arterialDripAnim 1.5s infinite ease-in;
+}
+.animate-arterial-drip-2 {
+  animation: arterialDripAnim 1.9s infinite ease-in 0.5s;
+}
+.animate-arterial-drip-3 {
+  animation: arterialDripAnim 1.7s infinite ease-in 1.0s;
+}
+
+/* 7. Haste Wind Shear 彡 Dashes */
+@keyframes windShearDash {
+  0% {
+    transform: translateX(-80px) skewX(-20deg) scaleX(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+    transform: translateX(-10px) skewX(-20deg) scaleX(1.3);
+  }
+  75% {
+    opacity: 0.85;
+    transform: translateX(40px) skewX(-20deg) scaleX(1.1);
+  }
+  100% {
+    transform: translateX(90px) skewX(-20deg) scaleX(0.5);
+    opacity: 0;
+  }
+}
+.animate-wind-shear-1 {
+  animation: windShearDash 0.75s infinite linear;
+}
+.animate-wind-shear-2 {
+  animation: windShearDash 0.62s infinite linear 0.22s;
+}
+.animate-wind-shear-3 {
+  animation: windShearDash 0.85s infinite linear 0.42s;
+}
+
 

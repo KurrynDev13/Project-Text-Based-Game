@@ -38,6 +38,8 @@ import {
   setActiveSlotId,
   loadGameSlot,
   saveGameSlot,
+  getSharedStash,
+  saveSharedStash,
 } from './utils/saveManager';
 import { triggerBackAction } from './utils/navigationStack';
 
@@ -131,7 +133,7 @@ const createInitialPlayer = (): PlayerCharacter => {
     },
     equipment: initialEquipment,
     inventory: [CONSUMABLES[0], CONSUMABLES[1], CONSUMABLES[2]],
-    stash: [CONSUMABLES[3], CONSUMABLES[4]],
+    stash: getSharedStash(),
     encryptedMemories: [
       { id: 'mem_starter_1', name: 'Encrypted Memory (WHITE)', rarity: 'WHITE', minLevel: 1, acquiredAtLocation: 'loc_act_1' },
       { id: 'mem_starter_2', name: 'Encrypted Memory (GREEN)', rarity: 'GREEN', minLevel: 5, acquiredAtLocation: 'loc_act_1' },
@@ -210,7 +212,8 @@ const mergePlayerWithMasterData = (savedPlayer: PlayerCharacter): PlayerCharacte
   }
 
   const sanitizedInventory = sanitizeItemIds(savedPlayer.inventory || []);
-  const sanitizedStash = sanitizeItemIds(savedPlayer.stash || []);
+  const sharedStash = getSharedStash();
+  const sanitizedStash = sharedStash.length > 0 ? sharedStash : sanitizeItemIds(savedPlayer.stash || []);
 
   return {
     ...savedPlayer,

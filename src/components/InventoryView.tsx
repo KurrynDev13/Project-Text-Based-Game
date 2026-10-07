@@ -472,7 +472,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setSelectedInspectItem(player.equipment.upperArmor);
               }
             }}
-            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+            className={`p-2 bg-[#0c0f16]/50 backdrop-blur-sm border border-zinc-800/80 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
               player.equipment.upperArmor ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
             }`}
           >
@@ -508,7 +508,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setSelectedInspectItem(player.equipment.lowerArmor);
               }
             }}
-            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+            className={`p-2 bg-[#0c0f16]/50 backdrop-blur-sm border border-zinc-800/80 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
               player.equipment.lowerArmor ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
             }`}
           >
@@ -544,7 +544,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setSelectedInspectItem(equippedWeapon);
               }
             }}
-            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+            className={`p-2 bg-[#0c0f16]/50 backdrop-blur-sm border border-zinc-800/80 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
               equippedWeapon ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
             }`}
           >
@@ -580,7 +580,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 setSelectedInspectItem(equippedMount);
               }
             }}
-            className={`p-2 bg-[#0c0f16]/85 backdrop-blur-sm border border-zinc-800 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
+            className={`p-2 bg-[#0c0f16]/50 backdrop-blur-sm border border-zinc-800/80 hover:border-amber-500/40 rounded-xl flex items-center justify-between min-h-[42px] shadow-md transition-all ${
               equippedMount ? 'cursor-pointer hover:bg-zinc-900/60 active:scale-[0.98]' : ''
             }`}
           >
@@ -650,7 +650,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       {/* ── 3. FILTER & SORT SUB-BAR ────────────────────────────────────────── */}
       {activeTab === 'GEAR' && (
-        <div className="flex items-center justify-between bg-zinc-950/80 px-2 py-1 rounded-xl border border-zinc-800 text-[10px] font-mono shrink-0">
+        <div className="flex items-center justify-between bg-zinc-950/50 backdrop-blur-sm px-2 py-1 rounded-xl border border-zinc-800 text-[10px] font-mono shrink-0">
           <button
             onClick={handleToggleSort}
             className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-300 transition-colors"
@@ -721,7 +721,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className={`relative overflow-hidden px-2.5 py-1.5 rounded-xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group shadow ${
                       !isWearable
                         ? 'bg-red-950/20 hover:bg-red-950/30 border border-red-900/60'
-                        : 'bg-zinc-950/80 hover:bg-zinc-900/90 border border-zinc-800/80 hover:border-amber-600/70'
+                        : 'bg-zinc-950/50 backdrop-blur-sm hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-amber-600/70'
                     }`}
                   >
                     <div className="flex items-center space-x-2 truncate">

@@ -141,8 +141,8 @@ export const HearthRestCarousel: React.FC<HearthRestCarouselProps> = ({
                 style={{ width: `${cardWidth}px` }}
                 className={`h-[285px] xs:h-[305px] sm:h-[345px] md:h-[385px] shrink-0 rounded-2xl sm:rounded-3xl p-3 sm:p-4 md:p-5 flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${
                   isActive
-                    ? 'scale-100 opacity-100 z-20 shadow-[0_10px_35px_rgba(0,0,0,0.85)] ring-2 ring-amber-500/70 border-2 border-amber-500/80 bg-zinc-950/75 backdrop-blur-md'
-                    : 'scale-[0.88] opacity-40 hover:opacity-75 z-10 cursor-pointer border border-zinc-800/80 bg-zinc-950/55 backdrop-blur-sm shadow-lg'
+                    ? 'scale-100 opacity-100 z-20 shadow-[0_10px_35px_rgba(0,0,0,0.85)] ring-2 ring-amber-500/70 border-2 border-amber-500/80 bg-black/50 backdrop-blur-md'
+                    : 'scale-[0.88] opacity-40 hover:opacity-75 z-10 cursor-pointer border border-zinc-800/80 bg-black/30 backdrop-blur-sm shadow-lg'
                 }`}
               >
                 {/* Ambient Radiant Glow for Active Card */}

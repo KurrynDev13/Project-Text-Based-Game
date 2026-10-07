@@ -496,6 +496,21 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   const isBossQualified = isBossDefeated || isLevelQualified;
   const isBossLevelLocked = !isBossQualified;
 
+  // Auto-trigger Boss Discovery Modal once the player meets the Act Climax level gate requirement
+  useEffect(() => {
+    if (battle.inCombat || !selectedLocation.bossId || isBossDefeated || showActStoryModal) return;
+    const bossId = selectedLocation.bossId;
+    const isDiscovered = (player.discoveredBossIds ?? []).includes(bossId);
+    if (isLevelQualified && !isDiscovered) {
+      setShowBossDiscoveryModal(true);
+      const discovered = Array.from(new Set([...(player.discoveredBossIds ?? []), bossId]));
+      onUpdatePlayer({
+        ...player,
+        discoveredBossIds: discovered,
+      });
+    }
+  }, [selectedLocation.bossId, isLevelQualified, isBossDefeated, player.discoveredBossIds, battle.inCombat, showActStoryModal]);
+
   const addLog = (
     currentLogs: BattleLogEntry[],
     text: string,
@@ -704,6 +719,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       notify('Resolve or dismiss the active sector encounter first!', 'warning', '⚠️');
       return;
     }
+
+    if (isBossLevelLocked) {
+      notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} (with 65% EXP) to awaken the Guardian of ${selectedLocation.name}. (Current Level: ${player.level})`, 'warning', '🌑');
+      return;
+    }
+
     const bossId = selectedLocation.bossId;
     if (bossId && !(player.discoveredBossIds ?? []).includes(bossId)) {
       setShowBossDiscoveryModal(true);
@@ -712,11 +733,6 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ...player,
         discoveredBossIds: discovered,
       });
-      return;
-    }
-
-    if (isBossLevelLocked) {
-      notify(`🔒 Act Climax Gate Locked! Reach Level ${bossLevelReq} to awaken the Guardian of ${selectedLocation.name}. (Current Level: ${player.level})`, 'warning', '🌑');
       return;
     }
 
@@ -1917,13 +1933,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       const activeWpn = p.equipment.weapon ?? p.equipment.primaryWeapon ?? null;
       const wpnRoll = activeWpn?.baseDamageMin || 25;
       const physBonus = Math.max(derived.meleeDamage, derived.rangedDamage);
+      const isBossTarget = Boolean(enemy.isBoss || enemy.id.startsWith('boss_'));
 
       // Bleed Tick
       const enemyBleed = (enemy.activeEffects || []).find(e => e.type === 'BLEED');
       if (enemyBleed && enemyBleed.durationTurnsLeft > 0) {
-        const bleedDmg = calculateStatDrivenDoTDamage('BLEED', p.level, physBonus, wpnRoll);
+        const rawBleedDmg = calculateStatDrivenDoTDamage('BLEED', p.level, physBonus, wpnRoll);
+        const bleedDmg = isBossTarget ? Math.max(1, Math.floor(rawBleedDmg * 0.65)) : rawBleedDmg;
         enemy.currentHp = Math.max(0, enemy.currentHp - bleedDmg);
-        logs = addLog(logs, `🩸 ${enemy.name} suffers ${bleedDmg} Bleed damage from rending wounds!`, 'DAMAGE', 'SYSTEM');
+        logs = addLog(logs, `🩸 ${enemy.name} suffers ${bleedDmg} Bleed damage from rending wounds${isBossTarget ? ' (Tenacity -35%)' : ''}!`, 'DAMAGE', 'SYSTEM');
         stageRef.current?.addFloater(bleedDmg, 'MONSTER', 'normal');
         enemy.activeEffects = (enemy.activeEffects || []).map(e =>
           e.type === 'BLEED' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
@@ -1945,9 +1963,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       // Poison Tick
       const enemyPoison = (enemy.activeEffects || []).find(e => e.type === 'POISON');
       if (enemyPoison && enemyPoison.durationTurnsLeft > 0) {
-        const poisonDmg = calculateStatDrivenDoTDamage('POISON', p.level, derived.rangedDamage, wpnRoll);
+        const rawPoisonDmg = calculateStatDrivenDoTDamage('POISON', p.level, derived.rangedDamage, wpnRoll);
+        const poisonDmg = isBossTarget ? Math.max(1, Math.floor(rawPoisonDmg * 0.65)) : rawPoisonDmg;
         enemy.currentHp = Math.max(0, enemy.currentHp - poisonDmg);
-        logs = addLog(logs, `🤢 ${enemy.name} suffers ${poisonDmg} Poison damage from caustic venom!`, 'DAMAGE', 'SYSTEM');
+        logs = addLog(logs, `🤢 ${enemy.name} suffers ${poisonDmg} Poison damage from caustic venom${isBossTarget ? ' (Tenacity -35%)' : ''}!`, 'DAMAGE', 'SYSTEM');
         stageRef.current?.addFloater(poisonDmg, 'MONSTER', 'normal');
         enemy.activeEffects = (enemy.activeEffects || []).map(e =>
           e.type === 'POISON' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
@@ -1969,9 +1988,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       // Burn Tick
       const enemyBurn = (enemy.activeEffects || []).find(e => e.type === 'BURN');
       if (enemyBurn && enemyBurn.durationTurnsLeft > 0) {
-        const burnDmg = calculateStatDrivenDoTDamage('BURN', p.level, derived.magicDamage, wpnRoll);
+        const rawBurnDmg = calculateStatDrivenDoTDamage('BURN', p.level, derived.magicDamage, wpnRoll);
+        const burnDmg = isBossTarget ? Math.max(1, Math.floor(rawBurnDmg * 0.65)) : rawBurnDmg;
         enemy.currentHp = Math.max(0, enemy.currentHp - burnDmg);
-        logs = addLog(logs, `🔥 ${enemy.name} suffers ${burnDmg} Burn damage from searing embers!`, 'DAMAGE', 'SYSTEM');
+        logs = addLog(logs, `🔥 ${enemy.name} suffers ${burnDmg} Burn damage from searing embers${isBossTarget ? ' (Tenacity -35%)' : ''}!`, 'DAMAGE', 'SYSTEM');
         stageRef.current?.addFloater(burnDmg, 'MONSTER', 'normal');
         enemy.activeEffects = (enemy.activeEffects || []).map(e =>
           e.type === 'BURN' ? { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 } : e
@@ -2724,9 +2744,9 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full max-w-xl md:max-w-2xl mx-auto w-full bg-[#07090e]/95 border border-amber-500/25 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md pb-16 md:pb-0">
+    <div className="flex flex-col h-full max-w-xl md:max-w-2xl mx-auto w-full bg-[#07090e]/60 border border-amber-500/30 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md pb-16 md:pb-0">
       {/* 1. COMPACT TOP HEADER */}
-      <header className="bg-[#090c12]/95 border-b border-amber-500/25 px-2.5 py-1.5 z-30 shrink-0 shadow-lg">
+      <header className="bg-[#090c12]/60 backdrop-blur-md border-b border-amber-500/25 px-2.5 py-1.5 z-30 shrink-0 shadow-lg">
         <div className="flex items-center justify-between gap-2">
           {/* Location / Act selector dropdown */}
           <div className="relative flex-1 min-w-0">
@@ -3070,7 +3090,7 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       </div>
 
       {/* 4. EXPANDED READABLE COMBAT / TACTICAL LOG (Single container, Newest on Top) */}
-      <div className="bg-zinc-950 border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[120px] sm:h-[135px] flex flex-col justify-between">
+      <div className="bg-zinc-950/65 backdrop-blur-md border-t border-amber-900/60 px-3 py-1.5 z-30 shrink-0 h-[120px] sm:h-[135px] flex flex-col justify-between">
         <div className="flex items-center justify-between text-[9px] font-mono text-amber-500 border-b border-amber-900/40 pb-0.5">
           <span className="font-bold flex items-center gap-1">
             📜 {battle.inCombat ? 'Tactical Combat Chronicle' : 'Sector Narrative Log'} (Latest on Top)

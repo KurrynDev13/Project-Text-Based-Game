@@ -118,8 +118,8 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
       className="flex flex-col h-full bg-transparent text-amber-100 p-2.5 sm:p-4 md:p-6 space-y-3 sm:space-y-4 overflow-y-auto font-sans select-none pb-20 md:pb-6"
     >
       {/* ── TITAN POWER RATING & EXP BAR ───────────────── */}
-      <div className="bg-[#090c12]/80 backdrop-blur-md border border-amber-500/25 rounded-2xl px-3 py-2 shadow-xl flex items-center gap-2.5 sm:gap-3 shrink-0">
-        <div className="bg-gradient-to-r from-amber-500/20 via-[#0c0f16] to-[#07090e] border border-amber-500/40 px-2.5 py-1 rounded-xl flex items-center gap-1.5 shrink-0 shadow-inner">
+      <div className="bg-[#090c12]/55 backdrop-blur-md border border-amber-500/25 rounded-2xl px-3 py-2 shadow-xl flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="bg-gradient-to-r from-amber-500/20 via-[#0c0f16]/60 to-[#07090e]/60 border border-amber-500/40 px-2.5 py-1 rounded-xl flex items-center gap-1.5 shrink-0 shadow-inner">
           <span className="text-xs sm:text-sm">⚔️</span>
           <span className="text-[10.5px] sm:text-xs font-mono font-bold text-amber-300 whitespace-nowrap">
             Titan Power: <strong className="text-amber-100 font-extrabold">{derived.powerLevel}</strong>
@@ -176,7 +176,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
       {activeTab === 'STATS' && (
         <div className="space-y-3 sm:space-y-4 max-w-4xl mx-auto w-full">
           {/* 1. Attributes Allocation Grid */}
-          <div className="bg-[#090c12]/80 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-amber-500/25 space-y-2.5 shadow-xl">
+          <div className="bg-[#090c12]/50 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-amber-500/30 space-y-2.5 shadow-xl">
             <div className="flex items-center justify-between pb-2 border-b border-zinc-800/80">
               <div className="flex items-center gap-2">
                 <h3 className="font-serif font-bold text-sm sm:text-base text-amber-100 flex items-center gap-1.5">
@@ -193,7 +193,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
             {/* 2x2 Dense Grid for STR, AGI, INT, VIT */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* STR */}
-              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/85 rounded-xl border border-zinc-800 hover:border-amber-500/40 flex justify-between items-center transition-all shadow-md">
+              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 hover:border-amber-500/40 flex justify-between items-center transition-all shadow-md">
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-1.5 font-serif">
                     <span>Strength (STR):</span>
@@ -213,7 +213,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
               </div>
 
               {/* AGI */}
-              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 hover:border-emerald-500/40 flex justify-between items-center transition-all shadow-md">
+              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 hover:border-emerald-500/40 flex justify-between items-center transition-all shadow-md">
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-1.5 font-serif">
                     <span>Agility (AGI):</span>
@@ -233,7 +233,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
               </div>
 
               {/* INT */}
-              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 hover:border-cyan-500/40 flex justify-between items-center transition-all shadow-md">
+              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 hover:border-cyan-500/40 flex justify-between items-center transition-all shadow-md">
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-1.5 font-serif">
                     <span>Intelligence (INT):</span>
@@ -253,7 +253,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
               </div>
 
               {/* VIT */}
-              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 hover:border-red-500/40 flex justify-between items-center transition-all shadow-md">
+              <div className="p-2.5 sm:p-3 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 hover:border-red-500/40 flex justify-between items-center transition-all shadow-md">
                 <div>
                   <div className="text-xs font-bold text-white flex items-center gap-1.5 font-serif">
                     <span>Vitality (VIT):</span>
@@ -275,7 +275,7 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
           </div>
 
           {/* 2. Expanded High-Density Combat Metrics */}
-          <div className="bg-[#090c12]/80 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-amber-500/25 space-y-3 shadow-xl">
+          <div className="bg-[#090c12]/50 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-amber-500/30 space-y-3 shadow-xl">
             <h3 className="font-serif font-bold text-sm sm:text-base text-amber-100 pb-2 border-b border-zinc-800/80">
               Combat Metrics & Calculations
             </h3>
@@ -286,21 +286,21 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 ❤️ VITALITY & RECOVERY
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-red-900/40 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-red-900/40 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Max HP</span>
                   <span className="text-red-400 font-bold text-xs sm:text-sm">{derived.maxHp} HP</span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-sky-900/40 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-sky-900/40 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Max MP</span>
                   <span className="text-sky-400 font-bold text-xs sm:text-sm">{derived.maxMp} MP</span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Physical Armor</span>
                   <span className="text-white font-bold text-xs sm:text-sm">
                     {derived.physicalArmor} ({derived.damageReductionPercent}% DR)
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Magic Defense</span>
                   <span className="text-purple-300 font-bold text-xs sm:text-sm">
                     {derived.magicDefense} ({derived.magicDRPercent}% MDR)
@@ -315,25 +315,25 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 ⚔️ OFFENSE & PRECISION
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-amber-900/40 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-amber-900/40 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Melee Damage</span>
                   <span className="text-amber-300 font-bold text-xs sm:text-sm">
                     +{derived.meleeDamage.toFixed(1)}
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-cyan-900/40 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-cyan-900/40 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Magic Damage</span>
                   <span className="text-cyan-300 font-bold text-xs sm:text-sm">
                     +{derived.magicDamage.toFixed(1)}
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Crit Rate & Multi</span>
                   <span className="text-yellow-400 font-bold text-xs sm:text-sm">
                     {derived.critChancePercent}% ({derived.critDamageMultiplier.toFixed(2)}x)
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Dodge & Penetration</span>
                   <span className="text-emerald-400 font-bold text-xs sm:text-sm">
                     {derived.dodgeChancePercent}% / {derived.armorPenetrationPercent}% Pen
@@ -348,25 +348,25 @@ export const CharacterSheet: React.FC<CharacterSheetProps> = ({
                 🎒 UTILITY & SUSTAIN
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Bag Capacity</span>
                   <span className="text-white font-bold text-xs sm:text-sm">
                     {derived.inventoryCapacity} Slots
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Combat HP Regen</span>
                   <span className="text-emerald-300 font-bold text-xs sm:text-sm">
                     +{derived.combatHpRegen.toFixed(1)} / turn
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Combat MP Regen</span>
                   <span className="text-sky-300 font-bold text-xs sm:text-sm">
                     +{derived.combatMpRegen} / turn
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#0c0f16]/90 rounded-xl border border-zinc-800 shadow-inner">
+                <div className="p-2.5 bg-[#0c0f16]/50 backdrop-blur-sm rounded-xl border border-zinc-800/80 shadow-inner">
                   <span className="text-zinc-400 text-[9px] block">Tenacity & Potions</span>
                   <span className="text-purple-300 font-bold text-xs sm:text-sm">
                     {derived.debuffTenacityPercent}% / +{derived.potionPotencyPercent}%

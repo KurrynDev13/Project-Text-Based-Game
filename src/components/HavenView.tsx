@@ -681,12 +681,12 @@ export const HavenView: React.FC<HavenViewProps> = ({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="w-full flex-1 flex flex-col h-full overflow-hidden bg-[#07090e]/80 backdrop-blur-md text-zinc-100 select-none font-sans relative"
+      className="w-full flex-1 flex flex-col h-full overflow-hidden bg-transparent text-zinc-100 select-none font-sans relative"
     >
       {/* ─── SANCTUARY HEADER ───── */}
       <header
         data-tutorial-target="town-banner"
-        className="bg-gradient-to-r from-[#090c12]/85 via-[#111622]/85 to-[#090c12]/85 backdrop-blur-md border-b border-amber-500/25 px-3 py-1.5 shrink-0 flex items-center justify-between shadow-2xl relative z-20"
+        className="bg-gradient-to-r from-[#090c12]/60 via-[#111622]/60 to-[#090c12]/60 backdrop-blur-md border-b border-amber-500/30 px-3 py-1.5 shrink-0 flex items-center justify-between shadow-2xl relative z-20"
       >
         <div className="flex items-center space-x-2.5 truncate">
           <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-amber-500/20 via-zinc-900 to-black border border-amber-500/40 flex items-center justify-center text-sm shadow-inner shrink-0 text-amber-300">
@@ -734,7 +734,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
       {/* ─── SINGLE-ROW BAYBAYIN DISTRICT NAVIGATION TABS (NO HORIZONTAL SWIPING) ─── */}
       <nav
         aria-label="Haven Districts"
-        className={`bg-[#090c12]/80 backdrop-blur-md border-b border-zinc-800/90 px-1 py-1 shrink-0 grid ${
+        className={`bg-[#090c12]/60 backdrop-blur-md border-b border-zinc-800/80 px-1 py-1 shrink-0 grid ${
           isStablesUnlocked ? 'grid-cols-6' : 'grid-cols-5'
         } gap-1 w-full font-mono z-20 shadow-md`}
       >
@@ -842,7 +842,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
               {isBountyBoardUnlocked && (
                 <div
                   data-tutorial-target="tavern-card"
-                  className={`w-full lg:w-80 bg-gradient-to-b from-[#12101e]/90 via-[#0d0a17]/95 to-[#08070e]/95 backdrop-blur-md border border-purple-700/50 rounded-2xl p-3 sm:p-4 flex-col justify-between shrink-0 shadow-2xl gap-2 sm:gap-3 ${
+                  className={`w-full lg:w-80 bg-gradient-to-b from-[#12101e]/55 via-[#0d0a17]/60 to-[#08070e]/60 backdrop-blur-md border border-purple-700/50 rounded-2xl p-3 sm:p-4 flex-col justify-between shrink-0 shadow-2xl gap-2 sm:gap-3 ${
                     tavernSubMode === 'NOTICE' ? 'flex' : 'hidden lg:flex'
                   }`}
                 >
@@ -960,7 +960,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-2 min-h-0">
               {/* SECTION A: ARMORY STORE */}
               <div
-                className={`flex-1 flex-col overflow-hidden bg-[#0c0e14]/90 backdrop-blur-md border border-amber-900/40 rounded-2xl p-2 sm:p-2.5 shadow-xl min-h-0 ${
+                className={`flex-1 flex-col overflow-hidden bg-[#0c0e14]/55 backdrop-blur-md border border-amber-900/40 rounded-2xl p-2 sm:p-2.5 shadow-xl min-h-0 ${
                   forgeSubMode === 'ARMORY' ? 'flex' : 'hidden lg:flex lg:w-2/3'
                 }`}
               >
@@ -1049,7 +1049,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
 
               {/* SECTION B: MUTYA AFFIX BLESSING ALTAR */}
               <div
-                className={`flex-1 flex-col overflow-hidden bg-[#100d1a]/90 backdrop-blur-md border border-purple-800/50 rounded-2xl p-2 sm:p-2.5 shadow-xl min-h-0 ${
+                className={`flex-1 flex-col overflow-hidden bg-[#100d1a]/55 backdrop-blur-md border border-purple-800/50 rounded-2xl p-2 sm:p-2.5 shadow-xl min-h-0 ${
                   forgeSubMode === 'MUTYA' ? 'flex' : 'hidden lg:flex lg:w-1/3'
                 }`}
               >
@@ -1179,7 +1179,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
                 return (
                   <div
                     key={potion.id}
-                    className="bg-gradient-to-b from-[#0a120f]/90 via-[#060e0a]/95 to-[#040805]/95 backdrop-blur-md border border-emerald-800/50 hover:border-emerald-500/70 p-2.5 rounded-2xl flex flex-col justify-between shadow-xl transition-all group min-h-[115px]"
+                    className="bg-gradient-to-b from-[#0a120f]/55 via-[#060e0a]/60 to-[#040805]/60 backdrop-blur-md border border-emerald-800/50 hover:border-emerald-500/70 p-2.5 rounded-2xl flex flex-col justify-between shadow-xl transition-all group min-h-[115px]"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
@@ -1549,7 +1549,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2 overflow-hidden min-h-0">
               {/* BACKPACK COLUMN */}
               <div
-                className={`bg-[#0c0f16]/90 backdrop-blur-md border border-amber-900/40 rounded-2xl p-2 sm:p-2.5 flex-col overflow-hidden shadow-xl min-h-0 ${
+                className={`bg-[#0c0f16]/55 backdrop-blur-md border border-amber-900/40 rounded-2xl p-2 sm:p-2.5 flex-col overflow-hidden shadow-xl min-h-0 ${
                   stashMobileView === 'BACKPACK' ? 'flex' : 'hidden md:flex'
                 }`}
               >
@@ -1615,7 +1615,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
 
               {/* VAULT COLUMN */}
               <div
-                className={`bg-[#0a111a]/90 backdrop-blur-md border border-cyan-900/40 rounded-2xl p-2 sm:p-2.5 flex-col overflow-hidden shadow-xl min-h-0 ${
+                className={`bg-[#0a111a]/55 backdrop-blur-md border border-cyan-900/40 rounded-2xl p-2 sm:p-2.5 flex-col overflow-hidden shadow-xl min-h-0 ${
                   stashMobileView === 'VAULT' ? 'flex' : 'hidden md:flex'
                 }`}
               >
@@ -1703,7 +1703,7 @@ export const HavenView: React.FC<HavenViewProps> = ({
             </div>
 
             {!player.act6Completed && !player.mountUnlocked ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2 bg-[#0c0d12]/90 backdrop-blur-md rounded-2xl border border-amber-900/40">
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2 bg-[#0c0d12]/55 backdrop-blur-md rounded-2xl border border-amber-900/40">
                 <div className="text-3xl">🔒 🐃</div>
                 <h4 className="font-serif font-bold text-amber-300 text-xs sm:text-sm">Beastmaster Stables Sealed</h4>
                 <p className="text-[9.5px] sm:text-[10px] text-zinc-400 font-mono max-w-sm leading-relaxed">
@@ -1727,10 +1727,10 @@ export const HavenView: React.FC<HavenViewProps> = ({
                       key={mount.id}
                       className={`p-3 rounded-2xl border flex flex-col justify-between space-y-2 transition-all shadow-md backdrop-blur-md ${
                         isEquipped
-                          ? 'bg-gradient-to-b from-[#0a1410]/95 to-black/95 border-emerald-500 ring-1 ring-emerald-500 shadow-emerald-950/50'
+                          ? 'bg-gradient-to-b from-[#0a1410]/60 to-black/60 border-emerald-500 ring-1 ring-emerald-500 shadow-emerald-950/50'
                           : isBonded
-                          ? 'bg-gradient-to-b from-[#0a121a]/95 to-black/95 border-cyan-800/60 shadow'
-                          : 'bg-zinc-950/70 border-zinc-800/80'
+                          ? 'bg-gradient-to-b from-[#0a121a]/60 to-black/60 border-cyan-800/60 shadow'
+                          : 'bg-zinc-950/45 border-zinc-800/80'
                       }`}
                     >
                       <div className="flex justify-between items-start">

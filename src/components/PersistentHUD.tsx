@@ -36,7 +36,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
         /* ULTRA-COMPACT SINGLE-LINE HUD DURING ACTIVE COMBAT */
         <div
           data-tutorial-target="persistent-hud"
-          className="bg-[#07090e]/95 backdrop-blur-md border-b border-amber-500/25 text-amber-100 px-2 py-1 md:px-3 md:py-1.5 shadow-2xl font-mono text-[10px] md:text-xs select-none"
+          className="bg-[#07090e]/65 backdrop-blur-md border-b border-amber-500/25 text-amber-100 px-2 py-1 md:px-3 md:py-1.5 shadow-2xl font-mono text-[10px] md:text-xs select-none"
         >
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
             {/* Left: Combat Engaged Indicator */}
@@ -48,7 +48,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
             </div>
 
             {/* Right: Currencies, Stamina, Audio & Settings Controls */}
-            <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/90 px-2 py-0.5 md:px-2.5 md:py-1 rounded-xl border border-zinc-800">
+            <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/55 px-2 py-0.5 md:px-2.5 md:py-1 rounded-xl border border-zinc-800">
               <div className="flex items-center space-x-1.5 md:space-x-2 font-bold font-mono">
                 <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0}🪙</span>
                 <span className="text-zinc-300 font-semibold">{player.wallet.silverPieces ?? player.wallet.silverShillings ?? 0}🔘</span>
@@ -78,7 +78,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
         /* STANDARD PERSISTENT HUD OUT OF COMBAT */
         <div
           data-tutorial-target="persistent-hud"
-          className="bg-[#07090e]/95 backdrop-blur-md border-b border-amber-500/25 text-amber-100 px-2 py-1 md:px-3 md:py-1.5 shadow-2xl font-mono text-[10px] md:text-xs select-none"
+          className="bg-[#07090e]/65 backdrop-blur-md border-b border-amber-500/25 text-amber-100 px-2 py-1 md:px-3 md:py-1.5 shadow-2xl font-mono text-[10px] md:text-xs select-none"
         >
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-1 md:gap-2">
             {/* Top Line: Hero Level & Class & Name */}
@@ -110,7 +110,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
             {/* Meters: HP & MP */}
             <div className="grid grid-cols-2 md:flex items-center gap-1.5 md:gap-4 w-full md:w-auto">
               {/* HP Bar */}
-              <div className="flex items-center space-x-1.5 bg-[#0c0f16]/90 px-1.5 py-0.5 md:px-2 md:py-1 rounded-xl border border-red-900/40 flex-1 md:w-48 shadow-inner">
+              <div className="flex items-center space-x-1.5 bg-[#0c0f16]/55 px-1.5 py-0.5 md:px-2 md:py-1 rounded-xl border border-red-900/40 flex-1 md:w-48 shadow-inner">
                 <span className="text-red-400 font-bold text-[9px] md:text-[10px] shrink-0">HP</span>
                 <div className="w-full h-2 md:h-2.5 bg-black/60 rounded-full overflow-hidden border border-red-900/50">
                   <div
@@ -124,7 +124,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
               </div>
 
               {/* MP Bar */}
-              <div className="flex items-center space-x-1.5 bg-[#0c0f16]/90 px-1.5 py-0.5 md:px-2 md:py-1 rounded-xl border border-sky-900/40 flex-1 md:w-40 shadow-inner">
+              <div className="flex items-center space-x-1.5 bg-[#0c0f16]/55 px-1.5 py-0.5 md:px-2 md:py-1 rounded-xl border border-sky-900/40 flex-1 md:w-40 shadow-inner">
                 <span className="text-sky-400 font-bold text-[9px] md:text-[10px] shrink-0">MP</span>
                 <div className="w-full h-2 md:h-2.5 bg-black/60 rounded-full overflow-hidden border border-sky-900/50">
                   <div
@@ -139,7 +139,7 @@ export const PersistentHUD: React.FC<PersistentHUDProps> = ({ player, inCombat, 
             </div>
 
             {/* Wallet & Stamina Summary */}
-            <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/90 px-2 py-0.5 md:px-3 md:py-1 rounded-xl border border-zinc-800 w-full md:w-auto justify-between md:justify-end shadow-inner">
+            <div className="flex items-center space-x-2 md:space-x-3 text-[9.5px] md:text-[11px] bg-[#0c0f16]/55 px-2 py-0.5 md:px-3 md:py-1 rounded-xl border border-zinc-800 w-full md:w-auto justify-between md:justify-end shadow-inner">
               {/* Pre-Colonial Currency Tiers */}
               <div className="flex items-center space-x-1.5 md:space-x-2 font-bold font-mono">
                 <span className="text-amber-300 font-semibold">{player.wallet.goldIngots ?? player.wallet.goldSovereigns ?? 0}🪙</span>

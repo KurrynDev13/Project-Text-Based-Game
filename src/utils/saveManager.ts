@@ -1,9 +1,9 @@
 // src/utils/saveManager.ts
 // Multi-slot Local Storage & Save State Manager for Maharlika: Legends of the Archipelago
 
-import { PlayerCharacter, HeroClass } from '../types/game';
-import { calcDerivedStats } from './gameFormulas';
-import { GAME_LOCATIONS } from '../data/equipmentData';
+import { PlayerCharacter, HeroClass, EquipmentItem, ConsumableItem } from '../types/game';
+import { calcDerivedStats, sanitizeItemIds } from './gameFormulas';
+import { GAME_LOCATIONS, CONSUMABLES } from '../data/equipmentData';
 
 export const MAX_SAVE_SLOTS = 3;
 
@@ -12,6 +12,7 @@ export const ACTIVE_SLOT_KEY = 'maharlika_active_slot_id';
 export const SLOTS_META_KEY = 'maharlika_save_slots_meta';
 export const LEGACY_SAVE_KEY = 'maharlika_player_save_v1';
 export const DEVICE_ID_KEY = 'maharlika_device_uuid';
+export const SHARED_STASH_KEY = 'maharlika_shared_stash_v1';
 
 export interface SaveSlotMeta {
   slotId: number; // 1, 2, 3
@@ -121,23 +122,67 @@ export function getSaveSlotsMeta(): SaveSlotMeta[] {
   return result;
 }
 
-/** Loads player data from a specific slot */
+/** Retrieves the universal shared stash across all character save slots */
+export function getSharedStash(): (EquipmentItem | ConsumableItem)[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(SHARED_STASH_KEY);
+    if (!raw) {
+      // Default initial shared stash with basic starter consumables if completely empty
+      const defaultStash = sanitizeItemIds([CONSUMABLES[3], CONSUMABLES[4]]);
+      localStorage.setItem(SHARED_STASH_KEY, JSON.stringify(defaultStash));
+      return defaultStash;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? sanitizeItemIds(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Persists the universal shared stash across all character save slots */
+export function saveSharedStash(stash: (EquipmentItem | ConsumableItem)[]): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const sanitized = sanitizeItemIds(stash || []);
+    localStorage.setItem(SHARED_STASH_KEY, JSON.stringify(sanitized));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Loads player data from a specific slot, automatically synchronizing the shared stash */
 export function loadGameSlot(slotId: number): PlayerCharacter | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(`${SLOT_KEY_PREFIX}${slotId}`);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    const parsed: PlayerCharacter = JSON.parse(raw);
+    if (parsed) {
+      // Synchronize shared stash
+      const shared = getSharedStash();
+      // If shared stash had items, use shared stash; otherwise if slot had stash, seed shared stash
+      if (shared.length > 0) {
+        parsed.stash = shared;
+      } else if (parsed.stash && parsed.stash.length > 0) {
+        saveSharedStash(parsed.stash);
+      }
+    }
     return parsed;
   } catch {
     return null;
   }
 }
 
-/** Saves player data to a specific slot */
+/** Saves player data to a specific slot and updates the universal shared stash */
 export function saveGameSlot(slotId: number, player: PlayerCharacter): boolean {
   if (typeof window === 'undefined') return false;
   try {
+    // Continuously keep the universal shared stash updated
+    if (player.stash) {
+      saveSharedStash(player.stash);
+    }
     const slotKey = `${SLOT_KEY_PREFIX}${slotId}`;
     localStorage.setItem(slotKey, JSON.stringify(player));
     // Also update active slot pointer

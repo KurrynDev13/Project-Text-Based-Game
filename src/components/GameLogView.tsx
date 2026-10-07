@@ -67,7 +67,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
   return (
     <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-x-hidden bg-transparent text-amber-100 p-2 sm:p-4 md:p-6 space-y-3 md:space-y-4 pb-20 md:pb-6 select-none font-sans">
       {/* Log & Social Header */}
-      <div className="bg-[#090c12]/95 backdrop-blur-md border border-amber-500/25 rounded-2xl p-3 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full min-w-0">
+      <div className="bg-[#090c12]/55 backdrop-blur-md border border-amber-500/25 rounded-2xl p-3 md:p-4 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full min-w-0">
         <div>
           <div className="text-[9.5px] font-mono text-amber-400 uppercase tracking-widest font-bold flex items-center gap-1">
             <span>ᜆᜎ</span>
@@ -78,7 +78,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
           </h2>
         </div>
 
-        <div className="flex bg-[#0c0f16]/90 p-1 rounded-xl border border-zinc-800 text-xs font-mono flex-wrap gap-1 w-full md:w-auto shadow-inner">
+        <div className="flex bg-[#0c0f16]/55 p-1 rounded-xl border border-zinc-800 text-xs font-mono flex-wrap gap-1 w-full md:w-auto shadow-inner">
           <button
             onClick={() => setActiveSubTab('JOURNAL')}
             className={`flex-1 md:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer min-h-[34px] flex items-center justify-center gap-1 active:scale-95 ${
@@ -113,7 +113,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
       </div>
 
       {/* SubTab Content */}
-      <div className="flex-1 bg-[#090c12]/95 border border-amber-500/25 rounded-2xl p-2.5 sm:p-4 shadow-xl flex flex-col justify-between w-full min-w-0 max-w-full overflow-hidden">
+      <div className="flex-1 bg-[#090c12]/55 backdrop-blur-md border border-amber-500/25 rounded-2xl p-2.5 sm:p-4 shadow-xl flex flex-col justify-between w-full min-w-0 max-w-full overflow-hidden">
         {activeSubTab === 'JOURNAL' && (
           <div className="w-full min-w-0 max-w-full overflow-x-hidden">
             <JournalView player={player} onUpdatePlayer={onUpdatePlayer} onShowToast={onShowToast} />
@@ -124,7 +124,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
           <div className="flex flex-col h-full justify-between space-y-3 w-full min-w-0">
             <div ref={chatContainerRef} className="space-y-2 overflow-y-auto max-h-80 pr-1 font-mono text-xs w-full">
               {messages.map((m, idx) => (
-                <div key={idx} className="bg-[#0c0f16]/90 p-2.5 rounded-xl border border-zinc-800 flex justify-between gap-2 break-words shadow-sm">
+                <div key={idx} className="bg-[#0c0f16]/55 p-2.5 rounded-xl border border-zinc-800 flex justify-between gap-2 break-words shadow-sm">
                   <div className="min-w-0 flex-1">
                     <strong className="text-amber-300 font-serif">{m.sender}: </strong>
                     <span className="text-zinc-200 break-words">{m.text}</span>
@@ -140,7 +140,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Send words across the archipelago..."
-                className="flex-1 bg-[#0c0f16]/90 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-500 min-w-0"
+                className="flex-1 bg-[#0c0f16]/55 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-amber-500 min-w-0"
               />
               <button
                 type="submit"
@@ -158,7 +158,7 @@ export const GameLogView: React.FC<GameLogViewProps> = ({ player, battleLogs, on
               <p className="text-zinc-500 italic text-center py-8">No recent combat encounters recorded.</p>
             ) : (
               displayCombatLogs.map((log) => (
-                <div key={log.id} className="bg-[#0c0f16]/90 p-2 rounded-xl border border-zinc-800 text-zinc-300 break-words shadow-sm">
+                <div key={log.id} className="bg-[#0c0f16]/55 p-2 rounded-xl border border-zinc-800 text-zinc-300 break-words shadow-sm">
                   <span className="text-[10px] text-amber-400 font-bold mr-2">[Turn {log.turn}]</span>
                   {log.text}
                 </div>

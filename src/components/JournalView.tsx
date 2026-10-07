@@ -167,7 +167,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
   return (
     <div className="space-y-3 font-mono text-xs">
       {/* Dynamic Main Campaign & Act Objective Banner */}
-      <div className="bg-[#090c12]/95 border border-amber-500/25 p-3.5 sm:p-4 rounded-2xl shadow-xl space-y-2.5">
+      <div className="bg-[#090c12]/55 backdrop-blur-md border border-amber-500/25 p-3.5 sm:p-4 rounded-2xl shadow-xl space-y-2.5">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-zinc-800/80 pb-2">
           <div>
             <div className="text-[9.5px] uppercase text-amber-400 font-bold tracking-wider flex items-center gap-1 font-mono">
@@ -177,7 +177,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
             <h3 className="text-sm sm:text-base font-bold font-serif text-amber-100">{latestUnlockedLoc.subtitle}</h3>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="bg-[#0c0f16]/90 text-zinc-300 px-2.5 py-1 rounded-xl border border-zinc-700/80 text-[10px] font-bold shadow-sm">
+            <span className="bg-[#0c0f16]/55 text-zinc-300 px-2.5 py-1 rounded-xl border border-zinc-700/80 text-[10px] font-bold shadow-sm">
               Quests: <strong className={latestActCompletedCount >= 3 ? 'text-emerald-400' : 'text-amber-400'}>{latestActCompletedCount}/3 Completed</strong>
             </span>
             <span className="bg-purple-950/80 text-purple-300 px-2.5 py-1 rounded-xl border border-purple-500/40 text-[10px] font-bold shadow-sm">
@@ -202,7 +202,7 @@ export const JournalView: React.FC<JournalViewProps> = ({ player, onUpdatePlayer
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex bg-[#0c0f16]/90 p-1 rounded-xl border border-zinc-800 gap-1 text-xs shadow-inner">
+      <div className="flex bg-[#0c0f16]/55 p-1 rounded-xl border border-zinc-800 gap-1 text-xs shadow-inner">
         <button
           onClick={() => setActiveTab('BOUNTIES')}
           className={`flex-1 py-2 px-3 rounded-lg font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95 ${

@@ -190,7 +190,7 @@ export const getFrameStatusClass = (effects?: ActiveStatusEffect[]): string => {
   return '';
 };
 
-// Tactical Status Effect Overlay for Character Artwork Frames (Dripping Poison, Blood, Embers, Miasma, and Buff Surges)
+// Tactical Status Effect Overlay for Character Artwork Frames (Pronounced Thematic Particles & Animated Glyphs)
 export const StatusEffectFrameOverlay: React.FC<{ activeEffects?: ActiveStatusEffect[] }> = ({ activeEffects }) => {
   if (!activeEffects || activeEffects.length === 0) return null;
 
@@ -205,98 +205,163 @@ export const StatusEffectFrameOverlay: React.FC<{ activeEffects?: ActiveStatusEf
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-20">
-      {/* 1. Toxic Poison Dripping */}
+      {/* 1. Toxic Poison Bubbling & Vapors */}
       {hasPoison && (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-emerald-950/20 mix-blend-color-dodge" />
-          <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-b from-emerald-500/80 to-transparent" />
-          <div className="absolute top-0 left-2 w-1.5 h-3 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-1" />
-          <div className="absolute top-0 right-3 w-1.5 h-3.5 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-2" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-2.5 bg-emerald-300 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-3" />
+          <div className="absolute inset-0 bg-emerald-950/25 mix-blend-color-dodge" />
+          <div className="absolute top-0 inset-x-0 h-2.5 bg-gradient-to-b from-emerald-500/90 to-transparent" />
+          <div className="absolute bottom-0 inset-x-0 h-5 bg-gradient-to-t from-emerald-600/40 via-emerald-800/20 to-transparent" />
+          
+          {/* Dripping venom droplets */}
+          <div className="absolute top-0 left-2 w-1.5 h-3.5 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-1" />
+          <div className="absolute top-0 right-3 w-1.5 h-4 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-drip-drop-2" />
+          
+          {/* Rising toxic bubbles and ☣ biohazard glyphs */}
+          <div className="absolute bottom-1 left-2 text-[10px] text-emerald-300 font-bold drop-shadow-[0_0_6px_#10b981] animate-toxic-bubble-1 select-none">☣</div>
+          <div className="absolute bottom-0.5 right-3 text-[11px] text-emerald-400 font-bold drop-shadow-[0_0_6px_#34d399] animate-toxic-bubble-2 select-none">🫧</div>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] text-emerald-300 font-bold drop-shadow-[0_0_5px_#10b981] animate-toxic-bubble-3 select-none">☣</div>
+          
+          <div className="absolute inset-0 border border-emerald-500/70 rounded-2xl shadow-[inset_0_0_14px_rgba(16,185,129,0.5)]" />
         </div>
       )}
 
-      {/* 2. Visceral Blood Dripping */}
+      {/* 2. Visceral Arterial Bleed Splatters */}
       {hasBleed && (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-rose-950/25 mix-blend-multiply" />
-          <div className="absolute top-0 inset-x-0 h-2.5 bg-gradient-to-b from-rose-600/90 to-transparent" />
-          <div className="absolute top-0 left-3 w-1.5 h-3.5 bg-rose-600 rounded-full shadow-[0_0_8px_#e11d48] animate-drip-drop-3" />
-          <div className="absolute top-0 right-2 w-1 h-2.5 bg-rose-500 rounded-full shadow-[0_0_8px_#e11d48] animate-drip-drop-1" />
-          <div className="absolute top-0 left-1/3 w-1.5 h-4 bg-rose-700 rounded-full shadow-[0_0_8px_#be123c] animate-drip-drop-2" />
+          <div className="absolute inset-0 bg-rose-950/30 mix-blend-multiply" />
+          <div className="absolute top-0 inset-x-0 h-3 bg-gradient-to-b from-rose-600/95 to-transparent" />
+          
+          {/* Arterial drip trails */}
+          <div className="absolute top-0 left-2.5 w-1.5 h-4 bg-rose-600 rounded-full shadow-[0_0_8px_#e11d48] animate-arterial-drip-1" />
+          <div className="absolute top-0 right-2 w-1 h-3 bg-rose-500 rounded-full shadow-[0_0_8px_#e11d48] animate-arterial-drip-2" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-4.5 bg-rose-700 rounded-full shadow-[0_0_8px_#be123c] animate-arterial-drip-3" />
+          
+          {/* Blood droplet motes */}
+          <div className="absolute top-2 right-4 text-[10px] animate-drip-drop-2 drop-shadow-[0_0_6px_#f43f5e] select-none">🩸</div>
+          <div className="absolute top-4 left-3 text-[9px] animate-drip-drop-3 drop-shadow-[0_0_6px_#be123c] select-none">🩸</div>
+          
+          <div className="absolute inset-0 border border-rose-600/80 rounded-2xl shadow-[inset_0_0_14px_rgba(225,29,72,0.6)]" />
         </div>
       )}
 
-      {/* 3. Scorching Burn Sparks */}
+      {/* 3. Fiery Scorching Burn (Flames & Ascending Embers) */}
       {hasBurn && (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-orange-950/20 mix-blend-screen" />
-          <div className="absolute bottom-0 inset-x-0 h-3 bg-gradient-to-t from-orange-600/70 to-transparent" />
-          <div className="absolute bottom-1 left-2 w-1.5 h-1.5 bg-amber-300 rounded-full blur-[0.5px] animate-pulse" />
-          <div className="absolute bottom-2 right-2 w-1 h-1 bg-orange-400 rounded-full blur-[0.5px] animate-ping" />
+          <div className="absolute inset-0 bg-orange-950/25 mix-blend-screen" />
+          
+          {/* Leaping fire tongues across bottom */}
+          <div className="absolute bottom-0 inset-x-0 h-7 bg-gradient-to-t from-red-600/80 via-orange-500/50 to-transparent animate-fire-tongue" />
+          <div className="absolute bottom-0 inset-x-0 h-3.5 bg-gradient-to-t from-amber-400/70 to-transparent blur-[1px] animate-pulse" />
+          
+          {/* Rising flame embers */}
+          <div className="absolute bottom-1 left-2 text-[11px] animate-fire-ember-1 drop-shadow-[0_0_8px_#f97316] select-none">🔥</div>
+          <div className="absolute bottom-1 right-2.5 text-[10px] animate-fire-ember-2 drop-shadow-[0_0_8px_#ea580c] select-none">🔥</div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-yellow-300 rounded-full blur-[0.5px] animate-fire-ember-3" />
+          <div className="absolute bottom-2 left-1/3 w-1 h-1 bg-amber-400 rounded-full blur-[0.5px] animate-fire-ember-1" />
+          <div className="absolute bottom-2 right-1/3 w-1.5 h-1.5 bg-orange-400 rounded-full blur-[0.5px] animate-fire-ember-2" />
+          
+          <div className="absolute inset-0 border border-orange-500/85 rounded-2xl shadow-[inset_0_0_16px_rgba(249,115,22,0.65)]" />
         </div>
       )}
 
-      {/* 4. Exhaustion Murky Shadow */}
+      {/* 4. Exhaustion Murky Shadow with Rising 𖦹 Spirals */}
       {hasExhaustion && (
-        <div className="absolute inset-0 bg-purple-950/30 mix-blend-multiply">
-          <div className="absolute inset-0 bg-gradient-to-t from-purple-900/60 via-transparent to-black/40" />
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-purple-950/40 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-t from-purple-900/70 via-transparent to-black/50" />
+          
+          {/* Rising spinning 𖦹 glyph spirals */}
+          <div className="absolute bottom-1 left-2 text-[13px] text-purple-300 font-bold drop-shadow-[0_0_6px_#c084fc] animate-float-spiral-1 select-none">
+            𖦹
+          </div>
+          <div className="absolute bottom-0.5 right-3 text-[12px] text-fuchsia-300 font-bold drop-shadow-[0_0_6px_#e879f9] animate-float-spiral-2 select-none">
+            𖦹
+          </div>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[14px] text-purple-400 font-bold drop-shadow-[0_0_8px_#a855f7] animate-float-spiral-3 select-none">
+            𖦹
+          </div>
+          
+          <div className="absolute inset-0 border border-purple-500/80 rounded-2xl shadow-[inset_0_0_16px_rgba(168,85,247,0.55)]" />
         </div>
       )}
 
-      {/* 5. Fortified Golden Aegis (Hardened Poise Shield) */}
+      {/* 5. Fortified Golden Aegis with Floating ⛊ Shields */}
       {hasFortified && (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 border-2 border-amber-400/80 rounded-2xl shadow-[inset_0_0_14px_rgba(251,191,36,0.5)]" />
-          <div className="absolute top-1 inset-x-0 flex justify-center pointer-events-none">
-            <span className="text-[9px] drop-shadow-[0_0_6px_#f59e0b] select-none">🛡️</span>
+          <div className="absolute inset-0 bg-amber-500/15 mix-blend-overlay" />
+          <div className="absolute inset-0 border-2 border-amber-400/90 rounded-2xl shadow-[inset_0_0_16px_rgba(251,191,36,0.6)]" />
+          
+          {/* Floating rising ⛊ aegis runic shields */}
+          <div className="absolute bottom-1 left-2.5 text-[12px] text-amber-300 font-bold drop-shadow-[0_0_8px_#fbbf24] animate-float-aegis-1 select-none">
+            ⛊
           </div>
-          <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay" />
+          <div className="absolute bottom-0.5 right-3 text-[11px] text-yellow-300 font-bold drop-shadow-[0_0_8px_#fde047] animate-float-aegis-2 select-none">
+            ⛊
+          </div>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[13px] text-amber-400 font-bold drop-shadow-[0_0_10px_#f59e0b] animate-float-aegis-3 select-none">
+            ⛊
+          </div>
+          
+          <div className="absolute top-1 inset-x-0 flex justify-center pointer-events-none">
+            <span className="text-[10px] drop-shadow-[0_0_8px_#f59e0b] select-none animate-pulse">🛡️</span>
+          </div>
         </div>
       )}
 
-      {/* 6. Regeneration Emerald Shimmer (Green Underglow + Rising Leaves & Plus Particles) */}
+      {/* 6. Regeneration Emerald Shimmer (Vitality Rings & Flora) */}
       {hasRegen && (
         <div className="absolute inset-0">
-          {/* Emerald Bottom Underglow */}
-          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-emerald-500/40 via-emerald-600/20 to-transparent mix-blend-screen pointer-events-none" />
-          <div className="absolute bottom-0 inset-x-0 h-3 bg-emerald-400/35 blur-[2px] animate-pulse" />
+          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-emerald-500/45 via-emerald-600/20 to-transparent mix-blend-screen pointer-events-none" />
+          <div className="absolute bottom-0 inset-x-0 h-3 bg-emerald-400/40 blur-[2px] animate-pulse" />
 
           {/* Floating upward green leaves & plus signs */}
           <div className="absolute bottom-0 left-2 text-[10px] animate-float-leaf-1 drop-shadow-[0_0_6px_#10b981] select-none">🍃</div>
-          <div className="absolute bottom-1 left-5 text-[11px] font-black text-emerald-300 animate-float-plus-1 drop-shadow-[0_0_5px_#34d399] select-none">+</div>
-          <div className="absolute bottom-0.5 right-4 text-[9px] animate-float-leaf-2 drop-shadow-[0_0_6px_#14b8a6] select-none">🌿</div>
-          <div className="absolute bottom-1 right-2 text-[12px] font-black text-emerald-400 animate-float-plus-2 drop-shadow-[0_0_5px_#10b981] select-none">+</div>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] animate-float-leaf-3 drop-shadow-[0_0_4px_#22c55e] select-none">🍃</div>
+          <div className="absolute bottom-1 left-5 text-[12px] font-black text-emerald-300 animate-float-plus-1 drop-shadow-[0_0_6px_#34d399] select-none">+</div>
+          <div className="absolute bottom-0.5 right-4 text-[10px] animate-float-leaf-2 drop-shadow-[0_0_6px_#14b8a6] select-none">🌿</div>
+          <div className="absolute bottom-1 right-2 text-[13px] font-black text-emerald-400 animate-float-plus-2 drop-shadow-[0_0_6px_#10b981] select-none">+</div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] animate-float-leaf-3 drop-shadow-[0_0_5px_#22c55e] select-none">🌿</div>
 
-          {/* Frame Inset Shimmer */}
-          <div className="absolute inset-0 border border-emerald-400/60 rounded-2xl shadow-[inset_0_0_12px_rgba(52,211,153,0.4)]" />
+          <div className="absolute inset-0 border border-emerald-400/70 rounded-2xl shadow-[inset_0_0_14px_rgba(52,211,153,0.5)]" />
         </div>
       )}
 
-      {/* 7. Haste Swift Speed Lines (Fast Random Horizontal Streaks) */}
+      {/* 7. Haste Swift Speed Lines & Wind Shear 彡 Dashes */}
       {hasHaste && (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-cyan-950/15 mix-blend-screen" />
-          {/* Speed line streaks at varied heights and speeds */}
-          <div className="absolute top-[20%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_6px_#22d3ee] animate-speedline-1" />
-          <div className="absolute top-[36%] inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-teal-200 to-transparent shadow-[0_0_4px_#2dd4bf] animate-speedline-2" />
-          <div className="absolute top-[54%] inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-200 to-transparent shadow-[0_0_7px_#38bdf8] animate-speedline-3" />
-          <div className="absolute top-[70%] inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-sky-300 to-transparent shadow-[0_0_5px_#0ea5e9] animate-speedline-4" />
-          <div className="absolute top-[84%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_6px_#06b6d4] animate-speedline-5" />
-          {/* Cyan border pulse */}
-          <div className="absolute inset-0 border border-cyan-400/70 rounded-2xl shadow-[inset_0_0_12px_rgba(34,211,238,0.45)]" />
+          <div className="absolute inset-0 bg-cyan-950/20 mix-blend-screen" />
+          
+          {/* Speed line streaks */}
+          <div className="absolute top-[20%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_8px_#22d3ee] animate-speedline-1" />
+          <div className="absolute top-[40%] inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-teal-200 to-transparent shadow-[0_0_6px_#2dd4bf] animate-speedline-2" />
+          <div className="absolute top-[62%] inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-200 to-transparent shadow-[0_0_9px_#38bdf8] animate-speedline-3" />
+          <div className="absolute top-[80%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_7px_#06b6d4] animate-speedline-5" />
+          
+          {/* Wind shear 彡 dashes */}
+          <div className="absolute top-1/4 left-3 text-[11px] font-mono font-bold text-cyan-300 drop-shadow-[0_0_6px_#22d3ee] animate-wind-shear-1 select-none">彡</div>
+          <div className="absolute top-1/2 right-4 text-[12px] font-mono font-bold text-teal-200 drop-shadow-[0_0_6px_#2dd4bf] animate-wind-shear-2 select-none">彡</div>
+          <div className="absolute bottom-1/4 left-5 text-[11px] font-mono font-bold text-sky-300 drop-shadow-[0_0_6px_#38bdf8] animate-wind-shear-3 select-none">⚡</div>
+          
+          <div className="absolute inset-0 border border-cyan-400/80 rounded-2xl shadow-[inset_0_0_14px_rgba(34,211,238,0.55)]" />
         </div>
       )}
 
-      {/* 8. Empowered Solar Glow (Amber Radiance & Rising Solar Flares) */}
+      {/* 8. Empowered Solar Radiance & Vertical Rising Lines */}
       {hasEmpowered && (
         <div className="absolute inset-0">
-          <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-amber-500/35 via-yellow-500/15 to-transparent mix-blend-screen" />
-          <div className="absolute bottom-0 inset-x-0 h-2 bg-yellow-400/40 blur-[2px] animate-pulse" />
-          <div className="absolute bottom-1 left-2.5 text-[10px] animate-solar-flare-1 drop-shadow-[0_0_6px_#f59e0b] select-none">✨</div>
-          <div className="absolute bottom-0.5 right-2.5 text-[9px] animate-solar-flare-2 drop-shadow-[0_0_6px_#eab308] select-none">☀️</div>
-          <div className="absolute inset-0 border border-yellow-300/80 rounded-2xl shadow-[inset_0_0_14px_rgba(253,224,71,0.55)]" />
+          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-amber-500/40 via-yellow-500/20 to-transparent mix-blend-screen" />
+          <div className="absolute bottom-0 inset-x-0 h-2.5 bg-yellow-400/50 blur-[2px] animate-pulse" />
+          
+          {/* Vertical rising speed lines / auric beams */}
+          <div className="absolute inset-y-0 left-2.5 w-[2px] bg-gradient-to-t from-transparent via-amber-300 to-transparent shadow-[0_0_8px_#fbbf24] animate-beam-rise-1" />
+          <div className="absolute inset-y-0 left-1/3 w-[1.5px] bg-gradient-to-t from-transparent via-yellow-200 to-transparent shadow-[0_0_6px_#fde047] animate-beam-rise-2" />
+          <div className="absolute inset-y-0 right-1/3 w-[2px] bg-gradient-to-t from-transparent via-amber-300 to-transparent shadow-[0_0_8px_#f59e0b] animate-beam-rise-3" />
+          <div className="absolute inset-y-0 right-3 w-[1.5px] bg-gradient-to-t from-transparent via-yellow-300 to-transparent shadow-[0_0_6px_#fbbf24] animate-beam-rise-4" />
+          
+          {/* Rising solar flares */}
+          <div className="absolute bottom-1 left-2 text-[11px] animate-solar-flare-1 drop-shadow-[0_0_8px_#f59e0b] select-none">✨</div>
+          <div className="absolute bottom-0.5 right-2 text-[10px] animate-solar-flare-2 drop-shadow-[0_0_8px_#eab308] select-none">☀️</div>
+          
+          <div className="absolute inset-0 border-2 border-yellow-300/90 rounded-2xl shadow-[inset_0_0_16px_rgba(253,224,71,0.65)]" />
         </div>
       )}
     </div>
