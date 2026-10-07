@@ -177,14 +177,20 @@ class SlashArc {
 // Status effect class resolver for dynamic frame glow and borders
 export const getFrameStatusClass = (effects?: ActiveStatusEffect[]): string => {
   if (!effects || effects.length === 0) return '';
+  // Debuffs take priority for danger awareness
   if (effects.some(e => e.type === 'POISON')) return 'vfx-frame-poison';
   if (effects.some(e => e.type === 'BLEED')) return 'vfx-frame-bleed';
   if (effects.some(e => e.type === 'BURN')) return 'vfx-frame-burn';
   if (effects.some(e => e.type === 'EXHAUSTION')) return 'vfx-frame-exhaust';
+  // Buffs
+  if (effects.some(e => e.type === 'REGENERATION')) return 'vfx-frame-regen';
+  if (effects.some(e => e.type === 'HASTE')) return 'vfx-frame-haste';
+  if (effects.some(e => e.type === 'EMPOWERED')) return 'vfx-frame-empowered';
+  if (effects.some(e => e.type === 'FORTIFIED')) return 'vfx-frame-fortified';
   return '';
 };
 
-// Tactical Status Effect Overlay for Character Artwork Frames (Dripping Poison, Blood, Embers, Miasma)
+// Tactical Status Effect Overlay for Character Artwork Frames (Dripping Poison, Blood, Embers, Miasma, and Buff Surges)
 export const StatusEffectFrameOverlay: React.FC<{ activeEffects?: ActiveStatusEffect[] }> = ({ activeEffects }) => {
   if (!activeEffects || activeEffects.length === 0) return null;
 
@@ -238,24 +244,60 @@ export const StatusEffectFrameOverlay: React.FC<{ activeEffects?: ActiveStatusEf
         </div>
       )}
 
-      {/* 5. Fortified Golden Aegis */}
+      {/* 5. Fortified Golden Aegis (Hardened Poise Shield) */}
       {hasFortified && (
-        <div className="absolute inset-0 border border-amber-400/60 rounded-2xl shadow-[inset_0_0_12px_rgba(251,191,36,0.4)]" />
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 border-2 border-amber-400/80 rounded-2xl shadow-[inset_0_0_14px_rgba(251,191,36,0.5)]" />
+          <div className="absolute top-1 inset-x-0 flex justify-center pointer-events-none">
+            <span className="text-[9px] drop-shadow-[0_0_6px_#f59e0b] select-none">🛡️</span>
+          </div>
+          <div className="absolute inset-0 bg-amber-500/10 mix-blend-overlay" />
+        </div>
       )}
 
-      {/* 6. Regeneration Emerald Shimmer */}
+      {/* 6. Regeneration Emerald Shimmer (Green Underglow + Rising Leaves & Plus Particles) */}
       {hasRegen && (
-        <div className="absolute inset-0 border border-emerald-400/50 rounded-2xl shadow-[inset_0_0_10px_rgba(52,211,153,0.35)]" />
+        <div className="absolute inset-0">
+          {/* Emerald Bottom Underglow */}
+          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-emerald-500/40 via-emerald-600/20 to-transparent mix-blend-screen pointer-events-none" />
+          <div className="absolute bottom-0 inset-x-0 h-3 bg-emerald-400/35 blur-[2px] animate-pulse" />
+
+          {/* Floating upward green leaves & plus signs */}
+          <div className="absolute bottom-0 left-2 text-[10px] animate-float-leaf-1 drop-shadow-[0_0_6px_#10b981] select-none">🍃</div>
+          <div className="absolute bottom-1 left-5 text-[11px] font-black text-emerald-300 animate-float-plus-1 drop-shadow-[0_0_5px_#34d399] select-none">+</div>
+          <div className="absolute bottom-0.5 right-4 text-[9px] animate-float-leaf-2 drop-shadow-[0_0_6px_#14b8a6] select-none">🌿</div>
+          <div className="absolute bottom-1 right-2 text-[12px] font-black text-emerald-400 animate-float-plus-2 drop-shadow-[0_0_5px_#10b981] select-none">+</div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] animate-float-leaf-3 drop-shadow-[0_0_4px_#22c55e] select-none">🍃</div>
+
+          {/* Frame Inset Shimmer */}
+          <div className="absolute inset-0 border border-emerald-400/60 rounded-2xl shadow-[inset_0_0_12px_rgba(52,211,153,0.4)]" />
+        </div>
       )}
 
-      {/* 7. Haste Cyan Static */}
+      {/* 7. Haste Swift Speed Lines (Fast Random Horizontal Streaks) */}
       {hasHaste && (
-        <div className="absolute inset-0 border border-cyan-400/60 rounded-2xl shadow-[inset_0_0_10px_rgba(34,211,238,0.4)]" />
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-cyan-950/15 mix-blend-screen" />
+          {/* Speed line streaks at varied heights and speeds */}
+          <div className="absolute top-[20%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_6px_#22d3ee] animate-speedline-1" />
+          <div className="absolute top-[36%] inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-teal-200 to-transparent shadow-[0_0_4px_#2dd4bf] animate-speedline-2" />
+          <div className="absolute top-[54%] inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-200 to-transparent shadow-[0_0_7px_#38bdf8] animate-speedline-3" />
+          <div className="absolute top-[70%] inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-sky-300 to-transparent shadow-[0_0_5px_#0ea5e9] animate-speedline-4" />
+          <div className="absolute top-[84%] inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_6px_#06b6d4] animate-speedline-5" />
+          {/* Cyan border pulse */}
+          <div className="absolute inset-0 border border-cyan-400/70 rounded-2xl shadow-[inset_0_0_12px_rgba(34,211,238,0.45)]" />
+        </div>
       )}
 
-      {/* 8. Empowered Celestial Glow */}
+      {/* 8. Empowered Solar Glow (Amber Radiance & Rising Solar Flares) */}
       {hasEmpowered && (
-        <div className="absolute inset-0 border border-yellow-300/70 rounded-2xl shadow-[inset_0_0_14px_rgba(253,224,71,0.5)]" />
+        <div className="absolute inset-0">
+          <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-amber-500/35 via-yellow-500/15 to-transparent mix-blend-screen" />
+          <div className="absolute bottom-0 inset-x-0 h-2 bg-yellow-400/40 blur-[2px] animate-pulse" />
+          <div className="absolute bottom-1 left-2.5 text-[10px] animate-solar-flare-1 drop-shadow-[0_0_6px_#f59e0b] select-none">✨</div>
+          <div className="absolute bottom-0.5 right-2.5 text-[9px] animate-solar-flare-2 drop-shadow-[0_0_6px_#eab308] select-none">☀️</div>
+          <div className="absolute inset-0 border border-yellow-300/80 rounded-2xl shadow-[inset_0_0_14px_rgba(253,224,71,0.55)]" />
+        </div>
       )}
     </div>
   );

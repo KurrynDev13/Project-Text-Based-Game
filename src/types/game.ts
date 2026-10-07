@@ -132,10 +132,10 @@ export interface ConsumableItem {
 
 // Status Effects (Buffs & Debuffs)
 export type StatusEffectType = 
-  | 'FORTIFIED' // Buff: +20% total Armor
-  | 'HASTE' // Buff: +25% action speed (extra turn every 4 rounds)
-  | 'REGENERATION' // Buff: Restores 4% Max HP per combat turn
-  | 'EMPOWERED' // Buff: Next spell/skill deals 50% more base dmg
+  | 'FORTIFIED' // Buff: +20% damage mitigation from hardened armor
+  | 'HASTE' // Buff: Action swiftness (+15% Dodge, accelerated skill CDs, 40% chance for extra turn)
+  | 'REGENERATION' // Buff: Restores 5% Max HP per combat turn
+  | 'EMPOWERED' // Buff: Next attack or damaging skill deals +50% bonus strike damage
   | 'BLEED' // Debuff: 5% Max HP pure physical dmg (ignores armor), 3 turns
   | 'BURN' // Debuff: Flat fire dmg per turn, halves healing, 4 turns
   | 'POISON' // Debuff: Escalating nature dmg (1x, 2x, 3x), 3 turns

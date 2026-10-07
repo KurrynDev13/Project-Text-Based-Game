@@ -156,6 +156,8 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
     if (skill.isBasicAttack) {
       // Basic attack: raw weapon roll + 50% of relevant derived stat
       baseDamage = weaponRoll + Math.floor(derivedBonus * 0.5);
+    } else if (skill.baseDamageMultiplier === 0) {
+      baseDamage = 0;
     } else {
       // Skill attack: weapon roll × multiplier + derived bonus
       baseDamage = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * skill.baseDamageMultiplier);
@@ -188,26 +190,39 @@ export const CombatArena: React.FC<CombatArenaProps> = ({
         break;
     }
 
-    const finalDmg = Math.max(1, Math.floor(baseDamage * (1 - enemyDR)));
+    const finalDmg = baseDamage === 0 ? 0 : Math.max(1, Math.floor(baseDamage * (1 - enemyDR)));
 
     // Crit check (2.0× post-DR)
     const isCrit = Math.random() * 100 < derived.critChancePercent;
-    if (isCrit) {
-      const critDmg = Math.floor(finalDmg * 2.0);
-      enemy.currentHp -= critDmg;
-      soundFX.playCritSound();
-      logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
-      const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
-      enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
-      logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+    if (baseDamage > 0) {
+      if (isCrit) {
+        const critDmg = Math.floor(finalDmg * 2.0);
+        enemy.currentHp -= critDmg;
+        soundFX.playCritSound();
+        logs = addLog(logs, `⚡ CRITICAL HIT! ${skill.icon} ${skill.name} devastated ${enemy.name} for ${critDmg}!`, 'CRIT', 'PLAYER');
+        const bleedEffect = { type: 'BLEED' as const, name: 'BLEED', isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== 'BLEED'), bleedEffect];
+        logs = addLog(logs, `🩸 Critical Wound! ${enemy.name} is BLEEDING (3 turns of physical rending)!`, 'DEBUFF', 'PLAYER');
+      } else {
+        enemy.currentHp -= finalDmg;
+        logs = addLog(logs, `${skill.icon} ${skill.name} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      }
     } else {
-      enemy.currentHp -= finalDmg;
-      logs = addLog(logs, `${skill.icon} ${skill.name} dealt ${finalDmg} to ${enemy.name}!`, 'DAMAGE', 'PLAYER');
+      logs = addLog(logs, `✨ ${skill.icon} Used ${skill.name}!`, 'BUFF', 'PLAYER');
     }
 
     // Apply status effect if skill triggers one
     if (skill.effectType) {
-      logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+      const isBuff = ['EMPOWERED', 'FORTIFIED', 'HASTE', 'REGENERATION'].includes(skill.effectType);
+      if (isBuff) {
+        const newBuff = { type: skill.effectType, name: skill.effectType, isBuff: true, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        updatedPlayer.activeEffects = [...(updatedPlayer.activeEffects || []).filter(e => e.type !== skill.effectType), newBuff];
+        logs = addLog(logs, `✨ You gained [${skill.effectType}]!`, 'BUFF', 'PLAYER');
+      } else {
+        const newDebuff = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newDebuff];
+        logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+      }
     }
 
     // Player Weapon Affix Status Infliction Proc Check

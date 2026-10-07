@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity } from '../types/game';
+import { PlayerCharacter, BattleState, BattleLogEntry, EnemyMonster, GameLocation, ConsumableItem, Skill, EquipmentItem, HeroClass, EncryptedMemory, MemoryRarity, StatusEffectType, ActiveStatusEffect } from '../types/game';
 import { GAME_LOCATIONS, MOUNTS } from '../data/equipmentData';
 import { generateMonsterForLocation, MONSTER_TEMPLATES } from '../data/monstersData';
 import { calcDerivedStats, calcExpRequired, processExpGain, totalCowriesFromWallet, cowriesToWallet, formatCostInCowries, formatCowriesShort, calcMaxStamina, getActStaminaCosts, calcRequiredActPower, calcMonsterPowerRating, calcRequiredGuardianPower, calculateStatDrivenDoTDamage } from '../utils/gameFormulas';
@@ -43,6 +43,9 @@ export interface BossVictoryRewardData {
   droppedItem?: EquipmentItem;
   droppedMemory?: EncryptedMemory;
 }
+
+export const isBuffStatus = (effect?: StatusEffectType): boolean =>
+  effect === 'EMPOWERED' || effect === 'FORTIFIED' || effect === 'HASTE' || effect === 'REGENERATION';
 
 interface WorldHuntViewProps {
   player: PlayerCharacter;
@@ -1287,7 +1290,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     if (!battle.enemy || !battle.inCombat || battle.winner !== null || isCombatBusy) return;
 
     setIsCombatBusy(true);
-    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
+    let nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
+    if ((player.activeEffects || []).some(e => e.type === 'HASTE')) {
+      nextSkillCooldowns = decrementPlayerCooldowns(nextSkillCooldowns);
+    }
     soundFX.playAttackSound();
     setHeroAnim('anim-lunge-right');
     setTimeout(() => setHeroAnim(''), 280);
@@ -1314,7 +1320,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       const weaponRoll = Math.floor(minDmg + Math.random() * (maxDmg - minDmg + 1));
-      const baseDmg = weaponRoll + Math.floor(statBonus);
+      let baseDmg = weaponRoll + Math.floor(statBonus);
+
+      let consumedEmpowered = false;
+      if (player.isEmpoweredNextTurn || (player.activeEffects || []).some(e => e.type === 'EMPOWERED')) {
+        baseDmg = Math.floor(baseDmg * 1.5);
+        consumedEmpowered = true;
+      }
+
       const regenedMp = Math.min(derived.maxMp, player.currentMp + 5);
       const enemyDR = getEnemyDR(enemy.armor, 'PHYSICAL', player.heroClass, weaponCategory);
       const finalDmg = Math.max(1, Math.floor(baseDmg * (1 - enemyDR)));
@@ -1325,6 +1338,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       stageRef.current?.triggerSlash('MONSTER', isCrit ? '#f59e0b' : '#38bdf8');
       setMonsterAnim('anim-hit');
       setTimeout(() => setMonsterAnim(''), 360);
+
+      if (consumedEmpowered) {
+        logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage unleashed!`, 'BUFF', 'PLAYER');
+      }
 
       let leechHp = 0;
       if (isCrit) {
@@ -1364,6 +1381,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         ...player,
         currentMp: regenedMp,
         currentHp: Math.min(derived.maxHp, player.currentHp + leechHp),
+        isEmpoweredNextTurn: consumedEmpowered ? false : player.isEmpoweredNextTurn,
+        activeEffects: consumedEmpowered ? (player.activeEffects || []).filter(e => e.type !== 'EMPOWERED') : player.activeEffects,
       };
       onUpdatePlayer(updatedPlayer);
 
@@ -1381,6 +1400,14 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
+
+      // Haste Action Surge check (40% chance under Haste to seize an extra action)
+      if ((updatedPlayer.activeEffects || []).some(e => e.type === 'HASTE') && Math.random() < 0.40) {
+        logs = addLog(logs, `⚡ HASTE SURGE! Swift as the wind, you act again before ${enemy.name} can strike!`, 'BUFF', 'PLAYER');
+        onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
+        setIsCombatBusy(false);
+        return;
+      }
 
       // Monster counter-attack after player hit settles
       setTimeout(() => {
@@ -1410,7 +1437,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
     const enemy = { ...battle.enemy };
 
     // Decrement other active cooldowns on this player action, then assign cooldown for cast skill
-    const nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
+    let nextSkillCooldowns = decrementPlayerCooldowns(battle.skillCooldowns);
+    if ((player.activeEffects || []).some(e => e.type === 'HASTE')) {
+      nextSkillCooldowns = decrementPlayerCooldowns(nextSkillCooldowns);
+    }
     if (skill.cooldownTurns && skill.cooldownTurns > 0) {
       nextSkillCooldowns[skill.id] = skill.cooldownTurns;
     }
@@ -1431,10 +1461,38 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       logs = addLog(logs, `${skill.icon} Used [${skill.name}]${rankLabel}! Restored +${healHp} HP!`, 'BUFF', 'PLAYER');
 
       if (skill.effectType) {
-        logs = addLog(logs, `✨ ${skill.effectType} status activated!`, 'BUFF', 'PLAYER');
+        if (isBuffStatus(skill.effectType)) {
+          const newBuff: ActiveStatusEffect = {
+            type: skill.effectType,
+            name: skill.effectType,
+            isBuff: true,
+            durationTurnsLeft: 3,
+            magnitude: skill.effectType === 'REGENERATION' ? 0.05 : 1,
+            stackCount: 1,
+          };
+          updatedPlayer.activeEffects = [...(updatedPlayer.activeEffects || []).filter(e => e.type !== skill.effectType), newBuff];
+          if (skill.effectType === 'REGENERATION') {
+            logs = addLog(logs, `🌿 REGENERATION! Ancestral vitality restores 5% Max HP every combat turn!`, 'BUFF', 'PLAYER');
+          } else {
+            logs = addLog(logs, `✨ Gained [${skill.effectType}]!`, 'BUFF', 'PLAYER');
+          }
+        } else {
+          const newDebuff = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newDebuff];
+          logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+        }
       }
 
       onUpdatePlayer(updatedPlayer);
+
+      // Haste Action Surge check
+      if ((updatedPlayer.activeEffects || []).some(e => e.type === 'HASTE') && Math.random() < 0.40) {
+        logs = addLog(logs, `⚡ HASTE SURGE! Swift as the wind, you act again before ${enemy.name} can strike!`, 'BUFF', 'PLAYER');
+        onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
+        setIsCombatBusy(false);
+        return;
+      }
+
       onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
 
       setTimeout(() => {
@@ -1443,7 +1501,66 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       return;
     }
 
-    // --- DAMAGE / UTILITY SKILLS ---
+    // --- PURE BUFF / UTILITY SKILLS (baseDamageMultiplier === 0) ---
+    if (skill.baseDamageMultiplier === 0) {
+      soundFX.playPotionSound();
+      stageRef.current?.triggerGuardAura('HERO');
+
+      if (skill.id === 'skill_mand_2' || skill.name.includes('Battle Cry')) {
+        updatedPlayer.currentMp = Math.min(derived.maxMp, updatedPlayer.currentMp + 10);
+        logs = addLog(logs, `📣 ${skill.icon} [${skill.name}]${rankLabel}! Emitted a thunderous war cry (+10 MP restored)!`, 'BUFF', 'PLAYER');
+      } else {
+        logs = addLog(logs, `✨ ${skill.icon} Used [${skill.name}]${rankLabel}!`, 'BUFF', 'PLAYER');
+      }
+
+      if (skill.shieldPercent) {
+        const scaledShield = getScaledSkillShield(skill, skillRank) || skill.shieldPercent;
+        const shieldAmount = Math.max(1, Math.floor(derived.maxHp * scaledShield));
+        updatedPlayer.currentHp = Math.min(derived.maxHp, updatedPlayer.currentHp + shieldAmount);
+        stageRef.current?.addFloater(`+${shieldAmount}`, 'HERO', 'heal');
+        logs = addLog(logs, `🛡️ Spirit Shield: Generated +${shieldAmount} barrier (${Math.round(scaledShield * 100)}% Max HP)!`, 'BUFF', 'PLAYER');
+      }
+
+      if (skill.effectType && isBuffStatus(skill.effectType)) {
+        const newBuff: ActiveStatusEffect = {
+          type: skill.effectType,
+          name: skill.effectType,
+          isBuff: true,
+          durationTurnsLeft: 3,
+          magnitude: skill.effectType === 'EMPOWERED' ? 1.5 : (skill.effectType === 'FORTIFIED' ? 0.25 : 0.05),
+          stackCount: 1,
+        };
+        updatedPlayer.activeEffects = [...(updatedPlayer.activeEffects || []).filter(e => e.type !== skill.effectType), newBuff];
+        if (skill.effectType === 'EMPOWERED') {
+          updatedPlayer.isEmpoweredNextTurn = true;
+          logs = addLog(logs, `🔥 EMPOWERED! Next attack or damaging skill deals +50% bonus strike damage!`, 'BUFF', 'PLAYER');
+        } else if (skill.effectType === 'FORTIFIED') {
+          logs = addLog(logs, `🛡️ FORTIFIED! Total armor hardened (+25% damage mitigation) for 3 turns!`, 'BUFF', 'PLAYER');
+        } else if (skill.effectType === 'HASTE') {
+          logs = addLog(logs, `⚡ HASTE! Action speed surged (+15% Dodge, accelerated cooldowns, chance for extra actions)!`, 'BUFF', 'PLAYER');
+        } else if (skill.effectType === 'REGENERATION') {
+          logs = addLog(logs, `🌿 REGENERATION! Ancestral vitality restores 5% Max HP every combat turn!`, 'BUFF', 'PLAYER');
+        }
+      }
+
+      onUpdatePlayer(updatedPlayer);
+
+      // Pure Haste stance grants immediate HASTE SURGE on cast!
+      if (skill.effectType === 'HASTE') {
+        logs = addLog(logs, `⚡ HASTE SURGE! Faded into the shadows with blinding speed! You seize an immediate free action!`, 'BUFF', 'PLAYER');
+        onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
+        setIsCombatBusy(false);
+        return;
+      }
+
+      onUpdateBattle({ ...battle, logs, skillCooldowns: nextSkillCooldowns });
+      setTimeout(() => {
+        executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
+      }, 650);
+      return;
+    }
+
+    // --- DAMAGING SKILLS ---
     setHeroAnim('anim-lunge-right');
     setTimeout(() => setHeroAnim(''), 280);
 
@@ -1466,10 +1583,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       const scaledMult = getScaledSkillDamageMult(skill, skillRank) || skill.baseDamageMultiplier || 1.0;
       let baseDmg = Math.floor((weaponRoll + Math.floor(derivedBonus * 0.4)) * scaledMult);
 
-      if (player.isEmpoweredNextTurn) {
+      let consumedEmpowered = false;
+      if (player.isEmpoweredNextTurn || (player.activeEffects || []).some(e => e.type === 'EMPOWERED')) {
         baseDmg = Math.floor(baseDmg * 1.5);
-        updatedPlayer.isEmpoweredNextTurn = false;
-        logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage applied!`, 'BUFF', 'PLAYER');
+        consumedEmpowered = true;
       }
 
       const enemyDR = getEnemyDR(enemy.armor, skill.damageType);
@@ -1480,6 +1597,10 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       setMonsterAnim('anim-hit');
       setTimeout(() => setMonsterAnim(''), 360);
+
+      if (consumedEmpowered) {
+        logs = addLog(logs, `🔥 EMPOWERED BURST! +50% bonus strike damage unleashed!`, 'BUFF', 'PLAYER');
+      }
 
       if (skill.damageType === 'FIRE') {
         stageRef.current?.triggerFireBurst('MONSTER');
@@ -1518,12 +1639,43 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         logs = addLog(logs, `🛡️ Warrior's Grit: Generated +${barrierAmount} protective barrier from heavy cleave!`, 'BUFF', 'PLAYER');
       }
 
+      if (skill.shieldPercent) {
+        const scaledShield = getScaledSkillShield(skill, skillRank) || skill.shieldPercent;
+        const shieldAmount = Math.max(1, Math.floor(derived.maxHp * scaledShield));
+        updatedPlayer.currentHp = Math.min(derived.maxHp, updatedPlayer.currentHp + shieldAmount);
+        stageRef.current?.triggerGuardAura('HERO');
+        stageRef.current?.addFloater(`+${shieldAmount}`, 'HERO', 'heal');
+        logs = addLog(logs, `🛡️ Spirit Shield: Generated +${shieldAmount} barrier (${Math.round(scaledShield * 100)}% Max HP)!`, 'BUFF', 'PLAYER');
+      }
+
       stageRef.current?.addFloater(appliedDmg, 'MONSTER', isCrit ? 'crit' : 'normal');
 
       if (skill.effectType) {
-        const newEffect = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
-        enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newEffect];
-        logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+        if (isBuffStatus(skill.effectType)) {
+          const newBuff: ActiveStatusEffect = {
+            type: skill.effectType,
+            name: skill.effectType,
+            isBuff: true,
+            durationTurnsLeft: 3,
+            magnitude: skill.effectType === 'EMPOWERED' ? 1.5 : (skill.effectType === 'FORTIFIED' ? 0.25 : 0.05),
+            stackCount: 1,
+          };
+          updatedPlayer.activeEffects = [...(updatedPlayer.activeEffects || []).filter(e => e.type !== skill.effectType), newBuff];
+          if (skill.effectType === 'EMPOWERED') {
+            updatedPlayer.isEmpoweredNextTurn = true;
+            logs = addLog(logs, `🔥 EMPOWERED! Next attack or skill deals +50% bonus strike damage!`, 'BUFF', 'PLAYER');
+          } else if (skill.effectType === 'FORTIFIED') {
+            logs = addLog(logs, `🛡️ FORTIFIED! Total armor hardened (+25% damage mitigation) for 3 turns!`, 'BUFF', 'PLAYER');
+          } else if (skill.effectType === 'HASTE') {
+            logs = addLog(logs, `⚡ HASTE! Action speed surged (+15% Dodge, accelerated cooldowns, chance for extra actions)!`, 'BUFF', 'PLAYER');
+          } else if (skill.effectType === 'REGENERATION') {
+            logs = addLog(logs, `🌿 REGENERATION! Ancestral vitality restores 5% Max HP every combat turn!`, 'BUFF', 'PLAYER');
+          }
+        } else {
+          const newEffect = { type: skill.effectType, name: skill.effectType, isBuff: false, durationTurnsLeft: 3, magnitude: 1, stackCount: 1 };
+          enemy.activeEffects = [...(enemy.activeEffects || []).filter(e => e.type !== skill.effectType), newEffect];
+          logs = addLog(logs, `🩸 ${enemy.name} is afflicted with ${skill.effectType}!`, 'DEBUFF', 'PLAYER');
+        }
       }
 
       for (const affix of activeWeapon?.affixes || []) {
@@ -1535,6 +1687,11 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
             logs = addLog(logs, `✨ [${activeWeapon?.name}] (${affix.name}) afflicted ${enemy.name} with ${statusType} for ${durationTurns} turns!`, 'DEBUFF', 'PLAYER');
           }
         }
+      }
+
+      if (consumedEmpowered) {
+        updatedPlayer.isEmpoweredNextTurn = false;
+        updatedPlayer.activeEffects = (updatedPlayer.activeEffects || []).filter(e => e.type !== 'EMPOWERED');
       }
 
       onUpdatePlayer(updatedPlayer);
@@ -1553,6 +1710,15 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
       }
 
       onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
+
+      // Haste Action Surge check
+      if ((updatedPlayer.activeEffects || []).some(e => e.type === 'HASTE') && Math.random() < 0.40) {
+        logs = addLog(logs, `⚡ HASTE SURGE! Swift as the wind, you act again before ${enemy.name} can strike!`, 'BUFF', 'PLAYER');
+        onUpdateBattle({ ...battle, enemy, logs, skillCooldowns: nextSkillCooldowns });
+        setIsCombatBusy(false);
+        return;
+      }
+
       setTimeout(() => {
         executeEnemyTurnAnimated(enemy, logs, updatedPlayer, nextSkillCooldowns);
       }, 650);
@@ -1865,6 +2031,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
           stageRef.current?.addFloater(dmg, 'HERO', 'normal');
         } else if (e.type === 'EXHAUSTION') {
           logs = addLog(logs, `🌀 Exhausted: Mana regen & Dodge reduced!`, 'DEBUFF', 'SYSTEM');
+        } else if (e.type === 'REGENERATION') {
+          const regenHp = Math.max(5, Math.floor(derived.maxHp * (e.magnitude || 0.05)));
+          playerUpdatedHp = Math.min(derived.maxHp, playerUpdatedHp + regenHp);
+          stageRef.current?.triggerSpiritHeal('HERO');
+          stageRef.current?.addFloater(`+${regenHp}`, 'HERO', 'heal');
+          logs = addLog(logs, `🌿 Regeneration: Restored +${regenHp} HP from ancestral vitality!`, 'HEAL', 'PLAYER');
         }
         return { ...e, durationTurnsLeft: e.durationTurnsLeft - 1 };
       }).filter(e => {
@@ -1882,13 +2054,18 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         enemyDmg = Math.max(1, Math.floor(enemyDmg * 0.75));
       }
 
-      // ── Dodge check ──────────────────────────────────────────────────────
-      if (Math.random() * 100 < derived.dodgeChancePercent) {
+      // ── Dodge check (includes +15% Haste Evasion bonus if active) ─────────
+      const hasHasteBuff = (p.activeEffects || []).some(e => e.type === 'HASTE');
+      const effectiveDodgePercent = Math.min(80, derived.dodgeChancePercent + (hasHasteBuff ? 15 : 0));
+      if (Math.random() * 100 < effectiveDodgePercent) {
         stageRef.current?.addFloater('Dodge', 'HERO', 'dodge');
         const isAgiClass = player.heroClass === 'Bagani' || player.heroClass === 'Mangangaso';
         const counterChance = isAgiClass ? Math.min(40, Math.floor(p.attributes.agi * 0.4)) : 0;
         
         let updatedPlayerAfterDodge = { ...p, isCoveredNextTurn: false };
+        if (hasHasteBuff) {
+          logs = addLog(logs, `💨 Haste Evasion: Blinding swiftness allowed you to slip past ${enemy.name}'s strike!`, 'INFO', 'PLAYER');
+        }
         // Bagani Spirit Acrobatics: Dodging restores +10 MP
         if (player.heroClass === 'Bagani') {
           const restoredMp = Math.min(derived.maxMp, p.currentMp + 10);
@@ -2003,6 +2180,12 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
         playerDR = Math.max(magicDR, (magicDR * 0.6) + (playerDR * 0.4));
       }
 
+      // Fortified Iron Aegis (+20% mitigation)
+      const isFortified = (p.activeEffects || []).some(e => e.type === 'FORTIFIED');
+      if (isFortified) {
+        playerDR = Math.min(0.85, playerDR + 0.20);
+      }
+
       if (p.isCoveredNextTurn) {
         const isMandirigma = player.heroClass === 'Mandirigma';
         const poiseDR = isMandirigma ? 0.35 + (player.attributes.str * 0.005) : 0.20;
@@ -2015,6 +2198,8 @@ export const WorldHuntView: React.FC<WorldHuntViewProps> = ({
 
       if (p.isCoveredNextTurn) {
         logs = addLog(logs, `🛡️ GUARDED! Blocked ${enemy.name}'s strike (took ${finalEnemyDmg} damage).`, 'DAMAGE', 'ENEMY');
+      } else if (isFortified) {
+        logs = addLog(logs, `🛡️ FORTIFIED! Golden aegis mitigated strike — took ${finalEnemyDmg} damage from ${enemy.name}.`, 'BUFF', 'ENEMY');
       } else {
         logs = addLog(logs, `⚔️ ${enemy.name} attacked you for ${finalEnemyDmg} damage!`, 'DAMAGE', 'ENEMY');
       }
